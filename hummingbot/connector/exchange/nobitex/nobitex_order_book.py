@@ -23,7 +23,7 @@ class NobitexOrderBook(OrderBook):
             msg.update(metadata)
         return OrderBookMessage(OrderBookMessageType.SNAPSHOT, {
             "trading_pair": msg["trading_pair"],
-            "update_id": msg["lastUpdateId"],
+            "update_id": msg["lastUpdate"],     # set lastUpdate time instead of update_id. Maybe cause problem.
             "bids": msg["bids"],
             "asks": msg["asks"]
         }, timestamp=timestamp)
