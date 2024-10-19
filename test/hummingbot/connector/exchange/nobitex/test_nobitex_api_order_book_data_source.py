@@ -205,6 +205,9 @@ class NobitexAPIOrderBookDataSourceUnitTests(unittest.TestCase):
         url = web_utils.public_rest_url(path_url=CONSTANTS.SNAPSHOT_PATH_URL, domain=self.domain)
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
 
+        time_url = web_utils.public_rest_url(path_url=CONSTANTS.SERVER_TIME_PATH_URL, domain=self.domain)
+        mock_api.get(re.compile(f"^{time_url}"), body=json.dumps({"serverTime": 1234567890}))
+
         mock_api.get(regex_url, status=400)
         with self.assertRaises(IOError):
             self.async_run_with_timeout(
