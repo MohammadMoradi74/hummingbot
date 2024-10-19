@@ -116,28 +116,68 @@ class NobitexAPIOrderBookDataSourceUnitTests(unittest.TestCase):
         return resp
 
     def _snapshot_response(self):
-        resp = {
-            "lastUpdateId": 1027024,
-            "bids": [
-                [
-                    "4.00000000",
-                    "431.00000000"
-                ]
-            ],
-            "asks": [
-                [
-                    "4.00000200",
-                    "12.00000000"
-                ]
-            ]
-        }
+        resp = {'status': 'ok',
+                'lastUpdate': 1729324655222,
+                'lastTradePrice': '634090',
+                'bids': [['634090', '2748.24'],
+                         ['634080', '197.2'],
+                         ['634070', '577.37'],
+                         ['634010', '815.96'],
+                         ['634000', '475.83'],
+                         ['633610', '124.54'],
+                         ['633600', '3000'],
+                         ['633520', '150'],
+                         ['633510', '125'],
+                         ['633500', '3363.91'],
+                         ['633350', '367.11'],
+                         ['633300', '789.69'],
+                         ['633150', '236.61'],
+                         ['633130', '394.94'],
+                         ['633110', '2453.68'],
+                         ['633100', '2378.7'],
+                         ['633090', '85.06'],
+                         ['633080', '24134.98'],
+                         ['633060', '1600.02'],
+                         ['633050', '397.88'],
+                         ['633030', '6082.45'],
+                         ['633020', '496.08'],
+                         ['633010', '6384.02'],
+                         ['633000', '7476.99']],
+                'asks': [
+                    ['634100', '108.33'],
+                    ['634110', '1604.21'],
+                    ['634120', '458.01'],
+                    ['634440', '50.16'],
+                    ['634450', '259.44'],
+                    ['634460', '946.71'],
+                    ['634500', '1780'],
+                    ['634580', '21.79'],
+                    ['634590', '1917.61'],
+                    ['634680', '100'],
+                    ['634690', '244.09'],
+                    ['634780', '733.42'],
+                    ['634790', '265.46'],
+                    ['634800', '226.1'],
+                    ['634810', '150'],
+                    ['634890', '20'],
+                    ['634900', '3039.36'],
+                    ['634930', '7888.39'],
+                    ['634960', '40'],
+                    ['634980', '7888.37'],
+                    ['634990', '225.98'],
+                    ['635000', '24401.54'],
+                    ['635010', '50'],
+                    ['635480', '79']]
+                }
         return resp
 
     @aioresponses()
     def test_get_new_order_book_successful(self, mock_api):
-        # def test_get_new_order_book_successful(self):
         url = web_utils.public_rest_url(path_url=CONSTANTS.SNAPSHOT_PATH_URL, domain=self.domain)
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
+
+        time_url = web_utils.public_rest_url(path_url=CONSTANTS.SERVER_TIME_PATH_URL, domain=self.domain)
+        mock_api.get(re.compile(f"^{time_url}"), body=json.dumps({"serverTime": 1234567890}))
 
         resp = self._snapshot_response()
 
@@ -146,18 +186,18 @@ class NobitexAPIOrderBookDataSourceUnitTests(unittest.TestCase):
         order_book: OrderBook = self.async_run_with_timeout(
             self.data_source.get_new_order_book(self.trading_pair), 100)
 
-        expected_update_id = resp["lastUpdateId"]
+        expected_update_id = resp["lastUpdate"]
 
         self.assertEqual(expected_update_id, order_book.snapshot_uid)
         bids = list(order_book.bid_entries())
         asks = list(order_book.ask_entries())
-        self.assertEqual(1, len(bids))
-        self.assertEqual(4, bids[0].price)
-        self.assertEqual(431, bids[0].amount)
+        self.assertEqual(24, len(bids))
+        self.assertEqual(634090, bids[0].price)
+        self.assertEqual(2748.24, bids[0].amount)
         self.assertEqual(expected_update_id, bids[0].update_id)
-        self.assertEqual(1, len(asks))
-        self.assertEqual(4.000002, asks[0].price)
-        self.assertEqual(12, asks[0].amount)
+        self.assertEqual(24, len(asks))
+        self.assertEqual(634100, asks[0].price)
+        self.assertEqual(108.33, asks[0].amount)
         self.assertEqual(expected_update_id, asks[0].update_id)
 
     @aioresponses()
