@@ -23,7 +23,7 @@ class BitpinOrderBook(OrderBook):
             msg.update(metadata)
         return OrderBookMessage(OrderBookMessageType.SNAPSHOT, {
             "trading_pair": msg["trading_pair"],
-            "update_id": msg["lastUpdateId"],
+            "update_id": int(timestamp),
             "bids": msg["bids"],
             "asks": msg["asks"]
         }, timestamp=timestamp)
