@@ -10,7 +10,7 @@ DEFAULT_DOMAIN = "ir"
 #
 # # Base URL
 REST_URL = "https://api.bitpin.{}/api/"
-# # WSS_URL = "wss://stream.binance.{}:9443/ws"
+WSS_URL = "wss://stream.binance.{}:9443/ws"
 #
 PUBLIC_API_VERSION = "v1"
 PRIVATE_API_VERSION = "v1"
@@ -21,7 +21,7 @@ PRIVATE_API_VERSION = "v1"
 # PRICES_PATH_URL = "/ticker/price"
 # EXCHANGE_INFO_PATH_URL = "/exchangeInfo"
 # PING_PATH_URL = "/ping"
-# SNAPSHOT_PATH_URL = "/depth"
+SNAPSHOT_PATH_URL = "/mth/orderbook/"
 SERVER_TIME_PATH_URL = "/mkt/tickers/"
 #
 # # Private API endpoints or BinanceClient function
@@ -30,7 +30,7 @@ SERVER_TIME_PATH_URL = "/mkt/tickers/"
 # ORDER_PATH_URL = "/order"
 # BINANCE_USER_STREAM_PATH_URL = "/userDataStream"
 #
-# WS_HEARTBEAT_TIME_INTERVAL = 30
+WS_HEARTBEAT_TIME_INTERVAL = 30
 #
 # # Binance params
 #
@@ -68,8 +68,8 @@ MAX_REQUEST = 5000
 # }
 #
 # # Websocket event types
-# DIFF_EVENT_TYPE = "depthUpdate"
-# TRADE_EVENT_TYPE = "trade"
+DIFF_EVENT_TYPE = "depthUpdate"
+TRADE_EVENT_TYPE = "trade"
 #
 RATE_LIMITS = [
     # Pools
@@ -90,9 +90,9 @@ RATE_LIMITS = [
     # RateLimit(limit_id=EXCHANGE_INFO_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE,
     #           linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 20),
     #                          LinkedLimitWeightPair(RAW_REQUESTS, 1)]),
-    # RateLimit(limit_id=SNAPSHOT_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE,
-    #           linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 100),
-    #                          LinkedLimitWeightPair(RAW_REQUESTS, 1)]),
+    RateLimit(limit_id=SNAPSHOT_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE,
+              linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 100),
+                             LinkedLimitWeightPair(RAW_REQUESTS, 1)]),
     # RateLimit(limit_id=BINANCE_USER_STREAM_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE,
     #           linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 2),
     #                          LinkedLimitWeightPair(RAW_REQUESTS, 1)]),
