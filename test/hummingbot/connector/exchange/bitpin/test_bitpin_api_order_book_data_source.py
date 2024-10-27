@@ -178,41 +178,27 @@ class BitpinAPIOrderBookDataSourceUnitTests(unittest.TestCase):
     def test_listen_for_subscriptions_subscribes_to_trades_and_order_diffs(self, ws_connect_mock):
         ws_connect_mock.return_value = self.mocking_assistant.create_websocket_mock()
 
-        result_subscribe_trades = {
-            "result": None,
-            "id": 1
-        }
-        result_subscribe_diffs = {
-            "result": None,
-            "id": 2
+        result_subscribe_trades_and_diff = {
+            "message": "sub to markets ['USDT_IRT']"
         }
 
         self.mocking_assistant.add_websocket_aiohttp_message(
             websocket_mock=ws_connect_mock.return_value,
-            message=json.dumps(result_subscribe_trades))
-        self.mocking_assistant.add_websocket_aiohttp_message(
-            websocket_mock=ws_connect_mock.return_value,
-            message=json.dumps(result_subscribe_diffs))
+            message=json.dumps(result_subscribe_trades_and_diff))
 
         self.listening_task = self.ev_loop.create_task(self.data_source.listen_for_subscriptions())
-
+        # self.async_run_with_timeout(self.listening_task)
         self.mocking_assistant.run_until_all_aiohttp_messages_delivered(ws_connect_mock.return_value)
-
+        #
         sent_subscription_messages = self.mocking_assistant.json_messages_sent_through_websocket(
             websocket_mock=ws_connect_mock.return_value)
 
-        self.assertEqual(2, len(sent_subscription_messages))
+        self.assertEqual(1, len(sent_subscription_messages))
         expected_trade_subscription = {
-            "method": "SUBSCRIBE",
-            "params": [f"{self.ex_trading_pair.lower()}@trade"],
-            "id": 1}
+            "method": "sub_to_market_data",
+            "symbols": [self.trading_pair],
+        }
         self.assertEqual(expected_trade_subscription, sent_subscription_messages[0])
-        expected_diff_subscription = {
-            "method": "SUBSCRIBE",
-            "params": [f"{self.ex_trading_pair.lower()}@depth@100ms"],
-            "id": 2}
-        self.assertEqual(expected_diff_subscription, sent_subscription_messages[1])
-
         self.assertTrue(self._is_logged(
             "INFO",
             "Subscribed to public order book and trade channels..."
