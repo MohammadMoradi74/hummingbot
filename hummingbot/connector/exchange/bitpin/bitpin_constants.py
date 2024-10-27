@@ -10,7 +10,7 @@ DEFAULT_DOMAIN = "ir"
 #
 # # Base URL
 REST_URL = "https://api.bitpin.{}/api/"
-WSS_URL = "wss://stream.binance.{}:9443/ws"
+WSS_URL = "wss://ws.bitpin.{}/"
 #
 PUBLIC_API_VERSION = "v1"
 PRIVATE_API_VERSION = "v1"
@@ -30,7 +30,7 @@ SERVER_TIME_PATH_URL = "/mkt/tickers/"
 # ORDER_PATH_URL = "/order"
 # BINANCE_USER_STREAM_PATH_URL = "/userDataStream"
 #
-WS_HEARTBEAT_TIME_INTERVAL = 30
+WS_HEARTBEAT_TIME_INTERVAL = 15
 #
 # # Binance params
 #
@@ -68,8 +68,8 @@ MAX_REQUEST = 5000
 # }
 #
 # # Websocket event types
-DIFF_EVENT_TYPE = "depthUpdate"
-TRADE_EVENT_TYPE = "trade"
+DIFF_EVENT_TYPE = "market_data"
+TRADE_EVENT_TYPE = "matches_update"
 #
 RATE_LIMITS = [
     # Pools
