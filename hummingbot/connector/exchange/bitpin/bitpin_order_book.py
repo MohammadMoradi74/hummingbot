@@ -1,5 +1,7 @@
 from typing import Dict, Optional
 
+import pandas as pd
+
 from hummingbot.core.data_type.common import TradeType
 from hummingbot.core.data_type.order_book import OrderBook
 from hummingbot.core.data_type.order_book_message import OrderBookMessage, OrderBookMessageType
@@ -60,12 +62,13 @@ class BitpinOrderBook(OrderBook):
         """
         if metadata:
             msg.update(metadata)
-        ts = msg["E"]
+        timestamp = pd.Timestamp(msg["event_time"]).timestamp()
         return OrderBookMessage(OrderBookMessageType.TRADE, {
             "trading_pair": msg["trading_pair"],
-            "trade_type": float(TradeType.SELL.value) if msg["m"] else float(TradeType.BUY.value),
-            "trade_id": msg["t"],
-            "update_id": ts,
-            "price": msg["p"],
-            "amount": msg["q"]
-        }, timestamp=ts * 1e-3)
+            "trade_type": float(TradeType.SELL.value) if msg['matches'][0]['side'] == 'sell' else float(
+                TradeType.BUY.value),
+            "trade_id": msg['matches'][0]['id'],
+            "update_id": msg['matches'][0]['id'],
+            "price": msg['matches'][0]["price"],
+            "amount": msg['matches'][0]["quote_amount"]
+        }, timestamp=timestamp)
