@@ -107,7 +107,7 @@ class BitpinAPIOrderBookDataSource(OrderBookTrackerDataSource):
 
     async def _parse_order_book_diff_message(self, raw_message: Dict[str, Any], message_queue: asyncio.Queue):
         if "message" not in raw_message:
-            trading_pair = await self._connector.trading_pair_associated_to_exchange_symbol(symbol=raw_message["s"])
+            trading_pair = raw_message['symbol']
             order_book_message: OrderBookMessage = BitpinOrderBook.diff_message_from_exchange(
                 raw_message, time.time(), {"trading_pair": trading_pair})
             message_queue.put_nowait(order_book_message)
