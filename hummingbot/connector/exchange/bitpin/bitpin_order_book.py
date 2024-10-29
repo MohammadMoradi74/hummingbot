@@ -44,12 +44,11 @@ class BitpinOrderBook(OrderBook):
         """
         if metadata:
             msg.update(metadata)
-        return OrderBookMessage(OrderBookMessageType.DIFF, {
+        return OrderBookMessage(OrderBookMessageType.SNAPSHOT, {
             "trading_pair": msg["trading_pair"],
-            "first_update_id": msg["U"],
-            "update_id": msg["u"],
-            "bids": msg["b"],
-            "asks": msg["a"]
+            "update_id": int(timestamp),  # Set update_id as time of request
+            "bids": msg["bid"],
+            "asks": msg["ask"]
         }, timestamp=timestamp)
 
     @classmethod
