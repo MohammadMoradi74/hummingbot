@@ -89,17 +89,13 @@ class BitpinAPIOrderBookDataSourceUnitTests(unittest.TestCase):
 
     def _trade_update_event(self):
         resp = {
-            "e": "trade",
-            "E": 123456789,
-            "s": self.ex_trading_pair,
-            "t": 12345,
-            "p": "0.001",
-            "q": "100",
-            "b": 88,
-            "a": 50,
-            "T": 123456785,
-            "m": True,
-            "M": True
+            "matches": [
+                {"id": "726252762_726252802", "price": "67526.00", "base_amount": "6.400000",
+                 "quote_amount": "432166.000000", "side": "sell"},
+            ],
+            "symbol": "USDT_IRT",
+            "event": "matches_update",
+            "event_time": "2024-10-29T03:50:21.814436Z"
         }
         return resp
 
@@ -297,7 +293,7 @@ class BitpinAPIOrderBookDataSourceUnitTests(unittest.TestCase):
 
         msg: OrderBookMessage = self.async_run_with_timeout(msg_queue.get())
 
-        self.assertEqual(12345, msg.trade_id)
+        self.assertEqual('726252762_726252802', msg.trade_id)
 
     def test_listen_for_order_book_diffs_cancelled(self):
         mock_queue = AsyncMock()
