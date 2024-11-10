@@ -141,7 +141,7 @@ class BitpinUserStreamDataSourceUnitTests(unittest.TestCase):
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
 
         mock_response = {
-            "listenKey": self.listen_key
+            "access": self.listen_key
         }
         mock_api.post(regex_url, body=json.dumps(mock_response))
 
