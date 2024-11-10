@@ -64,6 +64,7 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
         try:
             data = await rest_assistant.execute_request(
                 url=web_utils.public_rest_url(path_url=CONSTANTS.BINANCE_USER_STREAM_PATH_URL, domain=self._domain),
+                data={"api_key": self._auth.api_key, "secret_key": self._auth.secret_key},
                 method=RESTMethod.POST,
                 throttler_limit_id=CONSTANTS.BINANCE_USER_STREAM_PATH_URL,
                 headers=self._auth.header_for_authentication()
@@ -73,7 +74,7 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
         except Exception as exception:
             raise IOError(f"Error fetching user stream listen key. Error: {exception}")
 
-        return data["listenKey"]
+        return data["access"]
 
     async def _ping_listen_key(self) -> bool:
         rest_assistant = await self._api_factory.get_rest_assistant()

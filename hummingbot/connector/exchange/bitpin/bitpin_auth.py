@@ -55,7 +55,7 @@ class BitpinAuth(AuthBase):
         return request_params
 
     def header_for_authentication(self) -> Dict[str, str]:
-        return {"X-MBX-APIKEY": self.api_key}
+        return {"Content-Type": "application/json"}
 
     def _generate_signature(self, params: Dict[str, Any]) -> str:
 
