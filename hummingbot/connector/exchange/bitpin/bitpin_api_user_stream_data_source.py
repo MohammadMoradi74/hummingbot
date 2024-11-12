@@ -17,8 +17,8 @@ if TYPE_CHECKING:
 
 class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
 
-    LISTEN_KEY_KEEP_ALIVE_INTERVAL = 1800  # Recommended to Ping/Update listen key to keep connection alive
-    HEARTBEAT_TIME_INTERVAL = 30.0
+    LISTEN_KEY_KEEP_ALIVE_INTERVAL = 600  # Recommended to Ping/Update listen key to keep connection alive
+    HEARTBEAT_TIME_INTERVAL = 30
 
     _logger: Optional[HummingbotLogger] = None
 
@@ -36,6 +36,8 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
 
         self._listen_key_initialized_event: asyncio.Event = asyncio.Event()
         self._last_listen_key_ping_ts = 0
+        self._current_listen_key = None
+        self._current_refresh_key = None
 
     async def _connected_websocket_assistant(self) -> WSAssistant:
         """
@@ -63,10 +65,10 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
         rest_assistant = await self._api_factory.get_rest_assistant()
         try:
             data = await rest_assistant.execute_request(
-                url=web_utils.public_rest_url(path_url=CONSTANTS.BINANCE_USER_STREAM_PATH_URL, domain=self._domain),
+                url=web_utils.public_rest_url(path_url=CONSTANTS.BITPIN_USER_STREAM_PATH_URL, domain=self._domain),
                 data={"api_key": self._auth.api_key, "secret_key": self._auth.secret_key},
                 method=RESTMethod.POST,
-                throttler_limit_id=CONSTANTS.BINANCE_USER_STREAM_PATH_URL,
+                throttler_limit_id=CONSTANTS.BITPIN_USER_STREAM_PATH_URL,
                 headers=self._auth.header_for_authentication()
             )
         except asyncio.CancelledError:
@@ -74,21 +76,21 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
         except Exception as exception:
             raise IOError(f"Error fetching user stream listen key. Error: {exception}")
 
-        return data["access"]
+        return data["access"], data["refresh"]
 
     async def _ping_listen_key(self) -> bool:
         rest_assistant = await self._api_factory.get_rest_assistant()
         try:
             data = await rest_assistant.execute_request(
-                url=web_utils.public_rest_url(path_url=CONSTANTS.BINANCE_USER_STREAM_PATH_URL, domain=self._domain),
-                params={"listenKey": self._current_listen_key},
-                method=RESTMethod.PUT,
+                url=web_utils.public_rest_url(path_url=CONSTANTS.BITPIN_USER_STREAM_PATH_URL2, domain=self._domain),
+                data={"refresh": self._current_refresh_key},
+                method=RESTMethod.POST,
                 return_err=True,
-                throttler_limit_id=CONSTANTS.BINANCE_USER_STREAM_PATH_URL,
+                throttler_limit_id=CONSTANTS.BITPIN_USER_STREAM_PATH_URL,
                 headers=self._auth.header_for_authentication()
             )
 
-            if "code" in data:
+            if "access" not in data:
                 self.logger().warning(f"Failed to refresh the listen key {self._current_listen_key}: {data}")
                 return False
 
@@ -98,6 +100,7 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
             self.logger().warning(f"Failed to refresh the listen key {self._current_listen_key}: {exception}")
             return False
 
+        self._current_listen_key = data["access"]
         return True
 
     async def _manage_listen_key_task_loop(self):
@@ -105,7 +108,7 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
             while True:
                 now = int(time.time())
                 if self._current_listen_key is None:
-                    self._current_listen_key = await self._get_listen_key()
+                    self._current_listen_key, self._current_refresh_key = await self._get_listen_key()
                     self.logger().info(f"Successfully obtained listen key {self._current_listen_key}")
                     self._listen_key_initialized_event.set()
                     self._last_listen_key_ping_ts = int(time.time())
