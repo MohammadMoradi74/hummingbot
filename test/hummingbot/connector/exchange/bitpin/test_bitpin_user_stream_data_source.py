@@ -265,11 +265,12 @@ class BitpinUserStreamDataSourceUnitTests(unittest.TestCase):
     @aioresponses()
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
     def test_listen_for_user_stream_connection_failed(self, mock_api, mock_ws):
-        url = web_utils.private_rest_url(path_url=CONSTANTS.BITPIN_USER_STREAM_PATH_URL, domain=self.domain)
+        url = web_utils.public_rest_url(path_url=CONSTANTS.BITPIN_USER_STREAM_PATH_URL, domain=self.domain)
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
 
         mock_response = {
-            "listenKey": self.listen_key
+            "access": self.listen_key,
+            "refresh": self.refresh_key
         }
         mock_api.post(regex_url, body=json.dumps(mock_response))
 
@@ -290,11 +291,12 @@ class BitpinUserStreamDataSourceUnitTests(unittest.TestCase):
     @aioresponses()
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
     def test_listen_for_user_stream_iter_message_throws_exception(self, mock_api, mock_ws):
-        url = web_utils.private_rest_url(path_url=CONSTANTS.BITPIN_USER_STREAM_PATH_URL, domain=self.domain)
+        url = web_utils.public_rest_url(path_url=CONSTANTS.BITPIN_USER_STREAM_PATH_URL, domain=self.domain)
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
 
         mock_response = {
-            "listenKey": self.listen_key
+            "access": self.listen_key,
+            "refresh": self.refresh_key
         }
         mock_api.post(regex_url, body=json.dumps(mock_response))
 
