@@ -167,9 +167,9 @@ class BitpinUserStreamDataSourceUnitTests(unittest.TestCase):
 
     @aioresponses()
     def test_ping_listen_key_successful(self, mock_api):
-        url = web_utils.private_rest_url(path_url=CONSTANTS.BITPIN_USER_STREAM_PATH_URL, domain=self.domain)
+        url = web_utils.public_rest_url(path_url=CONSTANTS.BITPIN_USER_STREAM_PATH_URL2, domain=self.domain)
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
-        mock_api.put(regex_url, body=json.dumps({}))
+        mock_api.post(regex_url, body=json.dumps({"access": self.listen_key}))
 
         self.data_source._current_listen_key = self.listen_key
         result: bool = self.async_run_with_timeout(self.data_source._ping_listen_key())
