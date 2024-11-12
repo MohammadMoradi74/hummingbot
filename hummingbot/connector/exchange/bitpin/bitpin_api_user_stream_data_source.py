@@ -6,7 +6,7 @@ from hummingbot.connector.exchange.bitpin import bitpin_constants as CONSTANTS, 
 from hummingbot.connector.exchange.bitpin.bitpin_auth import BitpinAuth
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
 from hummingbot.core.utils.async_utils import safe_ensure_future
-from hummingbot.core.web_assistant.connections.data_types import RESTMethod
+from hummingbot.core.web_assistant.connections.data_types import RESTMethod, WSJSONRequest
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
 from hummingbot.core.web_assistant.ws_assistant import WSAssistant
 from hummingbot.logger import HummingbotLogger
@@ -47,7 +47,7 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
         await self._listen_key_initialized_event.wait()
 
         ws: WSAssistant = await self._get_ws_assistant()
-        url = f"{CONSTANTS.WSS_URL.format(self._domain)}/{self._current_listen_key}"
+        url = f"{CONSTANTS.WSS_URL.format(self._domain)}"
         await ws.connect(ws_url=url, ping_timeout=CONSTANTS.WS_HEARTBEAT_TIME_INTERVAL)
         return ws
 
@@ -59,7 +59,24 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
 
         :param websocket_assistant: the websocket assistant used to connect to the exchange
         """
-        pass
+        try:
+            payload = {
+                "method": "authenticate",
+                "token": self._current_listen_key,
+            }
+            authentication_request: WSJSONRequest = WSJSONRequest(payload=payload)
+
+            await websocket_assistant.send(authentication_request)
+
+            self.logger().info("Authentication to private user stream...")
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            self.logger().error(
+                "Unexpected error occurred authenticating to user stream...",
+                exc_info=True
+            )
+            raise
 
     async def _get_listen_key(self):
         rest_assistant = await self._api_factory.get_rest_assistant()
