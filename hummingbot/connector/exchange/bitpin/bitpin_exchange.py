@@ -53,7 +53,7 @@ class BitpinExchange(ExchangePyBase):
 
     @staticmethod
     def bitpin_order_type(order_type: OrderType) -> str:
-        return order_type.name.upper()
+        return order_type.name.lower()
 
     @staticmethod
     def to_hb_order_type(bitpin_type: str) -> OrderType:
@@ -185,26 +185,28 @@ class BitpinExchange(ExchangePyBase):
         symbol = await self.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
         api_params = {"symbol": symbol,
                       "side": side_str,
-                      "quantity": amount_str,
+                      "base_amount": amount_str,
                       "type": type_str,
-                      "newClientOrderId": order_id}
+                      # "newClientOrderId": order_id} # not in bitpin
+                      }
         if order_type is OrderType.LIMIT or order_type is OrderType.LIMIT_MAKER:
             price_str = f"{price:f}"
             api_params["price"] = price_str
-        if order_type == OrderType.LIMIT:
-            api_params["timeInForce"] = CONSTANTS.TIME_IN_FORCE_GTC
+        # if order_type == OrderType.LIMIT: # not in bitpin
+        #     api_params["timeInForce"] = CONSTANTS.TIME_IN_FORCE_GTC
 
         try:
             order_result = await self._api_post(
                 path_url=CONSTANTS.ORDER_PATH_URL,
                 data=api_params,
                 is_auth_required=True)
-            o_id = str(order_result["orderId"])
-            transact_time = order_result["transactTime"] * 1e-3
+            o_id = str(order_result["id"])
+            transact_time = order_result["created_at"]
         except IOError as e:
             error_description = str(e)
             is_server_overloaded = ("status is 503" in error_description
                                     and "Unknown error, please check your request or try again later." in error_description)
+
             if is_server_overloaded:
                 o_id = "UNKNOWN"
                 transact_time = self._time_synchronizer.time()
@@ -219,7 +221,7 @@ class BitpinExchange(ExchangePyBase):
             "origClientOrderId": order_id,
         }
         cancel_result = await self._api_delete(
-            path_url=CONSTANTS.ORDER_PATH_URL,
+            path_url=CONSTANTS.ORDER_PATH_URL + '/' + order_id,
             params=api_params,
             is_auth_required=True)
         if cancel_result.get("status") == "CANCELED":
@@ -534,9 +536,9 @@ class BitpinExchange(ExchangePyBase):
 
     def _initialize_trading_pair_symbols_from_exchange_info(self, exchange_info: Dict[str, Any]):
         mapping = bidict()
-        for symbol_data in filter(bitpin_utils.is_exchange_information_valid, exchange_info["symbols"]):
-            mapping[symbol_data["symbol"]] = combine_to_hb_trading_pair(base=symbol_data["baseAsset"],
-                                                                        quote=symbol_data["quoteAsset"])
+        for symbol_data in filter(bitpin_utils.is_exchange_information_valid, exchange_info):
+            mapping[symbol_data["symbol"]] = combine_to_hb_trading_pair(base=symbol_data["base"],
+                                                                        quote=symbol_data["quote"])
         self._set_trading_pair_symbol_map(mapping)
 
     async def _get_last_traded_price(self, trading_pair: str) -> float:
