@@ -5,8 +5,8 @@ from hummingbot.core.api_throttler.data_types import LinkedLimitWeightPair, Rate
 #
 DEFAULT_DOMAIN = "ir"
 #
-# HBOT_ORDER_ID_PREFIX = "x-MG43PCSN"
-# MAX_ORDER_ID_LEN = 32
+HBOT_ORDER_ID_PREFIX = "x-MG43PCSN"
+MAX_ORDER_ID_LEN = 32
 #
 # # Base URL
 REST_URL = "https://api.bitpin.{}/api/"
@@ -19,15 +19,15 @@ PRIVATE_API_VERSION = "v1"
 # TICKER_PRICE_CHANGE_PATH_URL = "/ticker/24hr"
 # TICKER_BOOK_PATH_URL = "/ticker/bookTicker"
 # PRICES_PATH_URL = "/ticker/price"
-# EXCHANGE_INFO_PATH_URL = "/exchangeInfo"
-# PING_PATH_URL = "/ping"
+EXCHANGE_INFO_PATH_URL = "/mkt/markets/"
+PING_PATH_URL = "/ping"                 # not working! There's no ping ulr for bitpin. Just keeps other parts working
 SNAPSHOT_PATH_URL = "/mth/orderbook/"
 SERVER_TIME_PATH_URL = "/mkt/tickers/"
 #
 # # Private API endpoints or BinanceClient function
 # ACCOUNTS_PATH_URL = "/account"
 # MY_TRADES_PATH_URL = "/myTrades"
-# ORDER_PATH_URL = "/order"
+ORDER_PATH_URL = "/odr/orders/"
 BITPIN_USER_STREAM_PATH_URL = "/usr/authenticate/"
 BITPIN_USER_STREAM_PATH_URL2 = '/usr/refresh_token/'
 #
@@ -35,8 +35,8 @@ WS_HEARTBEAT_TIME_INTERVAL = 15
 #
 # # Binance params
 #
-# SIDE_BUY = "BUY"
-# SIDE_SELL = "SELL"
+SIDE_BUY = "buy"
+SIDE_SELL = "sell"
 #
 # TIME_IN_FORCE_GTC = "GTC"  # Good till cancelled
 # TIME_IN_FORCE_IOC = "IOC"  # Immediate or cancel
@@ -88,9 +88,9 @@ RATE_LIMITS = [
     # RateLimit(limit_id=PRICES_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE,
     #           linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 4),
     #                          LinkedLimitWeightPair(RAW_REQUESTS, 1)]),
-    # RateLimit(limit_id=EXCHANGE_INFO_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE,
-    #           linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 20),
-    #                          LinkedLimitWeightPair(RAW_REQUESTS, 1)]),
+    RateLimit(limit_id=EXCHANGE_INFO_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE,
+              linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 20),
+                             LinkedLimitWeightPair(RAW_REQUESTS, 1)]),
     RateLimit(limit_id=SNAPSHOT_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE,
               linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 100),
                              LinkedLimitWeightPair(RAW_REQUESTS, 1)]),
@@ -109,11 +109,11 @@ RATE_LIMITS = [
     # RateLimit(limit_id=MY_TRADES_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE,
     #           linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 20),
     #                          LinkedLimitWeightPair(RAW_REQUESTS, 1)]),
-    # RateLimit(limit_id=ORDER_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE,
-    #           linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 4),
-    #                          LinkedLimitWeightPair(ORDERS, 1),
-    #                          LinkedLimitWeightPair(ORDERS_24HR, 1),
-    #                          LinkedLimitWeightPair(RAW_REQUESTS, 1)])
+    RateLimit(limit_id=ORDER_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE,
+              linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 4),
+                             LinkedLimitWeightPair(ORDERS, 1),
+                             LinkedLimitWeightPair(ORDERS_24HR, 1),
+                             LinkedLimitWeightPair(RAW_REQUESTS, 1)])
 ]
 #
 # ORDER_NOT_EXIST_ERROR_CODE = -2013
