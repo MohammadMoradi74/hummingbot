@@ -182,7 +182,9 @@ class BitpinExchange(ExchangePyBase):
         amount_str = f"{amount:f}"
         type_str = BitpinExchange.bitpin_order_type(order_type)
         side_str = CONSTANTS.SIDE_BUY if trade_type is TradeType.BUY else CONSTANTS.SIDE_SELL
-        symbol = await self.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
+        # TODO: This request is too slow sometimes. Make it faster.
+        # symbol = await self.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
+        symbol = trading_pair
         api_params = {"symbol": symbol,
                       "side": side_str,
                       "base_amount": amount_str,
@@ -215,14 +217,11 @@ class BitpinExchange(ExchangePyBase):
         return o_id, transact_time
 
     async def _place_cancel(self, order_id: str, tracked_order: InFlightOrder):
-        symbol = await self.exchange_symbol_associated_to_pair(trading_pair=tracked_order.trading_pair)
-        api_params = {
-            "symbol": symbol,
-            "origClientOrderId": order_id,
-        }
+        # TODO: This request is too slow sometimes. Make it faster.
+        # symbol = await self.exchange_symbol_associated_to_pair(trading_pair=tracked_order.trading_pair)
         cancel_result = await self._api_delete(
-            path_url=CONSTANTS.ORDER_PATH_URL + '/' + order_id,
-            params=api_params,
+            path_url=CONSTANTS.ORDER_PATH_URL + order_id,
+            limit_id=CONSTANTS.ORDER_PATH_URL,
             is_auth_required=True)
         if cancel_result.get("status") == "CANCELED":
             return True
