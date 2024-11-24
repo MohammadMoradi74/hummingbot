@@ -253,24 +253,25 @@ class BitpinExchange(ExchangePyBase):
             ]
         }
         """
-        trading_pair_rules = exchange_info_dict.get("symbols", [])
         retval = []
-        for rule in filter(bitpin_utils.is_exchange_information_valid, trading_pair_rules):
+        for rule in filter(bitpin_utils.is_exchange_information_valid, exchange_info_dict):
             try:
-                trading_pair = await self.trading_pair_associated_to_exchange_symbol(symbol=rule.get("symbol"))
-                filters = rule.get("filters")
-                price_filter = [f for f in filters if f.get("filterType") == "PRICE_FILTER"][0]
-                lot_size_filter = [f for f in filters if f.get("filterType") == "LOT_SIZE"][0]
-                min_notional_filter = [f for f in filters if f.get("filterType") in ["MIN_NOTIONAL", "NOTIONAL"]][0]
+                # trading_pair = await self.trading_pair_associated_to_exchange_symbol(symbol=rule.get("symbol"))
+                # filters = rule.get("filters")
+                # price_filter = [f for f in filters if f.get("filterType") == "PRICE_FILTER"][0]
+                # lot_size_filter = [f for f in filters if f.get("filterType") == "LOT_SIZE"][0]
+                # min_notional_filter = [f for f in filters if f.get("filterType") in ["MIN_NOTIONAL", "NOTIONAL"]][0]
 
-                min_order_size = Decimal(lot_size_filter.get("minQty"))
-                tick_size = price_filter.get("tickSize")
-                step_size = Decimal(lot_size_filter.get("stepSize"))
-                min_notional = Decimal(min_notional_filter.get("minNotional"))
+                # TODO: fix this, use internal functions
+                trading_pair = rule.get("symbol").replace('_', '-')
+                min_order_size = 10 ** (-int(rule.get("base_amount_precision")))
+                tick_size = 10 ** (-int(rule.get("price_precision")))
+                step_size = 10 ** (-int(rule.get("base_amount_precision")))
+                min_notional = 1e5 if rule.get("quote") == 'IRT' else 2
 
                 retval.append(
                     TradingRule(trading_pair,
-                                min_order_size=min_order_size,
+                                min_order_size=Decimal(min_order_size),
                                 min_price_increment=Decimal(tick_size),
                                 min_base_amount_increment=Decimal(step_size),
                                 min_notional_size=Decimal(min_notional)))
