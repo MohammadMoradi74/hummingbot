@@ -26,7 +26,7 @@ SERVER_TIME_PATH_URL = "/mkt/tickers/"
 #
 # # Private API endpoints or BinanceClient function
 # ACCOUNTS_PATH_URL = "/account"
-# MY_TRADES_PATH_URL = "/myTrades"
+MY_TRADES_PATH_URL = "/odr/fills/"
 ORDER_PATH_URL = "/odr/orders/"
 BITPIN_USER_STREAM_PATH_URL = "/usr/authenticate/"
 BITPIN_USER_STREAM_PATH_URL2 = '/usr/refresh_token/'
@@ -106,9 +106,9 @@ RATE_LIMITS = [
     # RateLimit(limit_id=ACCOUNTS_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE,
     #           linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 20),
     #                          LinkedLimitWeightPair(RAW_REQUESTS, 1)]),
-    # RateLimit(limit_id=MY_TRADES_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE,
-    #           linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 20),
-    #                          LinkedLimitWeightPair(RAW_REQUESTS, 1)]),
+    RateLimit(limit_id=MY_TRADES_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE,
+              linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 20),
+                             LinkedLimitWeightPair(RAW_REQUESTS, 1)]),
     RateLimit(limit_id=ORDER_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE,
               linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 4),
                              LinkedLimitWeightPair(ORDERS, 1),
