@@ -874,25 +874,23 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
 
         trade_fill_non_tracked_order = {
             "symbol": self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset),
-            "id": 30000,
-            "orderId": 99999,
-            "orderListId": -1,
-            "price": "4.00000100",
-            "qty": "12.00000000",
-            "quoteQty": "48.000012",
-            "commission": "10.10000000",
-            "commissionAsset": "BNB",
-            "time": 1499865549590,
-            "isBuyer": True,
-            "isMaker": False,
-            "isBestMatch": True
+            "id": '89599933',
+            "order_id": '1102428497',
+            "price": "81550",
+            "base_amount": "2",
+            "quote_amount": "163100",
+            "commission": "0.0",
+            "commission_currency": self.base_asset,
+            "created_at": '2025-04-29T16:55:27.461784+03:30',
+            "side": 'buy',
+            "identifier": 'null',
         }
 
         mock_response = [trade_fill_non_tracked_order, trade_fill_non_tracked_order]
         mock_api.get(regex_url, body=json.dumps(mock_response))
 
         self.exchange.add_exchange_order_ids_from_market_recorder(
-            {str(trade_fill_non_tracked_order["orderId"]): "OID99"})
+            {str(trade_fill_non_tracked_order["order_id"]): "OID99"})
 
         self.async_run_with_timeout(self.exchange._update_order_fills_from_trades())
 
@@ -903,16 +901,17 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
 
         self.assertEqual(1, len(self.order_filled_logger.event_log))
         fill_event: OrderFilledEvent = self.order_filled_logger.event_log[0]
-        self.assertEqual(float(trade_fill_non_tracked_order["time"]) * 1e-3, fill_event.timestamp)
+        self.assertEqual(datetime.fromisoformat(trade_fill_non_tracked_order["created_at"]).timestamp(),
+                         fill_event.timestamp)
         self.assertEqual("OID99", fill_event.order_id)
         self.assertEqual(self.trading_pair, fill_event.trading_pair)
         self.assertEqual(TradeType.BUY, fill_event.trade_type)
-        self.assertEqual(OrderType.LIMIT, fill_event.order_type)
+        self.assertEqual(OrderType.MARKET, fill_event.order_type)
         self.assertEqual(Decimal(trade_fill_non_tracked_order["price"]), fill_event.price)
-        self.assertEqual(Decimal(trade_fill_non_tracked_order["qty"]), fill_event.amount)
+        self.assertEqual(Decimal(trade_fill_non_tracked_order["base_amount"]), fill_event.amount)
         self.assertEqual(0.0, fill_event.trade_fee.percent)
         self.assertEqual([
-            TokenAmount(trade_fill_non_tracked_order["commissionAsset"],
+            TokenAmount(trade_fill_non_tracked_order["commission_currency"],
                         Decimal(trade_fill_non_tracked_order["commission"]))],
             fill_event.trade_fee.flat_fees)
         self.assertTrue(self.is_logged(
