@@ -860,7 +860,8 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
         self.validate_auth_credentials_present(request)
         request_params = request.kwargs["params"]
         self.assertEqual(self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset), request_params["symbol"])
-        self.assertEqual(10 * 1e3, request_params["startTime"])
+        # comment the test as bitpin doesn't have startTime
+        # self.assertEqual(10 * 1e3, request_params["startTime"])
 
     @aioresponses()
     def test_update_order_fills_from_trades_with_repeated_fill_triggers_only_one_event(self, mock_api):
@@ -1238,19 +1239,15 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
     def _validate_auth_credentials_taking_parameters_from_argument(self,
                                                                    request_call_tuple: RequestCall,
                                                                    params: Dict[str, Any]):
-        pass
-        # bi
-        # self.assertIn("timestamp", params)
-        # self.assertIn("signature", params)
-        # request_headers = request_call_tuple.kwargs["headers"]
-        # self.assertIn("X-MBX-APIKEY", request_headers)
-        # self.assertEqual("testAPIKey", request_headers["X-MBX-APIKEY"])
+        self.assertIn("symbol", params)
+        self.assertEqual(request_call_tuple.kwargs["allow_redirects"], True)
 
     def _order_cancelation_request_successful_mock_response(self, order: InFlightOrder) -> Any:
         return {
             "symbol": self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset),
             "origClientOrderId": order.exchange_order_id or "dummyOrdId",
             "orderId": 4,
+
             "orderListId": -1,
             "clientOrderId": order.client_order_id,
             "price": str(order.price),
