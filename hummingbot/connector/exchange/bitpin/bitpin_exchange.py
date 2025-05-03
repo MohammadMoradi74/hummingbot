@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
@@ -68,7 +69,7 @@ class BitpinExchange(ExchangePyBase):
 
     @property
     def name(self) -> str:
-        if self._domain == "com":
+        if self._domain == "ir":
             return "bitpin"
         else:
             return f"bitpin_{self._domain}"
@@ -372,7 +373,8 @@ class BitpinExchange(ExchangePyBase):
 
         if (long_interval_current_tick > long_interval_last_tick
                 or (self.in_flight_orders and small_interval_current_tick > small_interval_last_tick)):
-            query_time = int(self._last_trades_poll_bitpin_timestamp * 1e3)
+            # There is no time params for bitpin. Maby using limit can solve the problem.
+            # query_time = int(self._last_trades_poll_bitpin_timestamp * 1e3)
             self._last_trades_poll_bitpin_timestamp = self._time_synchronizer.time()
             order_by_exchange_id_map = {}
             for order in self._order_tracker.all_fillable_orders.values():
@@ -382,14 +384,16 @@ class BitpinExchange(ExchangePyBase):
             trading_pairs = self.trading_pairs
             for trading_pair in trading_pairs:
                 params = {
-                    "symbol": await self.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
+                    "symbol": trading_pair
                 }
-                if self._last_poll_timestamp > 0:
-                    params["startTime"] = query_time
+                # There is no param for time
+                # if self._last_poll_timestamp > 0:
+                #     params["startTime"] = query_time
                 tasks.append(self._api_get(
                     path_url=CONSTANTS.MY_TRADES_PATH_URL,
                     params=params,
-                    is_auth_required=True))
+                    limit_id='/odr/fills/',
+                    is_auth_required=False))
 
             self.logger().debug(f"Polling for order fills of {len(tasks)} trading pairs.")
             results = await safe_gather(*tasks, return_exceptions=True)
@@ -403,15 +407,16 @@ class BitpinExchange(ExchangePyBase):
                     )
                     continue
                 for trade in trades:
-                    exchange_order_id = str(trade["orderId"])
+                    exchange_order_id = str(trade["order_id"])
                     if exchange_order_id in order_by_exchange_id_map:
                         # This is a fill for a tracked order
                         tracked_order = order_by_exchange_id_map[exchange_order_id]
                         fee = TradeFeeBase.new_spot_fee(
                             fee_schema=self.trade_fee_schema(),
                             trade_type=tracked_order.trade_type,
-                            percent_token=trade["commissionAsset"],
-                            flat_fees=[TokenAmount(amount=Decimal(trade["commission"]), token=trade["commissionAsset"])]
+                            percent_token=trade["commission_currency"],
+                            flat_fees=[TokenAmount(amount=Decimal(trade["commission"]),
+                                                   token=trade["commission_currency"])]
                         )
                         trade_update = TradeUpdate(
                             trade_id=str(trade["id"]),
@@ -419,10 +424,10 @@ class BitpinExchange(ExchangePyBase):
                             exchange_order_id=exchange_order_id,
                             trading_pair=trading_pair,
                             fee=fee,
-                            fill_base_amount=Decimal(trade["qty"]),
-                            fill_quote_amount=Decimal(trade["quoteQty"]),
+                            fill_base_amount=Decimal(trade["base_amount"]),
+                            fill_quote_amount=Decimal(trade["quote_amount"]),
                             fill_price=Decimal(trade["price"]),
-                            fill_timestamp=trade["time"] * 1e-3,
+                            fill_timestamp=datetime.fromisoformat(trade["created_at"]).timestamp(),
                         )
                         self._order_tracker.process_trade_update(trade_update)
                     elif self.is_confirmed_new_order_filled_event(str(trade["id"]), exchange_order_id, trading_pair):
@@ -434,17 +439,18 @@ class BitpinExchange(ExchangePyBase):
                         self.trigger_event(
                             MarketEvent.OrderFilled,
                             OrderFilledEvent(
-                                timestamp=float(trade["time"]) * 1e-3,
-                                order_id=self._exchange_order_ids.get(str(trade["orderId"]), None),
+                                timestamp=datetime.fromisoformat(trade["created_at"]).timestamp(),
+                                order_id=self._exchange_order_ids.get(str(trade["order_id"]), None),
                                 trading_pair=trading_pair,
-                                trade_type=TradeType.BUY if trade["isBuyer"] else TradeType.SELL,
-                                order_type=OrderType.LIMIT_MAKER if trade["isMaker"] else OrderType.LIMIT,
+                                trade_type=TradeType.BUY if trade["side"] == 'buy' else TradeType.SELL,
+                                # Bitpin doesn't return order type in this . set all to market
+                                order_type=OrderType.MARKET,
                                 price=Decimal(trade["price"]),
-                                amount=Decimal(trade["qty"]),
+                                amount=Decimal(trade["base_amount"]),
                                 trade_fee=DeductedFromReturnsTradeFee(
                                     flat_fees=[
                                         TokenAmount(
-                                            trade["commissionAsset"],
+                                            trade["commission_currency"],
                                             Decimal(trade["commission"])
                                         )
                                     ]
