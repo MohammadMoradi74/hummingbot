@@ -385,7 +385,7 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
         return str(30000)
 
     def exchange_symbol_for_tokens(self, base_token: str, quote_token: str) -> str:
-        return f"{base_token}{quote_token}"
+        return f"{base_token}_{quote_token}"
 
     def create_exchange_instance(self):
         client_config_map = ClientConfigAdapter(ClientConfigMap())
@@ -796,8 +796,8 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
         request = self._all_executed_requests(mock_api, url)[0]
         self.validate_auth_credentials_present(request)
         # Ignor symbol params. It has a mismatching "-".
-        # request_params = request.kwargs["params"]
-        # self.assertEqual(self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset), request_params["symbol"])
+        request_params = request.kwargs["params"]
+        self.assertEqual(self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset), request_params["symbol"])
 
         fill_event: OrderFilledEvent = self.order_filled_logger.event_log[0]
         self.assertEqual(self.exchange.current_timestamp, fill_event.timestamp)
