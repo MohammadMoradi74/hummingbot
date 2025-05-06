@@ -84,7 +84,8 @@ class BitpinAPIOrderBookDataSource(OrderBookTrackerDataSource):
 
     async def _connected_websocket_assistant(self) -> WSAssistant:
         ws: WSAssistant = await self._api_factory.get_ws_assistant()
-        await ws.connect(ws_url=CONSTANTS.WSS_URL.format(self._domain),
+        # TODO: Separate rest and websocket domain. Bitpin has removed ir domain for websocket!!!
+        await ws.connect(ws_url=CONSTANTS.WSS_URL.format('org'),
                          ping_timeout=CONSTANTS.WS_HEARTBEAT_TIME_INTERVAL)
         return ws
 

@@ -47,7 +47,8 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
         await self._listen_key_initialized_event.wait()
 
         ws: WSAssistant = await self._get_ws_assistant()
-        url = f"{CONSTANTS.WSS_URL.format(self._domain)}"
+        # TODO: Separate rest and websocket domain. Bitpin has removed ir domain for websocket!!!
+        url = f"{CONSTANTS.WSS_URL.format('org')}"
         await ws.connect(ws_url=url, ping_timeout=CONSTANTS.WS_HEARTBEAT_TIME_INTERVAL)
         return ws
 
