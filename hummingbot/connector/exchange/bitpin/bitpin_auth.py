@@ -40,8 +40,7 @@ class BitpinAuth(AuthBase):
         return request  # pass-through
 
     def header_for_authentication(self) -> Dict[str, str]:
-        return {"Content-Type": "application/json",
-                "Authorization": f"Bearer {self.access_token}"}
+        return {"Content-Type": "application/json"}
 
     async def authenticate(self):
         """
