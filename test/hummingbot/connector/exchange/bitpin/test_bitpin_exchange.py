@@ -56,42 +56,18 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
 
     @property
     def all_symbols_request_mock_response(self):
-        return {
-            "timezone": "UTC",
-            "serverTime": 1639598493658,
-            "rateLimits": [],
-            "exchangeFilters": [],
-            "symbols": [
-                {
-                    "symbol": self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset),
-                    "status": "TRADING",
-                    "baseAsset": self.base_asset,
-                    "baseAssetPrecision": 8,
-                    "quoteAsset": self.quote_asset,
-                    "quotePrecision": 8,
-                    "quoteAssetPrecision": 8,
-                    "baseCommissionPrecision": 8,
-                    "quoteCommissionPrecision": 8,
-                    "orderTypes": [
-                        "LIMIT",
-                        "LIMIT_MAKER",
-                        "MARKET",
-                        "STOP_LOSS_LIMIT",
-                        "TAKE_PROFIT_LIMIT"
-                    ],
-                    "icebergAllowed": True,
-                    "ocoAllowed": True,
-                    "quoteOrderQtyMarketAllowed": True,
-                    "isSpotTradingAllowed": True,
-                    "isMarginTradingAllowed": True,
-                    "filters": [],
-                    "permissionSets": [[
-                        "SPOT",
-                        "MARGIN"
-                    ]]
-                },
-            ]
-        }
+        return [
+            {
+                'symbol': self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset),
+                'name': "Tether/Toman",
+                'base': self.base_asset,
+                'quote': self.quote_asset,
+                'tradable': 'true',
+                'price_precision': 0,
+                'base_amount_precision': 2,
+                'quote_amount_precision': 0
+            },
+        ]
 
     @property
     def latest_prices_request_mock_response(self):
