@@ -83,68 +83,28 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
 
     @property
     def all_symbols_including_invalid_pair_mock_response(self) -> Tuple[str, Any]:
-        response = {
-            "timezone": "UTC",
-            "serverTime": 1639598493658,
-            "rateLimits": [],
-            "exchangeFilters": [],
-            "symbols": [
-                {
-                    "symbol": self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset),
-                    "status": "TRADING",
-                    "baseAsset": self.base_asset,
-                    "baseAssetPrecision": 8,
-                    "quoteAsset": self.quote_asset,
-                    "quotePrecision": 8,
-                    "quoteAssetPrecision": 8,
-                    "baseCommissionPrecision": 8,
-                    "quoteCommissionPrecision": 8,
-                    "orderTypes": [
-                        "LIMIT",
-                        "LIMIT_MAKER",
-                        "MARKET",
-                        "STOP_LOSS_LIMIT",
-                        "TAKE_PROFIT_LIMIT"
-                    ],
-                    "icebergAllowed": True,
-                    "ocoAllowed": True,
-                    "quoteOrderQtyMarketAllowed": True,
-                    "isSpotTradingAllowed": True,
-                    "isMarginTradingAllowed": True,
-                    "filters": [],
-                    "permissionSets": [[
-                        "MARGIN"
-                    ]]
-                },
-                {
-                    "symbol": self.exchange_symbol_for_tokens("INVALID", "PAIR"),
-                    "status": "TRADING",
-                    "baseAsset": "INVALID",
-                    "baseAssetPrecision": 8,
-                    "quoteAsset": "PAIR",
-                    "quotePrecision": 8,
-                    "quoteAssetPrecision": 8,
-                    "baseCommissionPrecision": 8,
-                    "quoteCommissionPrecision": 8,
-                    "orderTypes": [
-                        "LIMIT",
-                        "LIMIT_MAKER",
-                        "MARKET",
-                        "STOP_LOSS_LIMIT",
-                        "TAKE_PROFIT_LIMIT"
-                    ],
-                    "icebergAllowed": True,
-                    "ocoAllowed": True,
-                    "quoteOrderQtyMarketAllowed": True,
-                    "isSpotTradingAllowed": True,
-                    "isMarginTradingAllowed": True,
-                    "filters": [],
-                    "permissionSets": [[
-                        "MARGIN"
-                    ]]
-                },
-            ]
-        }
+        response = [
+            {
+                'symbol': self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset),
+                'name': "Tether/Toman",
+                'base': self.base_asset,
+                'quote': self.quote_asset,
+                'tradable': 'true',
+                'price_precision': 0,
+                'base_amount_precision': 2,
+                'quote_amount_precision': 0
+            },
+            {
+                'symbol': self.exchange_symbol_for_tokens("INVALID", "PAIR"),
+                'name': "INVALID/PAIR",
+                'base': "INVALID",
+                'quote': "PAIR",
+                'tradable': 'false',
+                'price_precision': 0,
+                'base_amount_precision': 2,
+                'quote_amount_precision': 0
+            }
+        ]
 
         return "INVALID-PAIR", response
 
