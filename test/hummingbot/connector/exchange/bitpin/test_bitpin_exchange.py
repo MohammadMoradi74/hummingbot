@@ -31,7 +31,6 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
     @property
     def latest_prices_url(self):
         url = web_utils.public_rest_url(path_url=CONSTANTS.TICKER_PRICE_CHANGE_PATH_URL, domain=self.exchange._domain)
-        url = f"{url}?symbol={self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset)}"
         return url
 
     @property
@@ -71,29 +70,16 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
 
     @property
     def latest_prices_request_mock_response(self):
-        return {
-            "symbol": self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset),
-            "priceChange": "-94.99999800",
-            "priceChangePercent": "-95.960",
-            "weightedAvgPrice": "0.29628482",
-            "prevClosePrice": "0.10002000",
-            "lastPrice": str(self.expected_latest_price),
-            "lastQty": "200.00000000",
-            "bidPrice": "4.00000000",
-            "bidQty": "100.00000000",
-            "askPrice": "4.00000200",
-            "askQty": "100.00000000",
-            "openPrice": "99.00000000",
-            "highPrice": "100.00000000",
-            "lowPrice": "0.10000000",
-            "volume": "8913.30000000",
-            "quoteVolume": "15.30000000",
-            "openTime": 1499783499040,
-            "closeTime": 1499869899040,
-            "firstId": 28385,
-            "lastId": 28460,
-            "count": 76,
-        }
+        return [
+            {
+                "symbol": "USDT_IRT",
+                "price": "80868",
+                "daily_change_price": -1.59,
+                "low": "80000",
+                "high": "82253",
+                "timestamp": 1746852797.634557
+            }
+        ]
 
     @property
     def all_symbols_including_invalid_pair_mock_response(self) -> Tuple[str, Any]:
@@ -306,7 +292,7 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
 
     @property
     def expected_latest_price(self):
-        return 9999.9
+        return 80868
 
     @property
     def expected_supported_order_types(self):

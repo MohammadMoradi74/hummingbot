@@ -548,14 +548,11 @@ class BitpinExchange(ExchangePyBase):
         self._set_trading_pair_symbol_map(mapping)
 
     async def _get_last_traded_price(self, trading_pair: str) -> float:
-        params = {
-            "symbol": await self.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
-        }
+        symbol = await self.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
 
         resp_json = await self._api_request(
             method=RESTMethod.GET,
             path_url=CONSTANTS.TICKER_PRICE_CHANGE_PATH_URL,
-            params=params
         )
 
-        return float(resp_json["lastPrice"])
+        return float({item['symbol']: item for item in resp_json}[symbol]['price'])
