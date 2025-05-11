@@ -114,48 +114,18 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
 
     @property
     def trading_rules_request_mock_response(self):
-        return {
-            "timezone": "UTC",
-            "serverTime": 1565246363776,
-            "rateLimits": [{}],
-            "exchangeFilters": [],
-            "symbols": [
-                {
-                    "symbol": self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset),
-                    "status": "TRADING",
-                    "baseAsset": self.base_asset,
-                    "baseAssetPrecision": 8,
-                    "quoteAsset": self.quote_asset,
-                    "quotePrecision": 8,
-                    "quoteAssetPrecision": 8,
-                    "orderTypes": ["LIMIT", "LIMIT_MAKER"],
-                    "icebergAllowed": True,
-                    "ocoAllowed": True,
-                    "isSpotTradingAllowed": True,
-                    "isMarginTradingAllowed": True,
-                    "filters": [
-                        {
-                            "filterType": "PRICE_FILTER",
-                            "minPrice": "0.00000100",
-                            "maxPrice": "100000.00000000",
-                            "tickSize": "0.00000100"
-                        }, {
-                            "filterType": "LOT_SIZE",
-                            "minQty": "0.00100000",
-                            "maxQty": "200000.00000000",
-                            "stepSize": "0.00100000"
-                        }, {
-                            "filterType": "MIN_NOTIONAL",
-                            "minNotional": "0.00100000"
-                        }
-                    ],
-                    "permissionSets": [[
-                        "SPOT",
-                        "MARGIN"
-                    ]]
-                }
-            ]
-        }
+        return [
+            {
+                'symbol': self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset),
+                'name': "Tether/Toman",
+                'base': self.base_asset,
+                'quote': self.quote_asset,
+                'tradable': 'true',
+                'price_precision': 0,
+                'base_amount_precision': 2,
+                'quote_amount_precision': 0
+            },
+        ]
 
     @property
     def trading_rules_request_erroneous_mock_response(self):
@@ -262,13 +232,11 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
     def expected_trading_rule(self):
         return TradingRule(
             trading_pair=self.trading_pair,
-            min_order_size=Decimal(self.trading_rules_request_mock_response["symbols"][0]["filters"][1]["minQty"]),
-            min_price_increment=Decimal(
-                self.trading_rules_request_mock_response["symbols"][0]["filters"][0]["tickSize"]),
+            min_order_size=Decimal(10 ** (-int(self.trading_rules_request_mock_response[0]["base_amount_precision"]))),
+            min_price_increment=Decimal(10 ** (-int(self.trading_rules_request_mock_response[0]["price_precision"]))),
             min_base_amount_increment=Decimal(
-                self.trading_rules_request_mock_response["symbols"][0]["filters"][1]["stepSize"]),
-            min_notional_size=Decimal(
-                self.trading_rules_request_mock_response["symbols"][0]["filters"][2]["minNotional"]),
+                10 ** (-int(self.trading_rules_request_mock_response[0]["base_amount_precision"]))),
+            min_notional_size=Decimal(1e5),
         )
 
     @property
