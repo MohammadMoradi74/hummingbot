@@ -129,32 +129,31 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
 
     @property
     def trading_rules_request_erroneous_mock_response(self):
-        return {
-            "timezone": "UTC",
-            "serverTime": 1565246363776,
-            "rateLimits": [{}],
-            "exchangeFilters": [],
-            "symbols": [
-                {
-                    "symbol": self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset),
-                    "status": "TRADING",
-                    "baseAsset": self.base_asset,
-                    "baseAssetPrecision": 8,
-                    "quoteAsset": self.quote_asset,
-                    "quotePrecision": 8,
-                    "quoteAssetPrecision": 8,
-                    "orderTypes": ["LIMIT", "LIMIT_MAKER"],
-                    "icebergAllowed": True,
-                    "ocoAllowed": True,
-                    "isSpotTradingAllowed": True,
-                    "isMarginTradingAllowed": True,
-                    "permissionSets": [[
-                        "SPOT",
-                        "MARGIN"
-                    ]]
-                }
-            ]
-        }
+        return [
+            {
+                'symbol': self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset),
+                'name': "Tether/Toman",
+                'base': self.base_asset,
+                'quote': self.quote_asset,
+                'tradable': 'true',
+                'price_precision': None,
+                'base_amount_precision': 2,
+                'quote_amount_precision': None
+            },
+        ]
+
+    @aioresponses()
+    def test_update_trading_rules_ignores_rule_with_error(self, mock_api):
+        self.exchange._set_current_timestamp(1000)
+
+        self.configure_erroneous_trading_rules_response(mock_api=mock_api)
+
+        self.async_run_with_timeout(coroutine=self.exchange._update_trading_rules())
+
+        self.assertEqual(0, len(self.exchange._trading_rules))
+        self.assertTrue(
+            self.is_logged("ERROR", self.expected_logged_error_for_erroneous_trading_rule)
+        )
 
     @property
     def order_creation_request_successful_mock_response(self):
@@ -241,7 +240,7 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
 
     @property
     def expected_logged_error_for_erroneous_trading_rule(self):
-        erroneous_rule = self.trading_rules_request_erroneous_mock_response["symbols"][0]
+        erroneous_rule = self.trading_rules_request_erroneous_mock_response[0]
         return f"Error parsing the trading pair rule {erroneous_rule}. Skipping."
 
     @property
