@@ -184,13 +184,12 @@ class BitpinExchange(ExchangePyBase):
         type_str = BitpinExchange.bitpin_order_type(order_type)
         side_str = CONSTANTS.SIDE_BUY if trade_type is TradeType.BUY else CONSTANTS.SIDE_SELL
         # TODO: This request is too slow sometimes. Make it faster.
-        # symbol = await self.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
-        symbol = trading_pair
+        symbol = await self.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
         api_params = {"symbol": symbol,
                       "side": side_str,
                       "base_amount": amount_str,
                       "type": type_str,
-                      # "newClientOrderId": order_id} # not in bitpin
+                      "identifier": order_id
                       }
         if order_type is OrderType.LIMIT or order_type is OrderType.LIMIT_MAKER:
             price_str = f"{price:f}"
