@@ -19,7 +19,7 @@ from hummingbot.connector.utils import get_new_client_order_id
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState
 from hummingbot.core.data_type.trade_fee import DeductedFromReturnsTradeFee, TokenAmount, TradeFeeBase
-from hummingbot.core.event.events import MarketOrderFailureEvent, OrderFilledEvent
+from hummingbot.core.event.events import BuyOrderCreatedEvent, MarketOrderFailureEvent, OrderFilledEvent
 
 
 class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
@@ -158,12 +158,74 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
     @property
     def order_creation_request_successful_mock_response(self):
         return {
-            "symbol": self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset),
-            "orderId": self.expected_exchange_order_id,
-            "orderListId": -1,
-            "clientOrderId": "OID1",
-            "transactTime": 1507725176595
+            'id': self.expected_exchange_order_id,
+            'symbol': self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset),
+            'type': 'limit',
+            'side': 'sell',
+            'price': '100000',
+            'stop_price': None,
+            'oco_target_price': None,
+            'base_amount': '1.50',
+            'quote_amount': '150000',
+            'identifier': 'OID1',
+            'state': 'active',
+            'closed_at': None,
+            'created_at': '2025-05-15T16:30:01.879340+03:30',
+            'dealed_base_amount': '0.00',
+            'dealed_quote_amount': '0',
+            'req_to_cancel': False,
+            'commission': '0.00'
         }
+
+    @aioresponses()
+    def test_create_buy_limit_order_successfully(self, mock_api):
+        self._simulate_trading_rules_initialized()
+        request_sent_event = asyncio.Event()
+        self.exchange._set_current_timestamp(1640780000)
+        self.exchange.authenticator.access_token = 'test_access_token'
+
+        url = self.order_creation_url
+
+        auth_url = "https://api.bitpin.ir/api/v1/usr/authenticate/"
+        mock_api.post(auth_url,
+                      status=200,
+                      body=json.dumps({
+                          "access": "fake_access_token",
+                          "refresh": "fake_refresh_token"
+                      }))
+
+        creation_response = self.order_creation_request_successful_mock_response
+
+        mock_api.post(url,
+                      body=json.dumps(creation_response),
+                      callback=lambda *args, **kwargs: request_sent_event.set())
+
+        order_id = self.place_buy_order()
+        self.async_run_with_timeout(request_sent_event.wait())
+
+        order_request = self._all_executed_requests(mock_api, url)[0]
+        self.validate_auth_credentials_present(order_request)
+        self.assertIn(order_id, self.exchange.in_flight_orders)
+        self.validate_order_creation_request(
+            order=self.exchange.in_flight_orders[order_id],
+            request_call=order_request)
+
+        create_event: BuyOrderCreatedEvent = self.buy_order_created_logger.event_log[0]
+        self.assertEqual(self.exchange.current_timestamp, create_event.timestamp)
+        self.assertEqual(self.trading_pair, create_event.trading_pair)
+        self.assertEqual(OrderType.LIMIT, create_event.type)
+        self.assertEqual(Decimal("100"), create_event.amount)
+        self.assertEqual(Decimal("10000"), create_event.price)
+        self.assertEqual(order_id, create_event.order_id)
+        self.assertEqual(str(self.expected_exchange_order_id), create_event.exchange_order_id)
+
+        self.assertTrue(
+            self.is_logged(
+                "INFO",
+                f"Created {OrderType.LIMIT.name} {TradeType.BUY.name} order {order_id} for "
+                f"{Decimal('100.000000')} {self.trading_pair} at {Decimal('10000.0000')}."
+            )
+        )
 
     @property
     def balance_request_mock_response_for_base_and_quote(self):
@@ -295,13 +357,13 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
         )
 
     def validate_order_creation_request(self, order: InFlightOrder, request_call: RequestCall):
-        request_data = dict(request_call.kwargs["data"])
+        request_data = json.loads(request_call.kwargs["data"])
         self.assertEqual(self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset), request_data["symbol"])
-        self.assertEqual(order.trade_type.name.upper(), request_data["side"])
+        self.assertEqual(order.trade_type.name.lower(), request_data["side"])
         self.assertEqual(BitpinExchange.bitpin_order_type(OrderType.LIMIT), request_data["type"])
-        self.assertEqual(Decimal("100"), Decimal(request_data["quantity"]))
+        self.assertEqual(Decimal("100"), Decimal(request_data["base_amount"]))
         self.assertEqual(Decimal("10000"), Decimal(request_data["price"]))
-        self.assertEqual(order.client_order_id, request_data["newClientOrderId"])
+        self.assertEqual(order.client_order_id, request_data["identifier"])
 
     def validate_order_cancelation_request(self, order: InFlightOrder, request_call: RequestCall):
         request_data = dict(request_call.kwargs["params"])
