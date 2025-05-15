@@ -40,7 +40,9 @@ class BitpinAuth(AuthBase):
         return request  # pass-through
 
     def header_for_authentication(self) -> Dict[str, str]:
-        return {"Content-Type": "application/json"}
+        return {"Content-Type": "application/json",
+                # TODO: This line was removed in the previous commit. Check the conflict!
+                "Authorization": f"Bearer {self.access_token}"}
 
     async def authenticate(self):
         """
