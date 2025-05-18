@@ -521,15 +521,14 @@ class BitpinExchange(ExchangePyBase):
         local_asset_names = set(self._account_balances.keys())
         remote_asset_names = set()
 
-        account_info = await self._api_get(
+        balances = await self._api_get(
             path_url=CONSTANTS.ACCOUNTS_PATH_URL,
             is_auth_required=True)
 
-        balances = account_info["balances"]
         for balance_entry in balances:
             asset_name = balance_entry["asset"]
-            free_balance = Decimal(balance_entry["free"])
-            total_balance = Decimal(balance_entry["free"]) + Decimal(balance_entry["locked"])
+            free_balance = Decimal(balance_entry["balance"])
+            total_balance = Decimal(balance_entry["balance"]) + Decimal(balance_entry["frozen"])
             self._account_available_balances[asset_name] = free_balance
             self._account_balances[asset_name] = total_balance
             remote_asset_names.add(asset_name)
