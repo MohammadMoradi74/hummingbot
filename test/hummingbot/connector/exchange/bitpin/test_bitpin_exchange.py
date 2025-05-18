@@ -284,48 +284,77 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
 
     @property
     def balance_request_mock_response_for_base_and_quote(self):
-        return {
-            "makerCommission": 15,
-            "takerCommission": 15,
-            "buyerCommission": 0,
-            "sellerCommission": 0,
-            "canTrade": True,
-            "canWithdraw": True,
-            "canDeposit": True,
-            "updateTime": 123456789,
-            "accountType": "SPOT",
-            "balances": [
-                {
-                    "asset": self.base_asset,
-                    "free": "10.0",
-                    "locked": "5.0"
-                },
-                {
-                    "asset": self.quote_asset,
-                    "free": "2000",
-                    "locked": "0.00000000"
-                }
-            ],
-            "permissionSets": [[
-                "SPOT"
-            ]]
-        }
+        return [
+            {
+                "id": 17594549,
+                "asset": "USDT",
+                "balance": "0.49",
+                "frozen": "1.50",
+                "service": "main"
+            },
+            {
+                "id": 17594548,
+                "asset": "BTC",
+                "balance": "0E-8",
+                "frozen": "0E-8",
+                "service": "main"
+            },
+            {
+                "id": 964711,
+                "asset": "IRT",
+                "balance": "27246",
+                "frozen": "0",
+                "service": "main"
+            }
+        ]
 
     @property
     def balance_request_mock_response_only_base(self):
-        return {
-            "makerCommission": 15,
-            "takerCommission": 15,
-            "buyerCommission": 0,
-            "sellerCommission": 0,
-            "canTrade": True,
-            "canWithdraw": True,
-            "canDeposit": True,
-            "updateTime": 123456789,
-            "accountType": "SPOT",
-            "balances": [{"asset": self.base_asset, "free": "10.0", "locked": "5.0"}],
-            "permissionSets": [["SPOT"]],
-        }
+        return [
+            {
+                "id": 17594549,
+                "asset": "USDT",
+                "balance": "0.49",
+                "frozen": "1.50",
+                "service": "main"
+            },
+        ]
+
+    @aioresponses()
+    def test_update_balances(self, mock_api):
+        response = self.balance_request_mock_response_for_base_and_quote
+        self._configure_balance_response(response=response, mock_api=mock_api)
+
+        auth_url = "https://api.bitpin.ir/api/v1/usr/authenticate/"
+        mock_api.post(auth_url,
+                      status=200,
+                      body=json.dumps({
+                          "access": "fake_access_token",
+                          "refresh": "fake_refresh_token"
+                      }))
+
+        self.async_run_with_timeout(self.exchange._update_balances())
+
+        available_balances = self.exchange.available_balances
+        total_balances = self.exchange.get_all_balances()
+
+        self.assertEqual(Decimal("0.49"), available_balances[self.base_asset])
+        self.assertEqual(Decimal("27246"), available_balances[self.quote_asset])
+        self.assertEqual(Decimal("1.99"), total_balances[self.base_asset])
+        self.assertEqual(Decimal("27246"), total_balances[self.quote_asset])
+
+        response = self.balance_request_mock_response_only_base
+
+        self._configure_balance_response(response=response, mock_api=mock_api)
+        self.async_run_with_timeout(self.exchange._update_balances())
+
+        available_balances = self.exchange.available_balances
+        total_balances = self.exchange.get_all_balances()
+
+        self.assertNotIn(self.quote_asset, available_balances)
+        self.assertNotIn(self.quote_asset, total_balances)
+        self.assertEqual(Decimal("0.49"), available_balances[self.base_asset])
+        self.assertEqual(Decimal("1.99"), total_balances[self.base_asset])
 
     @property
     def balance_event_websocket_update(self):
