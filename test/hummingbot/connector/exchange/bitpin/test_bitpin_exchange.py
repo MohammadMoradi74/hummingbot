@@ -22,6 +22,7 @@ from hummingbot.core.data_type.trade_fee import DeductedFromReturnsTradeFee, Tok
 from hummingbot.core.event.events import (
     BuyOrderCreatedEvent,
     MarketOrderFailureEvent,
+    OrderCancelledEvent,
     OrderFilledEvent,
     SellOrderCreatedEvent,
 )
@@ -450,10 +451,7 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
         self.assertEqual(order.client_order_id, request_data["identifier"])
 
     def validate_order_cancelation_request(self, order: InFlightOrder, request_call: RequestCall):
-        request_data = dict(request_call.kwargs["params"])
-        self.assertEqual(self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset),
-                         request_data["symbol"])
-        self.assertEqual(order.client_order_id, request_data["origClientOrderId"])
+        pass
 
     def validate_order_status_request(self, order: InFlightOrder, request_call: RequestCall):
         request_params = request_call.kwargs["params"]
@@ -472,11 +470,68 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
             order: InFlightOrder,
             mock_api: aioresponses,
             callback: Optional[Callable] = lambda *args, **kwargs: None) -> str:
-        url = web_utils.private_rest_url(CONSTANTS.ORDER_PATH_URL)
-        regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
+        url = web_utils.private_rest_url(CONSTANTS.ORDER_PATH_URL) + order.exchange_order_id + '/'
         response = self._order_cancelation_request_successful_mock_response(order=order)
-        mock_api.delete(regex_url, body=json.dumps(response), callback=callback)
+        mock_api.delete(url, status=204, body=response, callback=callback)
         return url
+
+    @aioresponses()
+    def test_cancel_order_successfully(self, mock_api):
+        request_sent_event = asyncio.Event()
+        self.exchange._set_current_timestamp(1640780000)
+
+        self.exchange.start_tracking_order(
+            order_id=self.client_order_id_prefix + "1",
+            exchange_order_id=self.exchange_order_id_prefix + "1",
+            trading_pair=self.trading_pair,
+            trade_type=TradeType.BUY,
+            price=Decimal("10000"),
+            amount=Decimal("100"),
+            order_type=OrderType.LIMIT,
+        )
+
+        self.assertIn(self.client_order_id_prefix + "1", self.exchange.in_flight_orders)
+        order: InFlightOrder = self.exchange.in_flight_orders[self.client_order_id_prefix + "1"]
+
+        url = self.configure_successful_cancelation_response(
+            order=order,
+            mock_api=mock_api,
+            callback=lambda *args, **kwargs: request_sent_event.set())
+
+        auth_url = "https://api.bitpin.ir/api/v1/usr/authenticate/"
+        mock_api.post(auth_url,
+                      status=200,
+                      body=json.dumps({
+                          "access": "fake_access_token",
+                          "refresh": "fake_refresh_token"
+                      }))
+
+        self.exchange.cancel(trading_pair=order.trading_pair, client_order_id=order.client_order_id)
+        self.async_run_with_timeout(request_sent_event.wait())
+
+        if url != "":
+            cancel_request = self._all_executed_requests(mock_api, url)[0]
+            self.validate_auth_credentials_present(cancel_request)
+            self.validate_order_cancelation_request(
+                order=order,
+                request_call=cancel_request)
+
+        if self.exchange.is_cancel_request_in_exchange_synchronous:
+            self.assertNotIn(order.client_order_id, self.exchange.in_flight_orders)
+            self.assertTrue(order.is_cancelled)
+            cancel_event: OrderCancelledEvent = self.order_cancelled_logger.event_log[0]
+            self.assertEqual(self.exchange.current_timestamp, cancel_event.timestamp)
+            self.assertEqual(order.client_order_id, cancel_event.order_id)
+
+            self.assertTrue(
+                self.is_logged(
+                    "INFO",
+                    f"Successfully canceled order {order.client_order_id}."
+                )
+            )
+        else:
+            self.assertIn(order.client_order_id, self.exchange.in_flight_orders)
+            self.assertTrue(order.is_pending_cancel_confirmation)
 
     def configure_erroneous_cancelation_response(
             self,
@@ -1273,26 +1328,27 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
     def _validate_auth_credentials_taking_parameters_from_argument(self,
                                                                    request_call_tuple: RequestCall,
                                                                    params: Dict[str, Any]):
-        self.assertIn("symbol", params)
+        self.assertIn("Authorization", request_call_tuple.kwargs['headers'])
+        self.assertEqual(request_call_tuple.kwargs['headers']['Content-Type'], 'application/json')
         self.assertEqual(request_call_tuple.kwargs["allow_redirects"], True)
 
     def _order_cancelation_request_successful_mock_response(self, order: InFlightOrder) -> Any:
-        return {
-            "symbol": self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset),
-            "origClientOrderId": order.exchange_order_id or "dummyOrdId",
-            "orderId": 4,
-
-            "orderListId": -1,
-            "clientOrderId": order.client_order_id,
-            "price": str(order.price),
-            "origQty": str(order.amount),
-            "executedQty": str(Decimal("0")),
-            "cummulativeQuoteQty": str(Decimal("0")),
-            "status": "CANCELED",
-            "timeInForce": "GTC",
-            "type": "LIMIT",
-            "side": "BUY"
-        }
+        return ''
+        #     "symbol": self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset),
+        #     "origClientOrderId": order.exchange_order_id or "dummyOrdId",
+        #     "orderId": 4,
+        #
+        #     "orderListId": -1,
+        #     "clientOrderId": order.client_order_id,
+        #     "price": str(order.price),
+        #     "origQty": str(order.amount),
+        #     "executedQty": str(Decimal("0")),
+        #     "cummulativeQuoteQty": str(Decimal("0")),
+        #     "status": "CANCELED",
+        #     "timeInForce": "GTC",
+        #     "type": "LIMIT",
+        #     "side": "BUY"
+        # }
 
     def _order_status_request_completely_filled_mock_response(self, order: InFlightOrder) -> Any:
         return {

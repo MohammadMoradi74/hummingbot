@@ -217,13 +217,12 @@ class BitpinExchange(ExchangePyBase):
         return o_id, transact_time
 
     async def _place_cancel(self, order_id: str, tracked_order: InFlightOrder):
-        # TODO: This request is too slow sometimes. Make it faster.
-        # symbol = await self.exchange_symbol_associated_to_pair(trading_pair=tracked_order.trading_pair)
         cancel_result = await self._api_delete(
-            path_url=CONSTANTS.ORDER_PATH_URL + order_id,
+            path_url=CONSTANTS.ORDER_PATH_URL + tracked_order.exchange_order_id + '/',
             limit_id=CONSTANTS.ORDER_PATH_URL,
             is_auth_required=True)
-        if cancel_result.get("status") == "CANCELED":
+        # If successful it returns '' response which is translated to None in the cancel_output
+        if cancel_result is None:
             return True
         return False
 
