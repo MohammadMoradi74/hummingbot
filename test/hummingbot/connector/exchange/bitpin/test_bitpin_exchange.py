@@ -589,6 +589,46 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
             )
         )
 
+    @aioresponses()
+    def test_cancel_order_not_found_in_the_exchange(self, mock_api):
+        auth_url = "https://api.bitpin.ir/api/v1/usr/authenticate/"
+        mock_api.post(auth_url,
+                      status=200,
+                      body=json.dumps({
+                          "access": "fake_access_token",
+                          "refresh": "fake_refresh_token"
+                      }))
+
+        self.exchange._set_current_timestamp(1640780000)
+        request_sent_event = asyncio.Event()
+
+        self.exchange.start_tracking_order(
+            order_id=self.client_order_id_prefix + "1",
+            exchange_order_id=str(self.expected_exchange_order_id),
+            trading_pair=self.trading_pair,
+            order_type=OrderType.LIMIT,
+            trade_type=TradeType.BUY,
+            price=Decimal("10000"),
+            amount=Decimal("1"),
+        )
+
+        self.assertIn(self.client_order_id_prefix + "1", self.exchange.in_flight_orders)
+        order = self.exchange.in_flight_orders[self.client_order_id_prefix + "1"]
+
+        self.configure_order_not_found_error_cancelation_response(
+            order=order, mock_api=mock_api, callback=lambda *args, **kwargs: request_sent_event.set()
+        )
+
+        self.exchange.cancel(trading_pair=self.trading_pair, client_order_id=self.client_order_id_prefix + "1")
+        self.async_run_with_timeout(request_sent_event.wait())
+
+        self.assertFalse(order.is_done)
+        self.assertFalse(order.is_failure)
+        self.assertFalse(order.is_cancelled)
+
+        self.assertIn(order.client_order_id, self.exchange._order_tracker.all_updatable_orders)
+        self.assertEqual(1, self.exchange._order_tracker._order_not_found_records[order.client_order_id])
+
     def configure_erroneous_cancelation_response(
             self,
             order: InFlightOrder,
