@@ -813,6 +813,49 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
             )
         )
 
+    @aioresponses()
+    def test_update_order_status_when_canceled(self, mock_api):
+        auth_url = "https://api.bitpin.ir/api/v1/usr/authenticate/"
+        mock_api.post(auth_url,
+                      status=200,
+                      body=json.dumps({
+                          "access": "fake_access_token",
+                          "refresh": "fake_refresh_token"
+                      }))
+
+        self.exchange._set_current_timestamp(1640780000)
+
+        self.exchange.start_tracking_order(
+            order_id=self.client_order_id_prefix + "1",
+            exchange_order_id="100234",
+            trading_pair=self.trading_pair,
+            order_type=OrderType.LIMIT,
+            trade_type=TradeType.BUY,
+            price=Decimal("10000"),
+            amount=Decimal("1"),
+        )
+        order = self.exchange.in_flight_orders[self.client_order_id_prefix + "1"]
+
+        urls = self.configure_canceled_order_status_response(
+            order=order,
+            mock_api=mock_api)
+
+        self.async_run_with_timeout(self.exchange._update_order_status())
+
+        for url in (urls if isinstance(urls, list) else [urls]):
+            order_status_request = self._all_executed_requests(mock_api, url)[0]
+            self.validate_auth_credentials_present(order_status_request)
+            self.validate_order_status_request(order=order, request_call=order_status_request)
+
+        cancel_event: OrderCancelledEvent = self.order_cancelled_logger.event_log[0]
+        self.assertEqual(self.exchange.current_timestamp, cancel_event.timestamp)
+        self.assertEqual(order.client_order_id, cancel_event.order_id)
+        self.assertEqual(order.exchange_order_id, cancel_event.exchange_order_id)
+        self.assertNotIn(order.client_order_id, self.exchange.in_flight_orders)
+        self.assertTrue(
+            self.is_logged("INFO", f"Successfully canceled order {order.client_order_id}.")
+        )
+
     def configure_canceled_order_status_response(
             self,
             order: InFlightOrder,
@@ -1592,24 +1635,23 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
 
     def _order_status_request_canceled_mock_response(self, order: InFlightOrder) -> Any:
         return {
+            "id": order.exchange_order_id,
             "symbol": self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset),
-            "orderId": order.exchange_order_id,
-            "orderListId": -1,
-            "clientOrderId": order.client_order_id,
+            "type": "limit",
+            "side": "sell",
             "price": str(order.price),
-            "origQty": str(order.amount),
-            "executedQty": "0.0",
-            "cummulativeQuoteQty": "10000.0",
-            "status": "CANCELED",
-            "timeInForce": "GTC",
-            "type": order.order_type.name.upper(),
-            "side": order.trade_type.name.upper(),
-            "stopPrice": "0.0",
-            "icebergQty": "0.0",
-            "time": 1499827319559,
-            "updateTime": 1499827319559,
-            "isWorking": True,
-            "origQuoteOrderQty": str(order.price * order.amount)
+            "stop_price": "null",
+            "oco_target_price": "null",
+            "base_amount": str(order.amount),
+            "quote_amount": str(order.price * order.amount),
+            "identifier": "c1d8b754-7bac-4009-8520-28daa682af53",
+            "state": "closed",
+            "closed_at": "2025-05-20T08:35:40.714422+03:30",
+            "created_at": "2025-05-20T08:35:08.095053+03:30",
+            "dealed_base_amount": "0.00",
+            "dealed_quote_amount": "0",
+            "req_to_cancel": "true",
+            "commission": "0.00"
         }
 
     def _order_status_request_open_mock_response(self, order: InFlightOrder) -> Any:
