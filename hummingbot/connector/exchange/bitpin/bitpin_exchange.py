@@ -495,22 +495,99 @@ class BitpinExchange(ExchangePyBase):
 
         return trade_updates
 
+    # TODO: write unit tests for _find_state_from_order_data covering all state branches
+    #   - "initial" → PENDING_CREATE
+    #   - "active" with/without req_to_cancel, and 0, partial, full fills
+    #   - "closed"/closed_at → FILLED vs CANCELED
+    #   - any unexpected → FAILED
+    def _find_state_from_order_data(self, order_data: dict) -> str:
+        """
+        Determine the internal order‐state key from raw exchange order data.
+
+        Args:
+            order_data (dict):  The JSON‐like payload from the exchange, expected to contain:
+                - "state" (str):        e.g. "initial", "active", or "closed"
+                - "req_to_cancel" (bool):  whether the user has requested a cancel
+                - "dealed_base_amount" (str|Decimal): how much of the base asset has filled
+                - "base_amount" (str|Decimal):        the total base amount of the order
+                - "closed_at" (str|None):             timestamp if the order is closed
+
+        Returns:
+            str:  One of the keys in ORDER_STATE, namely:
+                  "PENDING_CREATE", "OPEN", "PENDING_CANCEL",
+                  "PARTIALLY_FILLED", "FILLED", "CANCELED", or "FAILED".
+
+        Logic:
+        1. If the exchange state is "initial", we haven’t submitted yet → PENDING_CREATE
+        2. If "active" and cancel requested → PENDING_CANCEL
+           ├─ else if no fills yet → OPEN
+           ├─ else if partially filled → PARTIALLY_FILLED
+           └─ else (filled == total) → FILLED
+        3. If "closed" or a non-null closed_at timestamp
+           ├─ fully filled → FILLED
+           └─ otherwise → CANCELED
+        4. Any other combination → FAILED
+        """
+        state = order_data.get("state")
+        req_to_cancel = order_data.get("req_to_cancel", False)
+        filled = Decimal(order_data.get("dealed_base_amount", "0"))
+        total = Decimal(order_data.get("base_amount", "0"))
+        closed = order_data.get("closed_at") is not None
+
+        if state == "initial":
+            return "PENDING_CREATE"
+
+        if state == "active":
+            if req_to_cancel:
+                return "PENDING_CANCEL"
+            if filled == 0:
+                return "OPEN"
+            if filled < total:
+                return "PARTIALLY_FILLED"
+            return "FILLED"
+
+        if state == "closed" or closed:
+            if filled == total and total > 0:
+                return "FILLED"
+            return "CANCELED"
+
+        return "FAILED"
+
+    def _find_update_time_order_data(self, order_data: dict) -> float:
+        """
+        Extract the POSIX timestamp (in seconds) for this order update.
+
+        Chooses 'closed_at' if present and non-null; otherwise falls back to 'created_at'.
+
+        Args:
+            order_data (dict):
+                A single-order payload from the exchange API. Expected keys:
+                  - 'created_at' (str): ISO8601 timestamp when the order was created.
+                  - 'closed_at'  (str|None): ISO8601 timestamp when the order was closed, or None/"null".
+
+        Returns:
+            float:  The UNIX timestamp (seconds since epoch, including fractional part)
+                    corresponding to closed_at (if set) or created_at.
+        """
+        ts_str = order_data.get('closed_at')
+        if not ts_str or ts_str == "null":
+            ts_str = order_data.get('created_at')
+
+        return datetime.fromisoformat(ts_str).timestamp()
+
     async def _request_order_status(self, tracked_order: InFlightOrder) -> OrderUpdate:
-        trading_pair = await self.exchange_symbol_associated_to_pair(trading_pair=tracked_order.trading_pair)
         updated_order_data = await self._api_get(
-            path_url=CONSTANTS.ORDER_PATH_URL,
-            params={
-                "symbol": trading_pair,
-                "origClientOrderId": tracked_order.client_order_id},
+            path_url=CONSTANTS.ORDER_PATH_URL + tracked_order.exchange_order_id + '/',
+            limit_id=CONSTANTS.ORDER_PATH_URL,
             is_auth_required=True)
 
-        new_state = CONSTANTS.ORDER_STATE[updated_order_data["status"]]
+        new_state = CONSTANTS.ORDER_STATE[self._find_state_from_order_data(updated_order_data)]
 
         order_update = OrderUpdate(
             client_order_id=tracked_order.client_order_id,
-            exchange_order_id=str(updated_order_data["orderId"]),
+            exchange_order_id=str(updated_order_data["id"]),
             trading_pair=tracked_order.trading_pair,
-            update_timestamp=updated_order_data["updateTime"] * 1e-3,
+            update_timestamp=self._find_update_time_order_data(updated_order_data),
             new_state=new_state,
         )
 

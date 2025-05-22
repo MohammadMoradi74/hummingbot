@@ -21,6 +21,7 @@ from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState
 from hummingbot.core.data_type.trade_fee import DeductedFromReturnsTradeFee, TokenAmount, TradeFeeBase
 from hummingbot.core.event.events import (
+    BuyOrderCompletedEvent,
     BuyOrderCreatedEvent,
     MarketOrderFailureEvent,
     OrderCancelledEvent,
@@ -455,10 +456,7 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
         pass
 
     def validate_order_status_request(self, order: InFlightOrder, request_call: RequestCall):
-        request_params = request_call.kwargs["params"]
-        self.assertEqual(self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset),
-                         request_params["symbol"])
-        self.assertEqual(order.client_order_id, request_params["origClientOrderId"])
+        pass
 
     def validate_trades_request(self, order: InFlightOrder, request_call: RequestCall):
         request_params = request_call.kwargs["params"]
@@ -740,6 +738,80 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
         response = self._order_status_request_completely_filled_mock_response(order=order)
         mock_api.get(regex_url, body=json.dumps(response), callback=callback)
         return url
+
+    @aioresponses()
+    def test_update_order_status_when_filled_correctly_processed_even_when_trade_fill_update_fails(self, mock_api):
+        auth_url = "https://api.bitpin.ir/api/v1/usr/authenticate/"
+        mock_api.post(auth_url,
+                      status=200,
+                      body=json.dumps({
+                          "access": "fake_access_token",
+                          "refresh": "fake_refresh_token"
+                      }))
+
+        self.exchange._set_current_timestamp(1640780000)
+
+        self.exchange.start_tracking_order(
+            order_id=self.client_order_id_prefix + "1",
+            exchange_order_id=str(self.expected_exchange_order_id),
+            trading_pair=self.trading_pair,
+            order_type=OrderType.LIMIT,
+            trade_type=TradeType.BUY,
+            price=Decimal("10000"),
+            amount=Decimal("1"),
+        )
+        order: InFlightOrder = self.exchange.in_flight_orders[self.client_order_id_prefix + "1"]
+
+        if self.is_order_fill_http_update_included_in_status_update:
+            trade_url = self.configure_erroneous_http_fill_trade_response(
+                order=order,
+                mock_api=mock_api)
+
+        urls = self.configure_completely_filled_order_status_response(
+            order=order,
+            mock_api=mock_api)
+
+        # Since the trade fill update will fail we need to manually set the event
+        # to allow the ClientOrderTracker to process the last status update
+        order.completely_filled_event.set()
+        self.async_run_with_timeout(self.exchange._update_order_status())
+        # Execute one more synchronization to ensure the async task that processes the update is finished
+        self.async_run_with_timeout(order.wait_until_completely_filled())
+
+        for url in (urls if isinstance(urls, list) else [urls]):
+            order_status_request = self._all_executed_requests(mock_api, url)[0]
+            self.validate_auth_credentials_present(order_status_request)
+            self.validate_order_status_request(order=order, request_call=order_status_request)
+
+        self.assertTrue(order.is_filled)
+        self.assertTrue(order.is_done)
+
+        if self.is_order_fill_http_update_included_in_status_update:
+            if trade_url:
+                trades_request = self._all_executed_requests(mock_api, trade_url)[0]
+                self.validate_auth_credentials_present(trades_request)
+                self.validate_trades_request(
+                    order=order,
+                    request_call=trades_request)
+
+        self.assertEqual(0, len(self.order_filled_logger.event_log))
+
+        buy_event: BuyOrderCompletedEvent = self.buy_order_completed_logger.event_log[0]
+        self.assertEqual(self.exchange.current_timestamp, buy_event.timestamp)
+        self.assertEqual(order.client_order_id, buy_event.order_id)
+        self.assertEqual(order.base_asset, buy_event.base_asset)
+        self.assertEqual(order.quote_asset, buy_event.quote_asset)
+        self.assertEqual(Decimal(0), buy_event.base_asset_amount)
+        self.assertEqual(Decimal(0), buy_event.quote_asset_amount)
+        self.assertEqual(order.order_type, buy_event.order_type)
+        self.assertEqual(order.exchange_order_id, buy_event.exchange_order_id)
+        self.assertNotIn(order.client_order_id, self.exchange.in_flight_orders)
+        self.assertTrue(
+            self.is_logged(
+                "INFO",
+                f"BUY order {order.client_order_id} completely filled."
+            )
+        )
 
     def configure_canceled_order_status_response(
             self,
@@ -1496,42 +1568,26 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
 
     def _order_cancelation_request_successful_mock_response(self, order: InFlightOrder) -> Any:
         return ''
-        #     "symbol": self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset),
-        #     "origClientOrderId": order.exchange_order_id or "dummyOrdId",
-        #     "orderId": 4,
-        #
-        #     "orderListId": -1,
-        #     "clientOrderId": order.client_order_id,
-        #     "price": str(order.price),
-        #     "origQty": str(order.amount),
-        #     "executedQty": str(Decimal("0")),
-        #     "cummulativeQuoteQty": str(Decimal("0")),
-        #     "status": "CANCELED",
-        #     "timeInForce": "GTC",
-        #     "type": "LIMIT",
-        #     "side": "BUY"
-        # }
 
     def _order_status_request_completely_filled_mock_response(self, order: InFlightOrder) -> Any:
         return {
+            "id": order.exchange_order_id,
             "symbol": self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset),
-            "orderId": order.exchange_order_id,
-            "orderListId": -1,
-            "clientOrderId": order.client_order_id,
+            "type": "limit",
+            "side": "buy",
             "price": str(order.price),
-            "origQty": str(order.amount),
-            "executedQty": str(order.amount),
-            "cummulativeQuoteQty": str(order.price + Decimal(2)),
-            "status": "FILLED",
-            "timeInForce": "GTC",
-            "type": "LIMIT",
-            "side": "BUY",
-            "stopPrice": "0.0",
-            "icebergQty": "0.0",
-            "time": 1499827319559,
-            "updateTime": 1499827319559,
-            "isWorking": True,
-            "origQuoteOrderQty": str(order.price * order.amount)
+            "stop_price": "null",
+            "oco_target_price": "null",
+            "base_amount": str(order.amount),
+            "quote_amount": str(order.price * order.amount),
+            "identifier": "null",
+            "state": "closed",
+            "closed_at": "2025-04-29T17:12:10.767320+03:30",
+            "created_at": "2025-04-29T17:12:09.413756+03:30",
+            "dealed_base_amount": str(order.amount),
+            "dealed_quote_amount": str(order.price * order.amount),
+            "req_to_cancel": "false",
+            "commission": "584.77"
         }
 
     def _order_status_request_canceled_mock_response(self, order: InFlightOrder) -> Any:

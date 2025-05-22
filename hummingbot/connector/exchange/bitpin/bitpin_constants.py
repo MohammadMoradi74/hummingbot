@@ -1,6 +1,5 @@
 from hummingbot.core.api_throttler.data_types import LinkedLimitWeightPair, RateLimit
-
-# from hummingbot.core.data_type.in_flight_order import OrderState
+from hummingbot.core.data_type.in_flight_order import OrderState
 
 #
 DEFAULT_DOMAIN = "ir"
@@ -55,19 +54,19 @@ ONE_DAY = 86400
 #
 MAX_REQUEST = 5000
 #
-# # Order States
-# ORDER_STATE = {
-#     "PENDING": OrderState.PENDING_CREATE,
-#     "NEW": OrderState.OPEN,
-#     "FILLED": OrderState.FILLED,
-#     "PARTIALLY_FILLED": OrderState.PARTIALLY_FILLED,
-#     "PENDING_CANCEL": OrderState.OPEN,
-#     "CANCELED": OrderState.CANCELED,
-#     "REJECTED": OrderState.FAILED,
-#     "EXPIRED": OrderState.FAILED,
-#     "EXPIRED_IN_MATCH": OrderState.FAILED,
-# }
-#
+
+# Order States
+# They are driven implicitly from order response. https://api.bitpin.ir/api/v1/odr/orders/1102450298/
+# See: BitpinExchange._find_state_from_order_data() function in bitpin_exchange.py
+ORDER_STATE = {
+    "PENDING_CREATE": OrderState.PENDING_CREATE,
+    "PENDING_CANCEL": OrderState.PENDING_CANCEL,
+    "OPEN": OrderState.OPEN,
+    "PARTIALLY_FILLED": OrderState.PARTIALLY_FILLED,
+    "FILLED": OrderState.FILLED,
+    "CANCELED": OrderState.CANCELED,
+    "FAILED": OrderState.FAILED,
+}
 # # Websocket event types
 DIFF_EVENT_TYPE = "market_data"
 TRADE_EVENT_TYPE = "matches_update"
