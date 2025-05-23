@@ -856,6 +856,46 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
             self.is_logged("INFO", f"Successfully canceled order {order.client_order_id}.")
         )
 
+    @aioresponses()
+    def test_update_order_status_when_order_has_not_changed(self, mock_api):
+        auth_url = "https://api.bitpin.ir/api/v1/usr/authenticate/"
+        mock_api.post(auth_url,
+                      status=200,
+                      body=json.dumps({
+                          "access": "fake_access_token",
+                          "refresh": "fake_refresh_token"
+                      }))
+
+        self.exchange._set_current_timestamp(1640780000)
+
+        self.exchange.start_tracking_order(
+            order_id=self.client_order_id_prefix + "1",
+            exchange_order_id=str(self.expected_exchange_order_id),
+            trading_pair=self.trading_pair,
+            order_type=OrderType.LIMIT,
+            trade_type=TradeType.BUY,
+            price=Decimal("10000"),
+            amount=Decimal("1"),
+        )
+        order: InFlightOrder = self.exchange.in_flight_orders[self.client_order_id_prefix + "1"]
+
+        urls = self.configure_open_order_status_response(
+            order=order,
+            mock_api=mock_api)
+
+        self.assertTrue(order.is_open)
+
+        self.async_run_with_timeout(self.exchange._update_order_status())
+
+        for url in (urls if isinstance(urls, list) else [urls]):
+            order_status_request = self._all_executed_requests(mock_api, url)[0]
+            self.validate_auth_credentials_present(order_status_request)
+            self.validate_order_status_request(order=order, request_call=order_status_request)
+
+        self.assertTrue(order.is_open)
+        self.assertFalse(order.is_filled)
+        self.assertFalse(order.is_done)
+
     def configure_canceled_order_status_response(
             self,
             order: InFlightOrder,
@@ -1619,17 +1659,17 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
             "type": "limit",
             "side": "buy",
             "price": str(order.price),
-            "stop_price": "null",
-            "oco_target_price": "null",
+            "stop_price": None,
+            "oco_target_price": None,
             "base_amount": str(order.amount),
             "quote_amount": str(order.price * order.amount),
-            "identifier": "null",
+            "identifier": order.client_order_id,
             "state": "closed",
             "closed_at": "2025-04-29T17:12:10.767320+03:30",
             "created_at": "2025-04-29T17:12:09.413756+03:30",
             "dealed_base_amount": str(order.amount),
             "dealed_quote_amount": str(order.price * order.amount),
-            "req_to_cancel": "false",
+            "req_to_cancel": False,
             "commission": "584.77"
         }
 
@@ -1640,40 +1680,39 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
             "type": "limit",
             "side": "sell",
             "price": str(order.price),
-            "stop_price": "null",
-            "oco_target_price": "null",
+            "stop_price": None,
+            "oco_target_price": None,
             "base_amount": str(order.amount),
             "quote_amount": str(order.price * order.amount),
-            "identifier": "c1d8b754-7bac-4009-8520-28daa682af53",
+            "identifier": order.client_order_id,
             "state": "closed",
             "closed_at": "2025-05-20T08:35:40.714422+03:30",
             "created_at": "2025-05-20T08:35:08.095053+03:30",
             "dealed_base_amount": "0.00",
             "dealed_quote_amount": "0",
-            "req_to_cancel": "true",
+            "req_to_cancel": True,
             "commission": "0.00"
         }
 
     def _order_status_request_open_mock_response(self, order: InFlightOrder) -> Any:
         return {
+            "id": order.exchange_order_id,
             "symbol": self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset),
-            "orderId": order.exchange_order_id,
-            "orderListId": -1,
-            "clientOrderId": order.client_order_id,
+            "type": "limit",
+            "side": order.trade_type.name.lower(),
             "price": str(order.price),
-            "origQty": str(order.amount),
-            "executedQty": "0.0",
-            "cummulativeQuoteQty": "10000.0",
-            "status": "NEW",
-            "timeInForce": "GTC",
-            "type": order.order_type.name.upper(),
-            "side": order.trade_type.name.upper(),
-            "stopPrice": "0.0",
-            "icebergQty": "0.0",
-            "time": 1499827319559,
-            "updateTime": 1499827319559,
-            "isWorking": True,
-            "origQuoteOrderQty": str(order.price * order.amount)
+            "stop_price": None,
+            "oco_target_price": None,
+            "base_amount": str(order.amount),
+            "quote_amount": str(order.price * order.amount),
+            "identifier": None,
+            "state": "active",
+            "closed_at": None,
+            "created_at": "2025-04-29T17:12:09.413756+03:30",
+            "dealed_base_amount": "0.00",
+            "dealed_quote_amount": "0",
+            "req_to_cancel": False,
+            "commission": "0.00"
         }
 
     def _order_status_request_partially_filled_mock_response(self, order: InFlightOrder) -> Any:
