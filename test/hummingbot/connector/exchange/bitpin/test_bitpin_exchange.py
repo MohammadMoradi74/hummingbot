@@ -896,6 +896,48 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
         self.assertFalse(order.is_filled)
         self.assertFalse(order.is_done)
 
+    @aioresponses()
+    def test_update_order_status_when_request_fails_marks_order_as_not_found(self, mock_api):
+        auth_url = "https://api.bitpin.ir/api/v1/usr/authenticate/"
+        mock_api.post(auth_url,
+                      status=200,
+                      body=json.dumps({
+                          "access": "fake_access_token",
+                          "refresh": "fake_refresh_token"
+                      }))
+
+        self.exchange._set_current_timestamp(1640780000)
+
+        self.exchange.start_tracking_order(
+            order_id=self.client_order_id_prefix + "1",
+            exchange_order_id=str(self.expected_exchange_order_id),
+            trading_pair=self.trading_pair,
+            order_type=OrderType.LIMIT,
+            trade_type=TradeType.BUY,
+            price=Decimal("10000"),
+            amount=Decimal("1"),
+        )
+        order: InFlightOrder = self.exchange.in_flight_orders[self.client_order_id_prefix + "1"]
+
+        url = self.configure_http_error_order_status_response(
+            order=order,
+            mock_api=mock_api)
+
+        self.async_run_with_timeout(self.exchange._update_order_status())
+
+        if url:
+            order_status_request = self._all_executed_requests(mock_api, url)[0]
+            self.validate_auth_credentials_present(order_status_request)
+            self.validate_order_status_request(
+                order=order,
+                request_call=order_status_request)
+
+        self.assertTrue(order.is_open)
+        self.assertFalse(order.is_filled)
+        self.assertFalse(order.is_done)
+
+        self.assertEqual(1, self.exchange._order_tracker._order_not_found_records[order.client_order_id])
+
     def configure_canceled_order_status_response(
             self,
             order: InFlightOrder,
