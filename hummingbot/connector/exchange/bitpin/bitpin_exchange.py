@@ -467,18 +467,21 @@ class BitpinExchange(ExchangePyBase):
                 path_url=CONSTANTS.MY_TRADES_PATH_URL,
                 params={
                     "symbol": trading_pair,
-                    "orderId": exchange_order_id
+                    "side": order.trade_type.name.lower()
                 },
                 is_auth_required=True,
                 limit_id=CONSTANTS.MY_TRADES_PATH_URL)
 
+            # Bitpin has no params for order_id, so extract trades with specific order_ids
+            all_fills_response = [fill for fill in all_fills_response if fill['order_id'] == order.exchange_order_id]
+
             for trade in all_fills_response:
-                exchange_order_id = str(trade["orderId"])
+                exchange_order_id = str(trade["order_id"])
                 fee = TradeFeeBase.new_spot_fee(
                     fee_schema=self.trade_fee_schema(),
                     trade_type=order.trade_type,
-                    percent_token=trade["commissionAsset"],
-                    flat_fees=[TokenAmount(amount=Decimal(trade["commission"]), token=trade["commissionAsset"])]
+                    percent_token=trade["commission_currency"],
+                    flat_fees=[TokenAmount(amount=Decimal(trade["commission"]), token=trade["commission_currency"])]
                 )
                 trade_update = TradeUpdate(
                     trade_id=str(trade["id"]),
@@ -486,10 +489,10 @@ class BitpinExchange(ExchangePyBase):
                     exchange_order_id=exchange_order_id,
                     trading_pair=trading_pair,
                     fee=fee,
-                    fill_base_amount=Decimal(trade["qty"]),
-                    fill_quote_amount=Decimal(trade["quoteQty"]),
+                    fill_base_amount=Decimal(trade["base_amount"]),
+                    fill_quote_amount=Decimal(trade["quote_amount"]),
                     fill_price=Decimal(trade["price"]),
-                    fill_timestamp=trade["time"] * 1e-3,
+                    fill_timestamp=datetime.fromisoformat(trade["created_at"]).timestamp(),
                 )
                 trade_updates.append(trade_update)
 

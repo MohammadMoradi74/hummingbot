@@ -462,7 +462,7 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
         request_params = request_call.kwargs["params"]
         self.assertEqual(self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset),
                          request_params["symbol"])
-        self.assertEqual(order.exchange_order_id, str(request_params["orderId"]))
+        self.assertEqual(order.trade_type.name.lower(), str(request_params["side"]))
 
     def configure_successful_cancelation_response(
             self,
@@ -937,6 +937,70 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
         self.assertFalse(order.is_done)
 
         self.assertEqual(1, self.exchange._order_tracker._order_not_found_records[order.client_order_id])
+
+    @aioresponses()
+    def test_update_order_status_when_order_has_not_changed_and_one_partial_fill(self, mock_api):
+        auth_url = "https://api.bitpin.ir/api/v1/usr/authenticate/"
+        mock_api.post(auth_url,
+                      status=200,
+                      body=json.dumps({
+                          "access": "fake_access_token",
+                          "refresh": "fake_refresh_token"
+                      }))
+
+        self.exchange._set_current_timestamp(1640780000)
+
+        self.exchange.start_tracking_order(
+            order_id=self.client_order_id_prefix + "1",
+            exchange_order_id=str(self.expected_exchange_order_id),
+            trading_pair=self.trading_pair,
+            order_type=OrderType.LIMIT,
+            trade_type=TradeType.BUY,
+            price=Decimal("10000"),
+            amount=Decimal("1"),
+        )
+        order: InFlightOrder = self.exchange.in_flight_orders[self.client_order_id_prefix + "1"]
+
+        if self.is_order_fill_http_update_included_in_status_update:
+            trade_url = self.configure_partial_fill_trade_response(
+                order=order,
+                mock_api=mock_api)
+
+        order_url = self.configure_partially_filled_order_status_response(
+            order=order,
+            mock_api=mock_api)
+
+        self.assertTrue(order.is_open)
+
+        self.async_run_with_timeout(self.exchange._update_order_status())
+
+        if order_url:
+            order_status_request = self._all_executed_requests(mock_api, order_url)[0]
+            self.validate_auth_credentials_present(order_status_request)
+            self.validate_order_status_request(
+                order=order,
+                request_call=order_status_request)
+
+        self.assertTrue(order.is_open)
+        self.assertEqual(OrderState.PARTIALLY_FILLED, order.current_state)
+
+        if self.is_order_fill_http_update_included_in_status_update:
+            if trade_url:
+                trades_request = self._all_executed_requests(mock_api, trade_url)[0]
+                self.validate_auth_credentials_present(trades_request)
+                self.validate_trades_request(
+                    order=order,
+                    request_call=trades_request)
+
+            fill_event: OrderFilledEvent = self.order_filled_logger.event_log[0]
+            self.assertEqual(self.exchange.current_timestamp, fill_event.timestamp)
+            self.assertEqual(order.client_order_id, fill_event.order_id)
+            self.assertEqual(order.trading_pair, fill_event.trading_pair)
+            self.assertEqual(order.trade_type, fill_event.trade_type)
+            self.assertEqual(order.order_type, fill_event.order_type)
+            self.assertEqual(self.expected_partial_fill_price, fill_event.price)
+            self.assertEqual(self.expected_partial_fill_amount, fill_event.amount)
+            self.assertEqual(self.expected_fill_fee, fill_event.trade_fee)
 
     def configure_canceled_order_status_response(
             self,
@@ -1759,60 +1823,59 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
 
     def _order_status_request_partially_filled_mock_response(self, order: InFlightOrder) -> Any:
         return {
+            "id": order.exchange_order_id,
             "symbol": self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset),
-            "orderId": order.exchange_order_id,
-            "orderListId": -1,
-            "clientOrderId": order.client_order_id,
+            "type": "limit",
+            "side": order.trade_type.name.lower(),
             "price": str(order.price),
-            "origQty": str(order.amount),
-            "executedQty": str(order.amount),
-            "cummulativeQuoteQty": str(self.expected_partial_fill_amount * order.price),
-            "status": "PARTIALLY_FILLED",
-            "timeInForce": "GTC",
-            "type": order.order_type.name.upper(),
-            "side": order.trade_type.name.upper(),
-            "stopPrice": "0.0",
-            "icebergQty": "0.0",
-            "time": 1499827319559,
-            "updateTime": 1499827319559,
-            "isWorking": True,
-            "origQuoteOrderQty": str(order.price * order.amount)
+            "stop_price": None,
+            "oco_target_price": None,
+            "base_amount": str(order.amount),
+            "quote_amount": str(order.price * order.amount),
+            "identifier": None,
+            "state": "active",
+            "closed_at": None,
+            "created_at": "2025-04-29T17:12:09.413756+03:30",
+            "dealed_base_amount": str(self.expected_partial_fill_amount),
+            "dealed_quote_amount": str(self.expected_partial_fill_amount * order.price),
+            "req_to_cancel": False,
+            "commission": "584.77"
         }
 
     def _order_fills_request_partial_fill_mock_response(self, order: InFlightOrder):
         return [
             {
-                "symbol": self.exchange_symbol_for_tokens(order.base_asset, order.quote_asset),
                 "id": self.expected_fill_trade_id,
-                "orderId": int(order.exchange_order_id),
-                "orderListId": -1,
+                "symbol": self.exchange_symbol_for_tokens(order.base_asset, order.quote_asset),
+                "base_amount": str(self.expected_partial_fill_amount),
+                "quote_amount": str(self.expected_partial_fill_amount * self.expected_partial_fill_price),
                 "price": str(self.expected_partial_fill_price),
-                "qty": str(self.expected_partial_fill_amount),
-                "quoteQty": str(self.expected_partial_fill_amount * self.expected_partial_fill_price),
+                "created_at": "2025-04-29T17:12:10.671152+03:30",
                 "commission": str(self.expected_fill_fee.flat_fees[0].amount),
-                "commissionAsset": self.expected_fill_fee.flat_fees[0].token,
-                "time": 1499865549590,
-                "isBuyer": True,
-                "isMaker": False,
-                "isBestMatch": True
+                "side": order.trade_type.name.lower(),
+                "commission_currency": self.expected_fill_fee.flat_fees[0].token,
+                "order_id": order.exchange_order_id,
+                "identifier": order.client_order_id,
+
             }
         ]
 
-    def _order_fills_request_full_fill_mock_response(self, order: InFlightOrder):
-        return [
-            {
-                "symbol": self.exchange_symbol_for_tokens(order.base_asset, order.quote_asset),
-                "id": self.expected_fill_trade_id,
-                "orderId": int(order.exchange_order_id),
-                "orderListId": -1,
-                "price": str(order.price),
-                "qty": str(order.amount),
-                "quoteQty": str(order.amount * order.price),
-                "commission": str(self.expected_fill_fee.flat_fees[0].amount),
-                "commissionAsset": self.expected_fill_fee.flat_fees[0].token,
-                "time": 1499865549590,
-                "isBuyer": True,
-                "isMaker": False,
-                "isBestMatch": True
-            }
-        ]
+
+def _order_fills_request_full_fill_mock_response(self, order: InFlightOrder):
+    return [
+        {
+            "symbol": self.exchange_symbol_for_tokens(order.base_asset, order.quote_asset),
+            "id": self.expected_fill_trade_id,
+            "orderId": int(order.exchange_order_id),
+            "orderListId": -1,
+            "price": str(order.price),
+            "qty": str(order.amount),
+            "quoteQty": str(order.amount * order.price),
+            "commission": str(self.expected_fill_fee.flat_fees[0].amount),
+            "commissionAsset": self.expected_fill_fee.flat_fees[0].token,
+            "time": 1499865549590,
+            "isBuyer": True,
+            "isMaker": False,
+            "isBestMatch": True
+        }
+    ]
