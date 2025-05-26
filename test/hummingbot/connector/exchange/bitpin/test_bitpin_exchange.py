@@ -852,6 +852,43 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
 
         self.assertTrue(self.is_logged("INFO", tracked_order.build_order_created_message()))
 
+    def test_user_stream_update_for_canceled_order(self):
+        self.exchange._set_current_timestamp(1640780000)
+        self.exchange.start_tracking_order(
+            order_id=self.client_order_id_prefix + "1",
+            exchange_order_id=str(self.expected_exchange_order_id),
+            trading_pair=self.trading_pair,
+            order_type=OrderType.LIMIT,
+            trade_type=TradeType.BUY,
+            price=Decimal("10000"),
+            amount=Decimal("1"),
+        )
+        order = self.exchange.in_flight_orders[self.client_order_id_prefix + "1"]
+
+        order_event = self.order_event_for_canceled_order_websocket_update(order=order)
+
+        mock_queue = AsyncMock()
+        event_messages = [order_event, asyncio.CancelledError]
+        mock_queue.get.side_effect = event_messages
+        self.exchange._user_stream_tracker._user_stream = mock_queue
+
+        try:
+            self.async_run_with_timeout(self.exchange._user_stream_event_listener())
+        except asyncio.CancelledError:
+            pass
+
+        cancel_event: OrderCancelledEvent = self.order_cancelled_logger.event_log[0]
+        self.assertEqual(self.exchange.current_timestamp, cancel_event.timestamp)
+        self.assertEqual(order.client_order_id, cancel_event.order_id)
+        self.assertEqual(order.exchange_order_id, cancel_event.exchange_order_id)
+        self.assertNotIn(order.client_order_id, self.exchange.in_flight_orders)
+        self.assertTrue(order.is_cancelled)
+        self.assertTrue(order.is_done)
+
+        self.assertTrue(
+            self.is_logged("INFO", f"Successfully canceled order {order.client_order_id}.")
+        )
+
     @aioresponses()
     def test_update_order_status_when_canceled(self, mock_api):
         auth_url = "https://api.bitpin.ir/api/v1/usr/authenticate/"
