@@ -345,18 +345,13 @@ class BitpinExchange(ExchangePyBase):
                     tracked_order = self._order_tracker.all_updatable_orders.get(client_order_id)
 
                     if tracked_order is not None:
-                        state = event_message["state"]
-                        self._find_state_from_order_data(event_message)
-                        # Map exchange states to our states
-                        new_state = {
-                            "active": "OPEN",
-                            "closed": "CANCELED" if event_message["req_to_cancel"] else "FILLED",
-                        }.get(state, state.upper())
+                        new_state = self._find_state_from_order_data(event_message)
 
                         order_update = OrderUpdate(
                             trading_pair=tracked_order.trading_pair,
-                            update_timestamp=self._convert_timestamp_to_unix(event_message["event_time"]),
-                            new_state=new_state,
+                            update_timestamp=datetime.fromisoformat(
+                                event_message["event_time"].replace('Z', '+00:00')).timestamp(),
+                            new_state=CONSTANTS.ORDER_STATE[new_state],
                             client_order_id=client_order_id,
                             exchange_order_id=str(event_message["id"]),
                         )
