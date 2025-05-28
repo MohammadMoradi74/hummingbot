@@ -1337,7 +1337,31 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
         url = web_utils.private_rest_url(CONSTANTS.SERVER_TIME_PATH_URL)
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
 
-        response = {"serverTime": 1640000003000}
+        response = [
+            {
+                "symbol": "BTC_IRT",
+                "price": "8928660507",
+                "daily_change_price": -0.89,
+                "low": "8910157817",
+                "high": "9128369250",
+                "timestamp": 1748442864.362
+            },
+            {
+                "symbol": "BTC_USDT",
+                "price": "107852.30",
+                "daily_change_price": -1.1899,
+                "low": "107631.40",
+                "high": "110489.20",
+                "timestamp": 1748442864.362
+            },
+            {
+                "symbol": "ETH_USDT",
+                "price": "2641.77",
+                "daily_change_price": -0.13,
+                "low": "2610.78",
+                "high": "2711.80",
+                "timestamp": 1748442862.245
+            }]
 
         mock_api.get(regex_url,
                      body=json.dumps(response),
@@ -1345,7 +1369,7 @@ class BitpinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests)
 
         self.async_run_with_timeout(self.exchange._update_time_synchronizer())
 
-        self.assertEqual(response["serverTime"] * 1e-3, self.exchange._time_synchronizer.time())
+        self.assertEqual(max(item["timestamp"] for item in response) * 1e-3, self.exchange._time_synchronizer.time())
 
     @aioresponses()
     def test_update_time_synchronizer_failure_is_logged(self, mock_api):

@@ -1,7 +1,5 @@
 from typing import Callable, Optional
 
-import pandas as pd
-
 import hummingbot.connector.exchange.bitpin.bitpin_constants as CONSTANTS
 from hummingbot.connector.time_synchronizer import TimeSynchronizer
 from hummingbot.connector.utils import TimeSynchronizerRESTPreProcessor
@@ -73,5 +71,5 @@ async def get_current_server_time(
         method=RESTMethod.GET,
         throttler_limit_id=CONSTANTS.SERVER_TIME_PATH_URL,
     )
-    server_time = pd.DataFrame(response)["timestamp"].max()
+    server_time = max(item["timestamp"] for item in response)
     return server_time
