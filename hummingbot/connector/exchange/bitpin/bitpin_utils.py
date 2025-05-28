@@ -22,7 +22,7 @@ def is_exchange_information_valid(exchange_info: Dict[str, Any]) -> bool:
     :param exchange_info: the exchange information for a trading pair
     :return: True if the trading pair is enabled, False otherwise
     """
-    is_spot = True       # only spot market for now
+    is_spot = True  # only spot market for now
     is_trading = False
 
     if exchange_info.get("tradable", None) == 'true':
@@ -54,3 +54,8 @@ class BitpinConfigMap(BaseConnectorConfigMap):
 
     class Config:
         title = "bitpin"
+
+
+KEYS = BitpinConfigMap.construct()
+
+# TODO: Add org domain here. See binance_utils.py
