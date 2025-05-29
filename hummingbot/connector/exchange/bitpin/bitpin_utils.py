@@ -25,7 +25,7 @@ def is_exchange_information_valid(exchange_info: Dict[str, Any]) -> bool:
     is_spot = True  # only spot market for now
     is_trading = False
 
-    if exchange_info.get("tradable", None) == 'true':
+    if exchange_info.get("tradable", None) is True:
         is_trading = True
 
     return is_trading and is_spot
