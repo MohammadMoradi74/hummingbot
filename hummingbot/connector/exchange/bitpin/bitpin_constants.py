@@ -19,7 +19,7 @@ TICKER_PRICE_CHANGE_PATH_URL = "/mkt/tickers/"
 # TICKER_BOOK_PATH_URL = "/ticker/bookTicker"
 # PRICES_PATH_URL = "/ticker/price"
 EXCHANGE_INFO_PATH_URL = "/mkt/markets/"
-PING_PATH_URL = "/ping"                 # not working! There's no ping ulr for bitpin. Just keeps other parts working
+PING_PATH_URL = "/mkt/markets/"           # not working! There's no ping ulr for bitpin. Just keeps other parts working
 SNAPSHOT_PATH_URL = "/mth/orderbook/"
 SERVER_TIME_PATH_URL = "/mkt/tickers/"
 #
