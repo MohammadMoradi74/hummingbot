@@ -180,7 +180,7 @@ class BitpinExchange(ExchangePyBase):
                            price: Decimal,
                            **kwargs) -> Tuple[str, float]:
         order_result = None
-        amount_str = f"{amount:f}"
+        amount_str = f"{amount:.6f}"
         type_str = BitpinExchange.bitpin_order_type(order_type)
         side_str = CONSTANTS.SIDE_BUY if trade_type is TradeType.BUY else CONSTANTS.SIDE_SELL
         # TODO: This request is too slow sometimes. Make it faster.
