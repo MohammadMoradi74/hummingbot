@@ -49,8 +49,9 @@ class BitpinAPIOrderBookDataSource(OrderBookTrackerDataSource):
         :return: the response from the exchange (JSON dictionary)
         """
         rest_assistant = await self._api_factory.get_rest_assistant()
+        symbol = await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
         data = await rest_assistant.execute_request(
-            url=web_utils.public_rest_url(path_url=CONSTANTS.SNAPSHOT_PATH_URL + trading_pair + '/',
+            url=web_utils.public_rest_url(path_url=CONSTANTS.SNAPSHOT_PATH_URL + symbol + '/',
                                           domain=self._domain),
             method=RESTMethod.GET,
             throttler_limit_id=CONSTANTS.SNAPSHOT_PATH_URL,
@@ -66,7 +67,8 @@ class BitpinAPIOrderBookDataSource(OrderBookTrackerDataSource):
         try:
             payload = {
                 "method": "sub_to_market_data",
-                "symbols": self._trading_pairs,
+                "symbols": [await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair) for
+                            trading_pair in self._trading_pairs]
             }
             subscribe_trade_and_orderbook_request: WSJSONRequest = WSJSONRequest(payload=payload)
 

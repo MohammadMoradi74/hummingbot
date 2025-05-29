@@ -390,7 +390,7 @@ class BitpinExchange(ExchangePyBase):
             trading_pairs = self.trading_pairs
             for trading_pair in trading_pairs:
                 params = {
-                    "symbol": trading_pair.replace('-', '_')
+                    "symbol": await self.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
                 }
                 # There is no param for time
                 # if self._last_poll_timestamp > 0:
