@@ -399,7 +399,7 @@ class BitpinExchange(ExchangePyBase):
                     path_url=CONSTANTS.MY_TRADES_PATH_URL,
                     params=params,
                     limit_id='/odr/fills/',
-                    is_auth_required=False))
+                    is_auth_required=True))
 
             self.logger().debug(f"Polling for order fills of {len(tasks)} trading pairs.")
             results = await safe_gather(*tasks, return_exceptions=True)
