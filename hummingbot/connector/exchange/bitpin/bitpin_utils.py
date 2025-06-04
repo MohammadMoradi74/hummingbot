@@ -7,7 +7,7 @@ from hummingbot.client.config.config_data_types import BaseConnectorConfigMap, C
 from hummingbot.core.data_type.trade_fee import TradeFeeSchema
 
 CENTRALIZED = True
-EXAMPLE_PAIR = "USDT_IRT"
+EXAMPLE_PAIR = "USDT-IRT"
 
 DEFAULT_FEES = TradeFeeSchema(
     maker_percent_fee_decimal=Decimal("0.0035"),
@@ -59,3 +59,36 @@ class BitpinConfigMap(BaseConnectorConfigMap):
 KEYS = BitpinConfigMap.construct()
 
 # TODO: Add org domain here. See binance_utils.py
+
+OTHER_DOMAINS = ["bitpin_org"]
+OTHER_DOMAINS_PARAMETER = {"bitpin_org": "org"}
+OTHER_DOMAINS_EXAMPLE_PAIR = {"bitpin_org": "USDT-IRT"}
+OTHER_DOMAINS_DEFAULT_FEES = {"bitpin_org": DEFAULT_FEES}
+
+
+class BitpinORGConfigMap(BaseConnectorConfigMap):
+    connector: str = Field(default="bitpin_org", const=True, client_data=None)
+    bitpin_api_key: SecretStr = Field(
+        default=...,
+        client_data=ClientFieldData(
+            prompt=lambda cm: "Enter your Bitpin ORG API key",
+            is_secure=True,
+            is_connect_key=True,
+            prompt_on_new=True,
+        )
+    )
+    bitpin_api_secret: SecretStr = Field(
+        default=...,
+        client_data=ClientFieldData(
+            prompt=lambda cm: "Enter your Bitpin ORG API secret",
+            is_secure=True,
+            is_connect_key=True,
+            prompt_on_new=True,
+        )
+    )
+
+    class Config:
+        title = "bitpin_org"
+
+
+OTHER_DOMAINS_KEYS = {"bitpin_org": BitpinORGConfigMap.construct()}
