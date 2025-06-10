@@ -3,6 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
+from aiohttp import ContentTypeError
 from bidict import bidict
 
 from hummingbot.connector.constants import s_decimal_NaN
@@ -217,13 +218,29 @@ class BitpinExchange(ExchangePyBase):
         return o_id, transact_time
 
     async def _place_cancel(self, order_id: str, tracked_order: InFlightOrder):
-        cancel_result = await self._api_delete(
-            path_url=CONSTANTS.ORDER_PATH_URL + tracked_order.exchange_order_id + '/',
-            limit_id=CONSTANTS.ORDER_PATH_URL,
-            is_auth_required=True)
-        # If successful it returns '' response which is translated to None in the cancel_output
-        if cancel_result is None:
-            return True
+        try:
+            cancel_result = await self._api_delete(
+                path_url=CONSTANTS.ORDER_PATH_URL + tracked_order.exchange_order_id + '/',
+                limit_id=CONSTANTS.ORDER_PATH_URL,
+                is_auth_required=True)
+            # If successful it returns '' response which is translated to None in the cancel_output
+            if cancel_result is None:
+                return True
+
+        # OSError('Error executing request DELETE https://api.bitpin.ir/api/v1/odr/orders/1163595821/.
+        # HTTP status is 406. Error: {"detail":"not allowed"}')
+        except OSError as e:
+            if '406' in e.args[0]:
+                return False
+        # It expect a content, so if the content is '' (when the code is 204) you should handle the error
+        # This is the error:
+        # raise ContentTypeError(aiohttp.client_exceptions.ContentTypeError: 204,
+        # message = 'Attempt to decode JSON with unexpected mimetype: ',
+        # url = 'https://api.bitpin.ir/api/v1/odr/orders/1163474499/'
+        except ContentTypeError as e:
+            if e.status == 204:
+                return True
+
         return False
 
     async def _format_trading_rules(self, exchange_info_dict: Dict[str, Any]) -> List[TradingRule]:
