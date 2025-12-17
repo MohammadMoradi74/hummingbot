@@ -38,58 +38,27 @@ def is_exchange_information_valid(exchange_info: Dict[str, Any]) -> bool:
     return is_trading and is_spot
 
 
-class BinanceConfigMap(BaseConnectorConfigMap):
-    connector: str = "binance"
-    binance_api_key: SecretStr = Field(
+class MobinConfigMap(BaseConnectorConfigMap):
+    connector: str = "mobin"
+    mobin_api_key: SecretStr = Field(
         default=...,
         json_schema_extra={
-            "prompt": lambda cm: "Enter your Binance API key",
+            "prompt": lambda cm: "Enter your Mobin API key",
             "is_secure": True,
             "is_connect_key": True,
             "prompt_on_new": True,
         }
     )
-    binance_api_secret: SecretStr = Field(
+    mobin_api_secret: SecretStr = Field(
         default=...,
         json_schema_extra={
-            "prompt": lambda cm: "Enter your Binance API secret",
+            "prompt": lambda cm: "Enter your Mobin API secret",
             "is_secure": True,
             "is_connect_key": True,
             "prompt_on_new": True,
         }
     )
-    model_config = ConfigDict(title="binance")
+    model_config = ConfigDict(title="mobin")
 
 
-KEYS = BinanceConfigMap.model_construct()
-
-OTHER_DOMAINS = ["binance_us"]
-OTHER_DOMAINS_PARAMETER = {"binance_us": "us"}
-OTHER_DOMAINS_EXAMPLE_PAIR = {"binance_us": "BTC-USDT"}
-OTHER_DOMAINS_DEFAULT_FEES = {"binance_us": DEFAULT_FEES}
-
-
-class BinanceUSConfigMap(BaseConnectorConfigMap):
-    connector: str = "binance_us"
-    binance_api_key: SecretStr = Field(
-        default=...,
-        json_schema_extra={
-            "prompt": "Enter your Binance US API key",
-            "is_secure": True,
-            "is_connect_key": True,
-            "prompt_on_new": True,
-        }
-    )
-    binance_api_secret: SecretStr = Field(
-        default=...,
-        json_schema_extra={
-            "prompt": "Enter your Binance US API secret",
-            "is_secure": True,
-            "is_connect_key": True,
-            "prompt_on_new": True,
-        }
-    )
-    model_config = ConfigDict(title="binance_us")
-
-
-OTHER_DOMAINS_KEYS = {"binance_us": BinanceUSConfigMap.model_construct()}
+KEYS = MobinConfigMap.model_construct()
