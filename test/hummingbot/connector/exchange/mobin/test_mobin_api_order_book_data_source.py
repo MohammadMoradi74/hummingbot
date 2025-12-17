@@ -9,15 +9,15 @@ from bidict import bidict
 
 from hummingbot.client.config.client_config_map import ClientConfigMap
 from hummingbot.client.config.config_helpers import ClientConfigAdapter
-from hummingbot.connector.exchange.binance import binance_constants as CONSTANTS, binance_web_utils as web_utils
-from hummingbot.connector.exchange.binance.binance_api_order_book_data_source import BinanceAPIOrderBookDataSource
-from hummingbot.connector.exchange.binance.binance_exchange import BinanceExchange
+from hummingbot.connector.exchange.mobin import mobin_constants as CONSTANTS, mobin_web_utils as web_utils
+from hummingbot.connector.exchange.mobin.mobin_api_order_book_data_source import MobinAPIOrderBookDataSource
+from hummingbot.connector.exchange.mobin.mobin_exchange import MobinExchange
 from hummingbot.connector.test_support.network_mocking_assistant import NetworkMockingAssistant
 from hummingbot.core.data_type.order_book import OrderBook
 from hummingbot.core.data_type.order_book_message import OrderBookMessage
 
 
-class BinanceAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
+class MobinAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
     # logging.Level required to receive logs from the data source logger
     level = 0
 
@@ -37,17 +37,17 @@ class BinanceAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
         self.mocking_assistant = NetworkMockingAssistant(self.local_event_loop)
 
         client_config_map = ClientConfigAdapter(ClientConfigMap())
-        self.connector = BinanceExchange(
+        self.connector = MobinExchange(
             client_config_map=client_config_map,
-            binance_api_key="",
-            binance_api_secret="",
+            mobin_api_key="",
+            mobin_api_secret="",
             trading_pairs=[],
             trading_required=False,
             domain=self.domain)
-        self.data_source = BinanceAPIOrderBookDataSource(trading_pairs=[self.trading_pair],
-                                                         connector=self.connector,
-                                                         api_factory=self.connector._web_assistants_factory,
-                                                         domain=self.domain)
+        self.data_source = MobinAPIOrderBookDataSource(trading_pairs=[self.trading_pair],
+                                                       connector=self.connector,
+                                                       api_factory=self.connector._web_assistants_factory,
+                                                       domain=self.domain)
         self.data_source.logger().setLevel(1)
         self.data_source.logger().addHandler(self)
 
@@ -346,8 +346,8 @@ class BinanceAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
             await self.data_source.listen_for_order_book_snapshots(self.local_event_loop, asyncio.Queue())
 
     @aioresponses()
-    @patch("hummingbot.connector.exchange.binance.binance_api_order_book_data_source"
-           ".BinanceAPIOrderBookDataSource._sleep")
+    @patch("hummingbot.connector.exchange.mobin.mobin_api_order_book_data_source"
+           ".MobinAPIOrderBookDataSource._sleep")
     async def test_listen_for_order_book_snapshots_log_exception(self, mock_api, sleep_mock):
         msg_queue: asyncio.Queue = asyncio.Queue()
         sleep_mock.side_effect = lambda _: self._create_exception_and_unlock_test_with_event(asyncio.CancelledError())
