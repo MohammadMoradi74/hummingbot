@@ -7,11 +7,11 @@ from hummingbot.client.config.config_data_types import BaseConnectorConfigMap
 from hummingbot.core.data_type.trade_fee import TradeFeeSchema
 
 CENTRALIZED = True
-EXAMPLE_PAIR = "ZRX-ETH"
+EXAMPLE_PAIR = "IRTKMOFD0001-IRR"
 
 DEFAULT_FEES = TradeFeeSchema(
-    maker_percent_fee_decimal=Decimal("0.001"),
-    taker_percent_fee_decimal=Decimal("0.001"),
+    maker_percent_fee_decimal=Decimal("0.003"),
+    taker_percent_fee_decimal=Decimal("0.003"),
     buy_percent_fee_deducted_from_returns=True
 )
 
