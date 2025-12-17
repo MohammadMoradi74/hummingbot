@@ -59,6 +59,7 @@ def create_throttler() -> AsyncThrottler:
     return AsyncThrottler(CONSTANTS.RATE_LIMITS)
 
 
+# TODO: Find a trick to get time data. There is no endpoint for time.
 async def get_current_server_time(
         throttler: Optional[AsyncThrottler] = None,
         domain: str = CONSTANTS.DEFAULT_DOMAIN,
