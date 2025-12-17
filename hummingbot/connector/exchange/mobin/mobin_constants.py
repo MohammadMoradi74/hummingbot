@@ -1,17 +1,17 @@
 from hummingbot.core.api_throttler.data_types import LinkedLimitWeightPair, RateLimit
 from hummingbot.core.data_type.in_flight_order import OrderState
 
-DEFAULT_DOMAIN = "com"
+DEFAULT_DOMAIN = "ir"
 
 HBOT_ORDER_ID_PREFIX = "x-MG43PCSN"
 MAX_ORDER_ID_LEN = 32
 
 # Base URL
-REST_URL = "https://api.binance.{}/api/"
+REST_URL = "https://qcore.mobinsb.{}/"
 WSS_URL = "wss://stream.binance.{}:9443/ws"
 
-PUBLIC_API_VERSION = "v3"
-PRIVATE_API_VERSION = "v3"
+PUBLIC_API_VERSION = "v1"
+PRIVATE_API_VERSION = "v1"
 
 # Public API endpoints or BinanceClient function
 TICKER_PRICE_CHANGE_PATH_URL = "/ticker/24hr"
