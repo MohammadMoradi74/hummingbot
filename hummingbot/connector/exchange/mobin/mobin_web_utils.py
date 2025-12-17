@@ -1,6 +1,6 @@
 from typing import Callable, Optional
 
-import hummingbot.connector.exchange.binance.binance_constants as CONSTANTS
+import hummingbot.connector.exchange.mobin.mobin_constants as CONSTANTS
 from hummingbot.connector.time_synchronizer import TimeSynchronizer
 from hummingbot.connector.utils import TimeSynchronizerRESTPreProcessor
 from hummingbot.core.api_throttler.async_throttler import AsyncThrottler
