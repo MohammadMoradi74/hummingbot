@@ -49,16 +49,16 @@ class MobinAPIOrderBookDataSource(OrderBookTrackerDataSource):
         :return: the response from the exchange (JSON dictionary)
         """
         params = {
-            "symbol": await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair),
-            "limit": "1000"
+            "id": await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair),
         }
 
         rest_assistant = await self._api_factory.get_rest_assistant()
         data = await rest_assistant.execute_request(
-            url=web_utils.public_rest_url(path_url=CONSTANTS.SNAPSHOT_PATH_URL, domain=self._domain),
+            url=web_utils.private_rest_url(path_url=CONSTANTS.SNAPSHOT_PATH_URL, domain=self._domain),
             params=params,
             method=RESTMethod.GET,
             throttler_limit_id=CONSTANTS.SNAPSHOT_PATH_URL,
+            is_auth_required=True,  # <-- ensure auth is applied
         )
 
         return data

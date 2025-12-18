@@ -24,11 +24,11 @@ class MobinAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
-        cls.base_asset = "COINALPHA"
-        cls.quote_asset = "HBOT"
+        cls.base_asset = "IRTKMOFD0001"
+        cls.quote_asset = "IRR"
         cls.trading_pair = f"{cls.base_asset}-{cls.quote_asset}"
-        cls.ex_trading_pair = cls.base_asset + cls.quote_asset
-        cls.domain = "com"
+        cls.ex_trading_pair = cls.base_asset
+        cls.domain = "ir"
 
     async def asyncSetUp(self) -> None:
         await super().asyncSetUp()
@@ -110,47 +110,61 @@ class MobinAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
         return resp
 
     def _snapshot_response(self):
-        resp = {
-            "lastUpdateId": 1027024,
-            "bids": [
-                [
-                    "4.00000000",
-                    "431.00000000"
-                ]
+        # Trimmed to essentials for the test
+        return {
+            "instrumentId": "IRTKMOFD0001",
+            "tradeNumber": 77909,  # use as update_id
+            "bestLimits": [
+                {
+                    "instrumentId": "IRTKMOFD0001",
+                    "rowIndex": 1,
+                    "buyQuantity": 15,
+                    "buyNumber": 1,
+                    "buyPrice": 362393,
+                    "sellPrice": 362400,
+                    "sellNumber": 4,
+                    "sellQuantity": 44981,
+                },
+                {
+                    "instrumentId": "IRTKMOFD0001",
+                    "rowIndex": 2,
+                    "buyQuantity": 2256,
+                    "buyNumber": 1,
+                    "buyPrice": 362392,
+                    "sellPrice": 362401,
+                    "sellNumber": 2,
+                    "sellQuantity": 1014,
+                },
             ],
-            "asks": [
-                [
-                    "4.00000200",
-                    "12.00000000"
-                ]
-            ]
         }
-        return resp
 
     @aioresponses()
     async def test_get_new_order_book_successful(self, mock_api):
-        url = web_utils.public_rest_url(path_url=CONSTANTS.SNAPSHOT_PATH_URL, domain=self.domain)
+        url = web_utils.private_rest_url(path_url=CONSTANTS.SNAPSHOT_PATH_URL, domain=self.domain)
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
 
         resp = self._snapshot_response()
-
         mock_api.get(regex_url, body=json.dumps(resp))
 
         order_book: OrderBook = await self.data_source.get_new_order_book(self.trading_pair)
 
-        expected_update_id = resp["lastUpdateId"]
+        # Ignore expected_update_id related test as it depends on time. There is no unique identifier in the response.
+        # expected_update_id = resp["tradeNumber"]
+        # self.assertEqual(expected_update_id, order_book.snapshot_uid)
 
-        self.assertEqual(expected_update_id, order_book.snapshot_uid)
         bids = list(order_book.bid_entries())
         asks = list(order_book.ask_entries())
-        self.assertEqual(1, len(bids))
-        self.assertEqual(4, bids[0].price)
-        self.assertEqual(431, bids[0].amount)
-        self.assertEqual(expected_update_id, bids[0].update_id)
-        self.assertEqual(1, len(asks))
-        self.assertEqual(4.000002, asks[0].price)
-        self.assertEqual(12, asks[0].amount)
-        self.assertEqual(expected_update_id, asks[0].update_id)
+
+        # Top-of-book bid/ask should match first bestLimits row
+        self.assertEqual(2, len(bids))
+        self.assertEqual(362393, bids[0].price)
+        self.assertEqual(15, bids[0].amount)
+        # self.assertEqual(expected_update_id, bids[0].update_id)
+
+        self.assertEqual(2, len(asks))
+        self.assertEqual(362400, asks[0].price)
+        self.assertEqual(44981, asks[0].amount)
+        # self.assertEqual(expected_update_id, asks[0].update_id)
 
     @aioresponses()
     async def test_get_new_order_book_raises_exception(self, mock_api):

@@ -21,11 +21,23 @@ class MobinOrderBook(OrderBook):
         """
         if metadata:
             msg.update(metadata)
+
+        bids = []
+        asks = []
+
+        for level in msg.get("bestLimits", []):
+            # Only add levels that have both price and quantity
+            if "buyPrice" in level and "buyQuantity" in level:
+                bids.append([float(level["buyPrice"]), float(level["buyQuantity"])])
+            if "sellPrice" in level and "sellQuantity" in level:
+                asks.append([float(level["sellPrice"]), float(level["sellQuantity"])])
+
+        # Use timestamp as unique identifier, there's no unique identifier in the response
         return OrderBookMessage(OrderBookMessageType.SNAPSHOT, {
-            "trading_pair": msg["trading_pair"],
-            "update_id": msg["lastUpdateId"],
-            "bids": msg["bids"],
-            "asks": msg["asks"]
+            "trading_pair": msg["instrumentId"],
+            "update_id": int(timestamp),
+            "bids": bids,
+            "asks": asks
         }, timestamp=timestamp)
 
     @classmethod

@@ -19,7 +19,7 @@ TICKER_BOOK_PATH_URL = "/ticker/bookTicker"
 PRICES_PATH_URL = "/ticker/price"
 EXCHANGE_INFO_PATH_URL = "/exchangeInfo"
 PING_PATH_URL = "/ping"
-SNAPSHOT_PATH_URL = "/depth"
+SNAPSHOT_PATH_URL = "/Instruments/Information"
 SERVER_TIME_PATH_URL = "/time"
 
 # Private API endpoints or BinanceClient function
