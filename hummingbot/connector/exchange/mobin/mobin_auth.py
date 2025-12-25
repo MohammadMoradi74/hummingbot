@@ -1,16 +1,19 @@
-import hashlib
-import hmac
-import json
-from collections import OrderedDict
-from typing import Any, Dict
-from urllib.parse import urlencode
+import asyncio
+from typing import Dict, Optional
+
+import aiohttp
 
 from hummingbot.connector.time_synchronizer import TimeSynchronizer
 from hummingbot.core.web_assistant.auth import AuthBase
-from hummingbot.core.web_assistant.connections.data_types import RESTMethod, RESTRequest, WSRequest
+from hummingbot.core.web_assistant.connections.data_types import RESTRequest, WSRequest
+
+counter_token = 0
 
 
 class MobinAuth(AuthBase):
+    _token_lock: asyncio.Lock = asyncio.Lock()
+    token: Optional[str] = None
+
     def __init__(self, api_key: str, secret_key: str, time_provider: TimeSynchronizer):
         self.api_key = api_key
         self.secret_key = secret_key
@@ -22,10 +25,8 @@ class MobinAuth(AuthBase):
         the required parameter in the request header.
         :param request: the request to be configured for authenticated interaction
         """
-        if request.method == RESTMethod.POST:
-            request.data = self.add_auth_to_params(params=json.loads(request.data))
-        else:
-            request.params = self.add_auth_to_params(params=request.params)
+        if MobinAuth.token is None:
+            await self.authenticate()
 
         headers = {}
         if request.headers is not None:
@@ -42,23 +43,34 @@ class MobinAuth(AuthBase):
         """
         return request  # pass-through
 
-    def add_auth_to_params(self,
-                           params: Dict[str, Any]):
-        timestamp = int(self.time_provider.time() * 1e3)
-
-        request_params = OrderedDict(params or {})
-        request_params["timestamp"] = timestamp
-
-        signature = self._generate_signature(params=request_params)
-        request_params["signature"] = signature
-
-        return request_params
-
     def header_for_authentication(self) -> Dict[str, str]:
-        return {"X-MBX-APIKEY": self.api_key}
+        return {"Content-Type": "application/json",
+                # TODO: This line was removed in the previous commit. Check the conflict!
+                "Authorization": f"Bearer {MobinAuth.token}"}
 
-    def _generate_signature(self, params: Dict[str, Any]) -> str:
+    async def authenticate(self):
+        """
+        Sends the authentication request to the Mobin API to get tokens.
+        """
+        # TODO: Clean up the mess!
+        url = "https://externalapi.mobinsb.ir/api/V1/Authentication/GenerateToken"
+        headers = {
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "userName": self.api_key,
+            "password": self.secret_key
+        }
 
-        encoded_params_str = urlencode(params)
-        digest = hmac.new(self.secret_key.encode("utf8"), encoded_params_str.encode("utf8"), hashlib.sha256).hexdigest()
-        return digest
+        async with MobinAuth._token_lock:
+            async with aiohttp.ClientSession() as session:
+                global counter_token
+                print(f'send requests to auth: {counter_token}')
+                counter_token += 1
+                async with session.post(url, json=payload, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        MobinAuth.token = data["data"]["token"]
+                        print(f"Authentication successful! Token: {MobinAuth.token[0:5]}...")
+                    else:
+                        raise Exception(f"Authentication failed with status code {response.status}")
