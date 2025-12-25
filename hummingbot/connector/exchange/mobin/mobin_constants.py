@@ -70,6 +70,8 @@ DIFF_EVENT_TYPE = "depthUpdate"
 TRADE_EVENT_TYPE = "trade"
 
 RATE_LIMITS = [
+    RateLimit(limit_id='negotiate', limit=6000, time_interval=ONE_MINUTE),
+
     # Pools
     RateLimit(limit_id=REQUEST_WEIGHT, limit=6000, time_interval=ONE_MINUTE),
     RateLimit(limit_id=ORDERS, limit=100, time_interval=10 * ONE_SECOND),

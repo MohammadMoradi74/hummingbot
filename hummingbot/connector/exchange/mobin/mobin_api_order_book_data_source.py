@@ -1,4 +1,5 @@
 import asyncio
+import json
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
@@ -103,9 +104,34 @@ class MobinAPIOrderBookDataSource(OrderBookTrackerDataSource):
             raise
 
     async def _connected_websocket_assistant(self) -> WSAssistant:
+        # 1. Negotiate to get connectionToken
+        negotiate_url = f"https://pusher11.mobinsb.{self._domain}/mmtp/negotiate?negotiateVersion=1"
+        rest_assistant = await self._api_factory.get_rest_assistant()
+
+        # We must provide throttler_limit_id. You can use a generic name or path.
+        negotiate_resp = await rest_assistant.execute_request(
+            url=negotiate_url,
+            method=RESTMethod.POST,
+            is_auth_required=True,
+            throttler_limit_id="negotiate"  # Added this required argument
+        )
+        connection_token = negotiate_resp["connectionToken"]
+
+        # 2. Connect to WebSocket with the token
         ws: WSAssistant = await self._api_factory.get_ws_assistant()
-        await ws.connect(ws_url=CONSTANTS.WSS_URL.format(self._domain),
-                         ping_timeout=CONSTANTS.WS_HEARTBEAT_TIME_INTERVAL)
+
+        ws_url = f"wss://pusher11.mobinsb.{self._domain}/mmtp?id={connection_token}"
+        ws_headers = ws._auth.header_for_authentication()
+        await ws.connect(ws_url=ws_url, ping_timeout=CONSTANTS.WS_HEARTBEAT_TIME_INTERVAL, ws_headers=ws_headers)
+
+        # 3. SignalR Handshake
+        # Handshake message must end with \x1e
+        handshake_payload = {"protocol": "json", "version": 1}
+        await ws._connection._connection.send_str(json.dumps(handshake_payload) + "\x1e")
+
+        # Wait for handshake response (usually "{}\x1e")
+        await ws._connection._connection.receive_str()
+
         return ws
 
     async def _order_book_snapshot(self, trading_pair: str) -> OrderBookMessage:
