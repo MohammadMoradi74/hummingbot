@@ -7,7 +7,7 @@ from hummingbot.connector.exchange.mobin import mobin_constants as CONSTANTS, mo
 from hummingbot.connector.exchange.mobin.mobin_order_book import MobinOrderBook
 from hummingbot.core.data_type.order_book_message import OrderBookMessage
 from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTrackerDataSource
-from hummingbot.core.web_assistant.connections.data_types import RESTMethod, WSJSONRequest
+from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
 from hummingbot.core.web_assistant.ws_assistant import WSAssistant
 from hummingbot.logger import HummingbotLogger
@@ -70,30 +70,25 @@ class MobinAPIOrderBookDataSource(OrderBookTrackerDataSource):
         :param ws: the websocket assistant used to connect to the exchange
         """
         try:
-            trade_params = []
-            depth_params = []
             for trading_pair in self._trading_pairs:
                 symbol = await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
-                trade_params.append(f"{symbol.lower()}@trade")
-                depth_params.append(f"{symbol.lower()}@depth@100ms")
-            payload = {
-                "method": "SUBSCRIBE",
-                "params": trade_params,
-                "id": 1
-            }
-            subscribe_trade_request: WSJSONRequest = WSJSONRequest(payload=payload)
+                # SignalR Subscription for Trades
+                subscribe_trade = {
+                    "arguments": [{"subscribed": [symbol], "unsubscribed": []}],
+                    "target": "SubscribeTrade",
+                    "type": 1
+                }
+                await ws._connection._connection.send_str(json.dumps(subscribe_trade) + "\x1e")
 
-            payload = {
-                "method": "SUBSCRIBE",
-                "params": depth_params,
-                "id": 2
-            }
-            subscribe_orderbook_request: WSJSONRequest = WSJSONRequest(payload=payload)
+                # SignalR Subscription for Order Book (Information/State)
+                subscribe_info = {
+                    "arguments": [{"subscribed": [symbol], "unsubscribed": []}],
+                    "target": "SubscribeInformation",
+                    "type": 1
+                }
+                await ws._connection._connection.send_str(json.dumps(subscribe_info) + "\x1e")
 
-            await ws.send(subscribe_trade_request)
-            await ws.send(subscribe_orderbook_request)
-
-            self.logger().info("Subscribed to public order book and trade channels...")
+            self.logger().info("Subscribed to Mobin SignalR channels...")
         except asyncio.CancelledError:
             raise
         except Exception:
