@@ -53,13 +53,15 @@ class MobinAuth(AuthBase):
         Sends the authentication request to the Mobin API to get tokens.
         """
         # TODO: Clean up the mess!
-        url = "https://externalapi.mobinsb.ir/api/V1/Authentication/GenerateToken"
+        url = "https://qcore.mobinsb.ir/v1/Sessions/Login"
         headers = {
             "Content-Type": "application/json"
         }
         payload = {
-            "userName": self.api_key,
-            "password": self.secret_key
+            "UserName": self.api_key,
+            "Password": self.secret_key,
+            "LoginType": 1,
+            "ApplicationKey": "854666C8-2870-4EAB-9691-7AC68A50886B"
         }
 
         async with MobinAuth._token_lock:
@@ -70,7 +72,10 @@ class MobinAuth(AuthBase):
                 async with session.post(url, json=payload, headers=headers) as response:
                     if response.status == 200:
                         data = await response.json()
-                        MobinAuth.token = data["data"]["token"]
-                        print(f"Authentication successful! Token: {MobinAuth.token[0:5]}...")
+                        if data['success']:
+                            MobinAuth.token = data["data"]["accessToken"]
+                            print(f"Authentication successful! Token: {MobinAuth.token[0:5]}...")
+                        else:
+                            raise Exception(f"Authentication failed with error {data['errors']}")
                     else:
                         raise Exception(f"Authentication failed with status code {response.status}")
