@@ -17,8 +17,8 @@ if TYPE_CHECKING:
 
 class MobinAPIUserStreamDataSource(UserStreamTrackerDataSource):
 
-    LISTEN_KEY_KEEP_ALIVE_INTERVAL = 1800  # Recommended to Ping/Update listen key to keep connection alive
-    HEARTBEAT_TIME_INTERVAL = 30.0
+    LISTEN_KEY_KEEP_ALIVE_INTERVAL = 300  # Recommended to Ping/Update listen key to keep connection alive
+    HEARTBEAT_TIME_INTERVAL = 15.0
 
     _logger: Optional[HummingbotLogger] = None
 
@@ -63,9 +63,9 @@ class MobinAPIUserStreamDataSource(UserStreamTrackerDataSource):
         rest_assistant = await self._api_factory.get_rest_assistant()
         try:
             data = await rest_assistant.execute_request(
-                url=web_utils.public_rest_url(path_url=CONSTANTS.BINANCE_USER_STREAM_PATH_URL, domain=self._domain),
+                url=CONSTANTS.MOBIN_STREAM_PATH_URL,
                 method=RESTMethod.POST,
-                throttler_limit_id=CONSTANTS.BINANCE_USER_STREAM_PATH_URL,
+                throttler_limit_id=CONSTANTS.MOBIN_STREAM_PATH_URL,
                 headers=self._auth.header_for_authentication()
             )
         except asyncio.CancelledError:
@@ -73,7 +73,7 @@ class MobinAPIUserStreamDataSource(UserStreamTrackerDataSource):
         except Exception as exception:
             raise IOError(f"Error fetching user stream listen key. Error: {exception}")
 
-        return data["listenKey"]
+        return data["connectionToken"]
 
     async def _ping_listen_key(self) -> bool:
         rest_assistant = await self._api_factory.get_rest_assistant()
