@@ -8,7 +8,7 @@ MAX_ORDER_ID_LEN = 32
 
 # Base URL
 REST_URL = "https://qcore.mobinsb.{}/"
-WSS_URL = "wss://stream.binance.{}:9443/ws"
+WSS_URL = "wss://pusher9.mobinsb.{}/mmtp"
 
 PUBLIC_API_VERSION = "v1"
 PRIVATE_API_VERSION = "v1"
