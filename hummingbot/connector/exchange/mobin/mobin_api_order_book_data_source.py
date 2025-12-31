@@ -154,9 +154,15 @@ class MobinAPIOrderBookDataSource(OrderBookTrackerDataSource):
             message_queue.put_nowait(order_book_message)
 
     def _channel_originating_message(self, event_message: Dict[str, Any]) -> str:
+        message = json.loads(event_message.rstrip('\x1e\x00\x1f'))
         channel = ""
-        if "result" not in event_message:
-            event_type = event_message.get("e")
+        print(event_message)
+        if 'time' in message:
+            return channel
+
+        # TODO: Decode the message
+        if 'arguments' in message:
+            event_type = message['arguments'][0]
             channel = (self._diff_messages_queue_key if event_type == CONSTANTS.DIFF_EVENT_TYPE
                        else self._trade_messages_queue_key)
         return channel

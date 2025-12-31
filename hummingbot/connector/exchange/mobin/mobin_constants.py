@@ -67,7 +67,7 @@ ORDER_STATE = {
 
 # Websocket event types
 DIFF_EVENT_TYPE = "depthUpdate"
-TRADE_EVENT_TYPE = "trade"
+TRADE_EVENT_TYPE = "Trade"
 
 RATE_LIMITS = [
     RateLimit(limit_id='negotiate', limit=6000, time_interval=ONE_MINUTE),
