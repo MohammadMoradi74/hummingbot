@@ -156,10 +156,13 @@ class MobinAPIOrderBookDataSource(OrderBookTrackerDataSource):
         return data
 
     async def _parse_trade_message(self, raw_message: Dict[str, Any], message_queue: asyncio.Queue):
-        if "result" not in raw_message:
-            trading_pair = await self._connector.trading_pair_associated_to_exchange_symbol(symbol=raw_message["s"])
+        message = json.loads(raw_message.rstrip('\x1e\x00\x1f'))
+        if "arguments" in message:
+            decoded_message = self._decode_signalr_message(message["arguments"][1])
+            # TODO: fix trading_pair
+            trading_pair = decoded_message.get("InstrumentId")
             trade_message = MobinOrderBook.trade_message_from_exchange(
-                raw_message, {"trading_pair": trading_pair})
+                decoded_message, {"trading_pair": trading_pair})
             message_queue.put_nowait(trade_message)
 
     async def _parse_order_book_diff_message(self, raw_message: Dict[str, Any], message_queue: asyncio.Queue):

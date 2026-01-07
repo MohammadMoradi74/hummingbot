@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Dict, Optional
 
 from hummingbot.core.data_type.common import TradeType
@@ -50,7 +51,7 @@ class MobinOrderBook(OrderBook):
         msg is the decoded SignalR message containing BestLimits array.
         """
         if metadata:
-            msg = {**msg, **metadata}
+            msg.update(metadata)
 
         bids = []
         asks = []
@@ -93,12 +94,15 @@ class MobinOrderBook(OrderBook):
         """
         if metadata:
             msg.update(metadata)
-        ts = msg["E"]
+
+        # Parse the datetime string
+        ts = (datetime.strptime(msg.get("TradeDateTime", ""), "%d %B %Y %H:%M:%S.%f")).timestamp() * 1000
+
         return OrderBookMessage(OrderBookMessageType.TRADE, {
             "trading_pair": msg["trading_pair"],
-            "trade_type": float(TradeType.SELL.value) if msg["m"] else float(TradeType.BUY.value),
-            "trade_id": msg["t"],
-            "update_id": ts,
-            "price": msg["p"],
-            "amount": msg["q"]
-        }, timestamp=ts * 1e-3)
+            "trade_type": TradeType.BUY.value,  # Mobin does not provide trade_type. Default to BUY, not ideal!
+            "trade_id": str(msg.get("TradeNumber", 0)),
+            "update_id": msg.get("TradeNumber", int(ts)),
+            "price": float(msg.get("TradePrice", 0)),
+            "amount": float(msg.get("TradedQuantity", 0))
+        }, timestamp=ts * 1e-3)  # Convert milliseconds to seconds
