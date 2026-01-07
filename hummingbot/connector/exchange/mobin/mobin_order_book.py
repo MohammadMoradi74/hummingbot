@@ -46,20 +46,41 @@ class MobinOrderBook(OrderBook):
                                    timestamp: Optional[float] = None,
                                    metadata: Optional[Dict] = None) -> OrderBookMessage:
         """
-        Creates a diff message with the changes in the order book received from the exchange
-        :param msg: the changes in the order book
-        :param timestamp: the timestamp of the difference
-        :param metadata: a dictionary with extra information to add to the difference data
-        :return: a diff message with the changes in the order book notified by the exchange
+        Creates a diff message with the changes in the order book received from the exchange.
+        msg is the decoded SignalR message containing BestLimits array.
         """
         if metadata:
-            msg.update(metadata)
+            msg = {**msg, **metadata}
+
+        bids = []
+        asks = []
+
+        # Extract order book levels from BestLimits
+        best_limits = msg.get("BestLimits", [])
+        for level in best_limits:
+            # Add bid side (buy orders)
+            if "BuyPrice" in level and "BuyQuantity" in level:
+                buy_price = float(level["BuyPrice"])
+                buy_quantity = float(level["BuyQuantity"])
+                if buy_quantity > 0:  # Only add non-zero quantities
+                    bids.append([buy_price, buy_quantity])
+
+            # Add ask side (sell orders)
+            if "SellPrice" in level and "SellQuantity" in level:
+                sell_price = float(level["SellPrice"])
+                sell_quantity = float(level["SellQuantity"])
+                if sell_quantity > 0:  # Only add non-zero quantities
+                    asks.append([sell_price, sell_quantity])
+
+        # Use timestamp as update_id
+        update_id = int(timestamp)
+
         return OrderBookMessage(OrderBookMessageType.DIFF, {
             "trading_pair": msg["trading_pair"],
-            "first_update_id": msg["U"],
-            "update_id": msg["u"],
-            "bids": msg["b"],
-            "asks": msg["a"]
+            "first_update_id": update_id,  # SignalR doesn't provide first_update_id, use same as update_id
+            "update_id": update_id,
+            "bids": bids,
+            "asks": asks
         }, timestamp=timestamp)
 
     @classmethod

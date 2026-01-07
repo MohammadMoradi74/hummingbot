@@ -66,7 +66,7 @@ ORDER_STATE = {
 }
 
 # Websocket event types
-DIFF_EVENT_TYPE = "depthUpdate"
+DIFF_EVENT_TYPE = "InstrumentInfo"
 TRADE_EVENT_TYPE = "Trade"
 
 RATE_LIMITS = [

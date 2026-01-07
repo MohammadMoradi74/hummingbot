@@ -1,7 +1,11 @@
 import asyncio
+import base64
+import gzip
 import json
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+import msgpack
 
 from hummingbot.connector.exchange.mobin import mobin_constants as CONSTANTS, mobin_web_utils as web_utils
 from hummingbot.connector.exchange.mobin.mobin_order_book import MobinOrderBook
@@ -71,7 +75,8 @@ class MobinAPIOrderBookDataSource(OrderBookTrackerDataSource):
         """
         try:
             for trading_pair in self._trading_pairs:
-                symbol = await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
+                # symbol = await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
+                symbol = trading_pair.split("_")[0]
                 # SignalR Subscription for Trades
                 subscribe_trade = {
                     "arguments": [{"subscribed": [symbol], "unsubscribed": []}],
@@ -139,6 +144,17 @@ class MobinAPIOrderBookDataSource(OrderBookTrackerDataSource):
         )
         return snapshot_msg
 
+    def _decode_signalr_message(self, b64_payload: str):
+        """Decode a gzip+base64 encoded MessagePack payload from SignalR"""
+        # Step 1: Decode base64 and decompress gzip
+        decoded_bytes = gzip.decompress(base64.b64decode(b64_payload))
+
+        # Step 2: Decode MessagePack
+        # Use raw=False to get strings instead of bytes
+        data = msgpack.unpackb(decoded_bytes, raw=False, strict_map_key=False)
+
+        return data
+
     async def _parse_trade_message(self, raw_message: Dict[str, Any], message_queue: asyncio.Queue):
         if "result" not in raw_message:
             trading_pair = await self._connector.trading_pair_associated_to_exchange_symbol(symbol=raw_message["s"])
@@ -147,10 +163,13 @@ class MobinAPIOrderBookDataSource(OrderBookTrackerDataSource):
             message_queue.put_nowait(trade_message)
 
     async def _parse_order_book_diff_message(self, raw_message: Dict[str, Any], message_queue: asyncio.Queue):
-        if "result" not in raw_message:
-            trading_pair = await self._connector.trading_pair_associated_to_exchange_symbol(symbol=raw_message["s"])
+        message = json.loads(raw_message.rstrip('\x1e\x00\x1f'))
+        if "arguments" in message:
+            decoded_message = self._decode_signalr_message(message["arguments"][1])
+            # TODO: fix trading_pair
+            trading_pair = decoded_message.get("InstrumentId")
             order_book_message: OrderBookMessage = MobinOrderBook.diff_message_from_exchange(
-                raw_message, time.time(), {"trading_pair": trading_pair})
+                decoded_message, time.time(), {"trading_pair": trading_pair})
             message_queue.put_nowait(order_book_message)
 
     def _channel_originating_message(self, event_message: Dict[str, Any]) -> str:
@@ -163,6 +182,10 @@ class MobinAPIOrderBookDataSource(OrderBookTrackerDataSource):
         # TODO: Decode the message
         if 'arguments' in message:
             event_type = message['arguments'][0]
-            channel = (self._diff_messages_queue_key if event_type == CONSTANTS.DIFF_EVENT_TYPE
-                       else self._trade_messages_queue_key)
+            if event_type == CONSTANTS.DIFF_EVENT_TYPE:
+                channel = self._diff_messages_queue_key
+
+            if event_type == CONSTANTS.TRADE_EVENT_TYPE:
+                channel = self._trade_messages_queue_key
+
         return channel
