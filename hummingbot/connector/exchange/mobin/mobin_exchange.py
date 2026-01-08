@@ -117,10 +117,8 @@ class MobinExchange(ExchangePyBase):
         return pairs_prices
 
     def _is_request_exception_related_to_time_synchronizer(self, request_exception: Exception):
-        error_description = str(request_exception)
-        is_time_synchronizer_related = ("-1021" in error_description
-                                        and "Timestamp for this request" in error_description)
-        return is_time_synchronizer_related
+        # Mobin doesn't use timestamp-based auth, so no time sync errors
+        return False
 
     def _is_order_not_found_during_status_update_error(self, status_update_exception: Exception) -> bool:
         return str(CONSTANTS.ORDER_NOT_EXIST_ERROR_CODE) in str(
