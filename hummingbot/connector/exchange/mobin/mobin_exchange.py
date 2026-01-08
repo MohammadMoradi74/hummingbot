@@ -64,7 +64,7 @@ class MobinExchange(ExchangePyBase):
 
     @property
     def name(self) -> str:
-        if self._domain == "com":
+        if self._domain == "ir":
             return "mobin"
         else:
             return f"mobin_{self._domain}"
