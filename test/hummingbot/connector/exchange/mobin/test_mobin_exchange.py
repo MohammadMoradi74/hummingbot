@@ -10,8 +10,8 @@ from aioresponses.core import RequestCall
 
 from hummingbot.client.config.client_config_map import ClientConfigMap
 from hummingbot.client.config.config_helpers import ClientConfigAdapter
-from hummingbot.connector.exchange.binance import binance_constants as CONSTANTS, binance_web_utils as web_utils
-from hummingbot.connector.exchange.binance.binance_exchange import BinanceExchange
+from hummingbot.connector.exchange.mobin import mobin_constants as CONSTANTS, mobin_web_utils as web_utils
+from hummingbot.connector.exchange.mobin.mobin_exchange import MobinExchange
 from hummingbot.connector.test_support.exchange_connector_test import AbstractExchangeConnectorTests
 from hummingbot.connector.trading_rule import TradingRule
 from hummingbot.connector.utils import get_new_client_order_id
@@ -21,7 +21,7 @@ from hummingbot.core.data_type.trade_fee import DeductedFromReturnsTradeFee, Tok
 from hummingbot.core.event.events import MarketOrderFailureEvent, OrderFilledEvent
 
 
-class BinanceExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
+class MobinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
 
     @property
     def all_symbols_url(self):
@@ -388,10 +388,10 @@ class BinanceExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests
 
     def create_exchange_instance(self):
         client_config_map = ClientConfigAdapter(ClientConfigMap())
-        return BinanceExchange(
+        return MobinExchange(
             client_config_map=client_config_map,
-            binance_api_key="testAPIKey",
-            binance_api_secret="testSecret",
+            mobin_api_key="testAPIKey",
+            mobin_api_secret="testSecret",
             trading_pairs=[self.trading_pair],
         )
 
@@ -405,7 +405,7 @@ class BinanceExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests
         request_data = dict(request_call.kwargs["data"])
         self.assertEqual(self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset), request_data["symbol"])
         self.assertEqual(order.trade_type.name.upper(), request_data["side"])
-        self.assertEqual(BinanceExchange.binance_order_type(OrderType.LIMIT), request_data["type"])
+        self.assertEqual(MobinExchange.mobin_order_type(OrderType.LIMIT), request_data["type"])
         self.assertEqual(Decimal("100"), Decimal(request_data["quantity"]))
         self.assertEqual(Decimal("10000"), Decimal(request_data["price"]))
         self.assertEqual(order.client_order_id, request_data["newClientOrderId"])
@@ -849,7 +849,7 @@ class BinanceExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests
         self.exchange._set_current_timestamp(1640780000)
         self.exchange._last_poll_timestamp = (self.exchange.current_timestamp -
                                               self.exchange.UPDATE_ORDER_STATUS_MIN_INTERVAL - 1)
-        self.exchange._last_trades_poll_binance_timestamp = 10
+        self.exchange._last_trades_poll_mobin_timestamp = 10
         self.async_run_with_timeout(self.exchange._update_order_fills_from_trades())
 
         request = self._all_executed_requests(mock_api, url)[1]
@@ -1081,21 +1081,21 @@ class BinanceExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests
         self.assertEqual(result, expected_client_order_id)
 
     def test_time_synchronizer_related_request_error_detection(self):
-        exception = IOError("Error executing request POST https://api.binance.com/api/v3/order. HTTP status is 400. "
+        exception = IOError("Error executing request POST https://api.mobin.com/api/v3/order. HTTP status is 400. "
                             "Error: {'code':-1021,'msg':'Timestamp for this request is outside of the recvWindow.'}")
         self.assertTrue(self.exchange._is_request_exception_related_to_time_synchronizer(exception))
 
-        exception = IOError("Error executing request POST https://api.binance.com/api/v3/order. HTTP status is 400. "
+        exception = IOError("Error executing request POST https://api.mobin.com/api/v3/order. HTTP status is 400. "
                             "Error: {'code':-1021,'msg':'Timestamp for this request was 1000ms ahead of the server's "
                             "time.'}")
         self.assertTrue(self.exchange._is_request_exception_related_to_time_synchronizer(exception))
 
-        exception = IOError("Error executing request POST https://api.binance.com/api/v3/order. HTTP status is 400. "
+        exception = IOError("Error executing request POST https://api.mobin.com/api/v3/order. HTTP status is 400. "
                             "Error: {'code':-1022,'msg':'Timestamp for this request was 1000ms ahead of the server's "
                             "time.'}")
         self.assertFalse(self.exchange._is_request_exception_related_to_time_synchronizer(exception))
 
-        exception = IOError("Error executing request POST https://api.binance.com/api/v3/order. HTTP status is 400. "
+        exception = IOError("Error executing request POST https://api.mobin.com/api/v3/order. HTTP status is 400. "
                             "Error: {'code':-1021,'msg':'Other error.'}")
         self.assertFalse(self.exchange._is_request_exception_related_to_time_synchronizer(exception))
 
