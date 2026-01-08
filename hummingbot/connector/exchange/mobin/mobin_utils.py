@@ -10,9 +10,9 @@ CENTRALIZED = True
 EXAMPLE_PAIR = "IRTKMOFD0001-IRR"
 
 DEFAULT_FEES = TradeFeeSchema(
-    maker_percent_fee_decimal=Decimal("0.003"),
-    taker_percent_fee_decimal=Decimal("0.003"),
-    buy_percent_fee_deducted_from_returns=True
+    maker_percent_fee_decimal=Decimal("0.0012"),  # 0.12% maker fee for ETFs
+    taker_percent_fee_decimal=Decimal("0.0012"),  # 0.12% taker fee for ETFs
+    buy_percent_fee_deducted_from_returns=True  # Fee deducted from IRR (quote currency)
 )
 
 
