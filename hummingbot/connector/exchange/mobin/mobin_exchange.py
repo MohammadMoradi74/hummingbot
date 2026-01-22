@@ -1,4 +1,5 @@
 import asyncio
+import time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
@@ -169,35 +170,51 @@ class MobinExchange(ExchangePyBase):
                            price: Decimal,
                            **kwargs) -> Tuple[str, float]:
         order_result = None
-        amount_str = f"{amount:f}"
-        type_str = MobinExchange.mobin_order_type(order_type)
+        amount_str = f"{int(amount)}"
+        type_str = 1  # only supports limit order
         side_str = CONSTANTS.SIDE_BUY if trade_type is TradeType.BUY else CONSTANTS.SIDE_SELL
-        symbol = await self.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
+        price_str = f"{int(price)}"
+        # symbol = await self.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
+        symbol = trading_pair
         api_params = {"symbol": symbol,
                       "side": side_str,
                       "quantity": amount_str,
                       "type": type_str,
                       "newClientOrderId": order_id}
-        if order_type is OrderType.LIMIT or order_type is OrderType.LIMIT_MAKER:
-            price_str = f"{price:f}"
-            api_params["price"] = price_str
-        if order_type == OrderType.LIMIT:
-            api_params["timeInForce"] = CONSTANTS.TIME_IN_FORCE_GTC
+
+        api_params = {"instrumentId": symbol,
+                      "quantity": amount_str,
+                      "price": price_str,
+                      "accountType": 1,  # Broker: 1, Bank: 2, TraderCredit: 3
+                      "orderType": type_str,  # None: 0, LimitOrder: 1, MarketOnOpeningOrder: 2, MarketOrder: 3, ...
+                      "validityType": 1,  # Day: 1, GoodTillDate: 2, GoodTillCancelled: 3, FillAndKill: 4, ...
+                      "pending": 0,
+                      "orderSide": side_str,  # Buy: 1, Sell: 2
+                      "requestType": 1,  # Creation: 1, Modification: 2, 	Cancellation: 3
+                      "lockedPrice": 0,
+                      "usePledge": "false"}
 
         try:
+            # TODO: Handle error codes!
             order_result = await self._api_post(
                 path_url=CONSTANTS.ORDER_PATH_URL,
                 data=api_params,
                 is_auth_required=True)
-            o_id = str(order_result["orderId"])
-            transact_time = order_result["transactTime"] * 1e-3
+
+            # all_order_result = await self._api_post(
+            #     path_url=CONSTANTS.ORDER_PATH_URL,
+            #     data=api_params,
+            #     is_auth_required=True)
+
+            o_id = order_result["uniqueKey"]
+            transact_time = time.time() * 1e-3
         except IOError as e:
             error_description = str(e)
             is_server_overloaded = ("status is 503" in error_description
                                     and "Unknown error, please check your request or try again later." in error_description)
             if is_server_overloaded:
                 o_id = "UNKNOWN"
-                transact_time = self._time_synchronizer.time()
+                transact_time = time.time() * 1e-3
             else:
                 raise
         return o_id, transact_time
