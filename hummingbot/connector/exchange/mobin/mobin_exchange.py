@@ -521,15 +521,28 @@ class MobinExchange(ExchangePyBase):
         local_asset_names = set(self._account_balances.keys())
         remote_asset_names = set()
 
+        # Mobin has two different endpoints to get balances, one for base_assets (PORTFOLIO_PATH_URL) and one for
+        # quote_asset (ACCOUNTS_PATH_URL)
         account_info = await self._api_get(
             path_url=CONSTANTS.ACCOUNTS_PATH_URL,
             is_auth_required=True)
 
-        balances = account_info["balances"]
-        for balance_entry in balances:
-            asset_name = balance_entry["asset"]
-            free_balance = Decimal(balance_entry["free"])
-            total_balance = Decimal(balance_entry["free"]) + Decimal(balance_entry["locked"])
+        # update IRR
+        asset_name = "IRR"
+        free_balance = Decimal(account_info["remain"]) - Decimal(account_info["block"])
+        total_balance = Decimal(account_info["remain"])
+        self._account_available_balances[asset_name] = free_balance
+        self._account_balances[asset_name] = total_balance
+        remote_asset_names.add(asset_name)
+
+        portfolio_info = await self._api_get(
+            path_url=CONSTANTS.PORTFOLIO_PATH_URL,
+            is_auth_required=True)
+
+        for balance_entry in portfolio_info:
+            asset_name = balance_entry["instrumentId"]
+            free_balance = Decimal(balance_entry["asset"]) - Decimal(balance_entry["sellOpenOrderQuantity"])
+            total_balance = Decimal(balance_entry["asset"])
             self._account_available_balances[asset_name] = free_balance
             self._account_balances[asset_name] = total_balance
             remote_asset_names.add(asset_name)
