@@ -304,19 +304,58 @@ class MobinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
 
     @property
     def balance_request_mock_response_only_base(self):
-        return {
-            "makerCommission": 15,
-            "takerCommission": 15,
-            "buyerCommission": 0,
-            "sellerCommission": 0,
-            "canTrade": True,
-            "canWithdraw": True,
-            "canDeposit": True,
-            "updateTime": 123456789,
-            "accountType": "SPOT",
-            "balances": [{"asset": self.base_asset, "free": "10.0", "locked": "5.0"}],
-            "permissionSets": [["SPOT"]],
-        }
+        return [
+            {
+                "instrumentId": "IRTKMOFD0001",
+                "instrumentPersianName": "عیار",
+                "instrumentMnemonic": "MOFD1",
+                "companyName": "صندوق طلای عیار مفید",
+                "companyId": 0,
+                "instrumentName": "Mofid Gold ETF",
+                "totalTradeQuantity": 36626258,
+                "closingPrice": 426086.00,
+                "asset": 14,
+                "buy": 0,
+                "sell": 0,
+                "todayAverageBuyPrice": 0,
+                "todayAverageSellPrice": 0,
+                "lastTradePrice": 426641.00,
+                "bestBuyQuantity": 39329,
+                "lastPriceChangePercent": -1.03,
+                "closingPriceChangePercent": -1.16,
+                "bestBuyPrice": 426604.00,
+                "bestSellPrice": 426641.00,
+                "bestSellQuantity": 4907,
+                "instrumentNotes": [],
+                "upperStaticThreshold": 474206.00,
+                "lowerStaticThreshold": 387988.00,
+                "instrumentState": "A ",
+                "buyCommission": 0.001200000,
+                "sellCommission": 0.001200000,
+                "sellVAT": 0.0000000000,
+                "sellValue": 5965806.431200000000,
+                "breakEvenPrice": 408670,
+                "runTimeAsset": 14,
+                "insCode": "34144395039913458",
+                "sectorCode": "68",
+                "sectorName": "صندوق سرمایه گذاری قابل معامله",
+                "calculateTodayEfficiency": "true",
+                "todayEfficiency": -62384.00,
+                "averageBuyPrice": 407690,
+                "buyOpenOrderQuantity": 0,
+                "sellOpenOrderQuantity": 0,
+                "hasBuyConditionalOrder": "false",
+                "hasSellConditionalOrder": "false",
+                "pledgeIsEnable": "false",
+                "pledgeQuantity": 0,
+                "isPledgable": "false",
+                "isOption": "false",
+                "lastDayClosingPrice": 431097.00,
+                "instrumentPrice": 426641.00,
+                "lowestTradePrice": 422001.00,
+                "highestTradePrice": 429649.00
+            }
+        ]
 
     @property
     def balance_event_websocket_update(self):
@@ -450,7 +489,8 @@ class MobinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
         return url
 
     def configure_order_not_found_error_cancelation_response(
-        self, order: InFlightOrder, mock_api: aioresponses, callback: Optional[Callable] = lambda *args, **kwargs: None
+            self, order: InFlightOrder, mock_api: aioresponses,
+            callback: Optional[Callable] = lambda *args, **kwargs: None
     ) -> str:
         url = web_utils.private_rest_url(CONSTANTS.ORDER_PATH_URL)
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
@@ -541,7 +581,8 @@ class MobinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
         return url
 
     def configure_order_not_found_error_order_status_response(
-        self, order: InFlightOrder, mock_api: aioresponses, callback: Optional[Callable] = lambda *args, **kwargs: None
+            self, order: InFlightOrder, mock_api: aioresponses,
+            callback: Optional[Callable] = lambda *args, **kwargs: None
     ) -> List[str]:
         url = web_utils.private_rest_url(CONSTANTS.ORDER_PATH_URL)
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
