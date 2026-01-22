@@ -48,10 +48,6 @@ class MobinExchange(ExchangePyBase):
         super().__init__(client_config_map)
 
     @staticmethod
-    def mobin_order_type(order_type: OrderType) -> str:
-        return order_type.name.upper()
-
-    @staticmethod
     def to_hb_order_type(mobin_type: str) -> OrderType:
         return OrderType[mobin_type]
 
