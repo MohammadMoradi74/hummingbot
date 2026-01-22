@@ -22,18 +22,21 @@ def is_exchange_information_valid(exchange_info: Dict[str, Any]) -> bool:
     :param exchange_info: the exchange information for a trading pair
     :return: True if the trading pair is enabled, False otherwise
     """
-    is_spot = False
-    is_trading = False
+    # Simply bypass the function
+    # TODO: check if the symbol is active.
 
-    if exchange_info.get("status", None) == "TRADING":
-        is_trading = True
+    is_spot = True
+    is_trading = True
 
-    permissions_sets = exchange_info.get("permissionSets", list())
-    for permission_set in permissions_sets:
-        # PermissionSet is a list, find if in this list we have "SPOT" value or not
-        if "SPOT" in permission_set:
-            is_spot = True
-            break
+    # if exchange_info.get("status", None) == "TRADING":
+    #     is_trading = True
+    #
+    # permissions_sets = exchange_info.get("permissionSets", list())
+    # for permission_set in permissions_sets:
+    #     # PermissionSet is a list, find if in this list we have "SPOT" value or not
+    #     if "SPOT" in permission_set:
+    #         is_spot = True
+    #         break
 
     return is_trading and is_spot
 
