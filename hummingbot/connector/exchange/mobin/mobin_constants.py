@@ -17,23 +17,24 @@ PRIVATE_API_VERSION = "v1"
 TICKER_PRICE_CHANGE_PATH_URL = "/ticker/24hr"
 TICKER_BOOK_PATH_URL = "/ticker/bookTicker"
 PRICES_PATH_URL = "/ticker/price"
-EXCHANGE_INFO_PATH_URL = "/exchangeInfo"
+EXCHANGE_INFO_PATH_URL = "/Instruments/GetInstrumentsByTypeGroup?instrumentTypeGroup=5"
 PING_PATH_URL = "/ping"
 SNAPSHOT_PATH_URL = "/Instruments/Information"
 SERVER_TIME_PATH_URL = "/time"
 
 # Private API endpoints or BinanceClient function
-ACCOUNTS_PATH_URL = "/account"
+ACCOUNTS_PATH_URL = "/Accounts/Get"
+PORTFOLIO_PATH_URL = "/Portfolios/Get"
 MY_TRADES_PATH_URL = "/myTrades"
-ORDER_PATH_URL = "/order"
+ORDER_PATH_URL = "/Requests/SaveRequest"
 MOBIN_STREAM_PATH_URL = "https://pusher9.mobinsb.ir/mmtp/negotiate?negotiateVersion=1"
 
 WS_HEARTBEAT_TIME_INTERVAL = 30
 
 # Binance params
 
-SIDE_BUY = "BUY"
-SIDE_SELL = "SELL"
+SIDE_BUY = 1
+SIDE_SELL = 2
 
 TIME_IN_FORCE_GTC = "GTC"  # Good till cancelled
 TIME_IN_FORCE_IOC = "IOC"  # Immediate or cancel
@@ -103,6 +104,9 @@ RATE_LIMITS = [
               linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 1),
                              LinkedLimitWeightPair(RAW_REQUESTS, 1)]),
     RateLimit(limit_id=ACCOUNTS_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE,
+              linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 20),
+                             LinkedLimitWeightPair(RAW_REQUESTS, 1)]),
+    RateLimit(limit_id=PORTFOLIO_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE,
               linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 20),
                              LinkedLimitWeightPair(RAW_REQUESTS, 1)]),
     RateLimit(limit_id=MY_TRADES_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE,
