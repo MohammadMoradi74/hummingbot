@@ -14,7 +14,7 @@ PUBLIC_API_VERSION = "v1"
 PRIVATE_API_VERSION = "v1"
 
 # Public API endpoints or BinanceClient function
-TICKER_PRICE_CHANGE_PATH_URL = "/ticker/24hr"
+TICKER_PRICE_CHANGE_PATH_URL = "/Instruments/Information"
 TICKER_BOOK_PATH_URL = "/ticker/bookTicker"
 PRICES_PATH_URL = "/ticker/price"
 EXCHANGE_INFO_PATH_URL = "/Instruments/GetInstrumentsByTypeGroup?instrumentTypeGroup=5"
