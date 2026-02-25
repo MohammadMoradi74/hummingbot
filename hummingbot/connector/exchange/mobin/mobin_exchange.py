@@ -33,12 +33,14 @@ class MobinExchange(ExchangePyBase):
     web_utils = web_utils
 
     def __init__(self,
-                 client_config_map: "ClientConfigAdapter",
                  mobin_api_key: str,
                  mobin_api_secret: str,
                  trading_pairs: Optional[List[str]] = None,
                  trading_required: bool = True,
                  domain: str = CONSTANTS.DEFAULT_DOMAIN,
+                 client_config_map: Optional["ClientConfigAdapter"] = None,
+                 balance_asset_limit: Optional[Dict[str, Dict[str, Decimal]]] = None,
+                 rate_limits_share_pct: Decimal = Decimal("100"),
                  ):
         self.api_key = mobin_api_key
         self.secret_key = mobin_api_secret
@@ -46,7 +48,7 @@ class MobinExchange(ExchangePyBase):
         self._trading_required = trading_required
         self._trading_pairs = trading_pairs
         self._last_trades_poll_mobin_timestamp = 1.0
-        super().__init__(client_config_map)
+        super().__init__(balance_asset_limit, rate_limits_share_pct)
 
     @staticmethod
     def to_hb_order_type(mobin_type: str) -> OrderType:
