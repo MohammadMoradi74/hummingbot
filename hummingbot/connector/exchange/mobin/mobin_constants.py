@@ -20,7 +20,7 @@ PRICES_PATH_URL = "/ticker/price"
 EXCHANGE_INFO_PATH_URL = "/Instruments/GetInstrumentsByTypeGroup?instrumentTypeGroup=5"
 PING_PATH_URL = "/ping"
 SNAPSHOT_PATH_URL = "/Instruments/Information"
-SERVER_TIME_PATH_URL = "/time"
+SERVER_TIME_PATH_URL = "/Instruments/InformationMinimal?id=IRTKLOTF0001"
 
 # Private API endpoints or BinanceClient function
 ACCOUNTS_PATH_URL = "/Accounts/Get"
