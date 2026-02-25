@@ -564,9 +564,13 @@ class MobinExchange(ExchangePyBase):
 
     def _initialize_trading_pair_symbols_from_exchange_info(self, exchange_info: Dict[str, Any]):
         mapping = bidict()
-        for symbol_data in filter(mobin_utils.is_exchange_information_valid, exchange_info["symbols"]):
-            mapping[symbol_data["symbol"]] = combine_to_hb_trading_pair(base=symbol_data["baseAsset"],
-                                                                        quote=symbol_data["quoteAsset"])
+        for symbol_data in filter(mobin_utils.is_exchange_information_valid, exchange_info):
+            instrument_id = symbol_data.get("instrumentId")
+            if not instrument_id:
+                continue
+
+            mapping[instrument_id] = combine_to_hb_trading_pair(base=instrument_id, quote='IRR')
+
         self._set_trading_pair_symbol_map(mapping)
 
     async def _get_last_traded_price(self, trading_pair: str) -> float:
