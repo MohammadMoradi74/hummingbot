@@ -235,6 +235,14 @@ class MobinExchange(ExchangePyBase):
             return True
         return False
 
+    async def _make_trading_rules_request(self) -> Any:
+        exchange_info = await self._api_get(path_url=self.trading_rules_request_path, is_auth_required=True)
+        return exchange_info
+
+    async def _make_trading_pairs_request(self) -> Any:
+        exchange_info = await self._api_get(path_url=self.trading_pairs_request_path, is_auth_required=True)
+        return exchange_info
+
     async def _format_trading_rules(self, exchange_info_dict: Dict[str, Any]) -> List[TradingRule]:
         """
         Example:
