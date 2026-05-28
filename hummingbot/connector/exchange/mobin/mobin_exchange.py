@@ -269,27 +269,27 @@ class MobinExchange(ExchangePyBase):
             ]
         }
         """
-        trading_pair_rules = exchange_info_dict.get("symbols", [])
+        # exchange_info_dict is already a list
+        trading_pair_rules = exchange_info_dict
         retval = []
         for rule in filter(mobin_utils.is_exchange_information_valid, trading_pair_rules):
             try:
-                trading_pair = await self.trading_pair_associated_to_exchange_symbol(symbol=rule.get("symbol"))
-                filters = rule.get("filters")
-                price_filter = [f for f in filters if f.get("filterType") == "PRICE_FILTER"][0]
-                lot_size_filter = [f for f in filters if f.get("filterType") == "LOT_SIZE"][0]
-                min_notional_filter = [f for f in filters if f.get("filterType") in ["MIN_NOTIONAL", "NOTIONAL"]][0]
+                instrument_id = rule.get("instrumentId")
+                if not instrument_id:
+                    continue
+                trading_pair = combine_to_hb_trading_pair(base=instrument_id, quote="IRR")
 
-                min_order_size = Decimal(lot_size_filter.get("minQty"))
-                tick_size = price_filter.get("tickSize")
-                step_size = Decimal(lot_size_filter.get("stepSize"))
-                min_notional = Decimal(min_notional_filter.get("minNotional"))
+                min_order_size = Decimal(str(rule.get("orderMinimumQuantity", 1)))
+                tick_size = Decimal(str(rule.get("fixedPriceTick", 1)))
+                step_size = Decimal(str(rule.get("lot", 1)))
+                min_notional = Decimal(5_000_000)  # min amount of order value; 1M or 5M rial for ETFs
 
                 retval.append(
                     TradingRule(trading_pair,
                                 min_order_size=min_order_size,
-                                min_price_increment=Decimal(tick_size),
-                                min_base_amount_increment=Decimal(step_size),
-                                min_notional_size=Decimal(min_notional)))
+                                min_price_increment=tick_size,
+                                min_base_amount_increment=step_size,
+                                min_notional_size=min_notional))
 
             except Exception:
                 self.logger().exception(f"Error parsing the trading pair rule {rule}. Skipping.")
