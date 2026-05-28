@@ -586,3 +586,6 @@ class MobinExchange(ExchangePyBase):
         )
 
         return float(resp_json["lastTradePrice"])
+
+    async def exchange_symbol_associated_to_pair(self, trading_pair: str) -> str:
+        return trading_pair.split("-")[0]
