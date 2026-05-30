@@ -171,18 +171,11 @@ class MobinExchange(ExchangePyBase):
                            order_type: OrderType,
                            price: Decimal,
                            **kwargs) -> Tuple[str, float]:
-        order_result = None
         amount_str = f"{int(amount)}"
         type_str = 1  # only supports limit order
         side_str = CONSTANTS.SIDE_BUY if trade_type is TradeType.BUY else CONSTANTS.SIDE_SELL
         price_str = f"{int(price)}"
-        # symbol = await self.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
-        symbol = trading_pair
-        api_params = {"symbol": symbol,
-                      "side": side_str,
-                      "quantity": amount_str,
-                      "type": type_str,
-                      "newClientOrderId": order_id}
+        symbol = await self.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
 
         api_params = {"instrumentId": symbol,
                       "quantity": amount_str,
@@ -202,11 +195,6 @@ class MobinExchange(ExchangePyBase):
                 path_url=CONSTANTS.ORDER_PATH_URL,
                 data=api_params,
                 is_auth_required=True)
-
-            # all_order_result = await self._api_post(
-            #     path_url=CONSTANTS.ORDER_PATH_URL,
-            #     data=api_params,
-            #     is_auth_required=True)
 
             o_id = order_result["uniqueKey"]
             transact_time = time.time() * 1e-3
