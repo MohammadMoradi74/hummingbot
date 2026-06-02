@@ -18,7 +18,7 @@ TICKER_PRICE_CHANGE_PATH_URL = "/Instruments/Information"
 TICKER_BOOK_PATH_URL = "/ticker/bookTicker"
 PRICES_PATH_URL = "/ticker/price"
 EXCHANGE_INFO_PATH_URL = "/Instruments/GetInstrumentsByTypeGroup?instrumentTypeGroup=5"
-PING_PATH_URL = "/ping"
+PING_PATH_URL = "/Index/GetMarketActivities"
 SNAPSHOT_PATH_URL = "/Instruments/Information"
 SERVER_TIME_PATH_URL = "/Instruments/InformationMinimal?id=IRTKLOTF0001"
 

@@ -577,3 +577,10 @@ class MobinExchange(ExchangePyBase):
 
     async def exchange_symbol_associated_to_pair(self, trading_pair: str) -> str:
         return trading_pair.split("-")[0]
+
+    async def _make_network_check_request(self):
+        await self._api_get(
+            path_url=CONSTANTS.PING_PATH_URL,
+            is_auth_required=True,
+            limit_id=CONSTANTS.PING_PATH_URL
+        )
