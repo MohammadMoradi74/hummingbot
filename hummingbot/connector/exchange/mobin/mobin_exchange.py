@@ -1,5 +1,6 @@
 import asyncio
 import time
+from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
@@ -270,7 +271,7 @@ class MobinExchange(ExchangePyBase):
                 min_order_size = Decimal(str(rule.get("orderMinimumQuantity", 1)))
                 tick_size = Decimal(str(rule.get("fixedPriceTick", 1)))
                 step_size = Decimal(str(rule.get("lot", 1)))
-                min_notional = Decimal(5_000_000)  # min amount of order value; 1M or 5M rial for ETFs
+                min_notional = Decimal(1_000_000)  # min amount of order value; 1M or 5M rial for ETFs
 
                 retval.append(
                     TradingRule(trading_pair,
@@ -457,40 +458,56 @@ class MobinExchange(ExchangePyBase):
                         self.logger().info(f"Recreating missing trade in TradeFill: {trade}")
 
     async def _all_trade_updates_for_order(self, order: InFlightOrder) -> List[TradeUpdate]:
+        # Since Mobin has no per-fill API, /Orders/Today gives order-level aggregates,
+        # not individual trades like Binance myTrades. You need to synthesize TradeUpdate objects
+        # from each matching order row.
+
         trade_updates = []
 
         if order.exchange_order_id is not None:
-            exchange_order_id = int(order.exchange_order_id)
-            trading_pair = await self.exchange_symbol_associated_to_pair(trading_pair=order.trading_pair)
-            all_fills_response = await self._api_get(
-                path_url=CONSTANTS.MY_TRADES_PATH_URL,
+            all_orders_response = await self._api_get(
+                path_url=CONSTANTS.MY_ORDERS_PATH_URL,
                 params={
-                    "symbol": trading_pair,
-                    "orderId": exchange_order_id
+                    "displayFailedRequest": "False"
                 },
                 is_auth_required=True,
-                limit_id=CONSTANTS.MY_TRADES_PATH_URL)
+                limit_id=CONSTANTS.MY_ORDERS_PATH_URL)
 
-            for trade in all_fills_response:
-                exchange_order_id = str(trade["orderId"])
+            matching_orders = [row for row in all_orders_response if
+                               row.get("uniqueKey") == order.exchange_order_id
+                               and row.get("requestType") == 1]
+
+            for order_data in matching_orders:
+                executed_qty = Decimal(str(order_data.get("executedQuantity", 0)))
+                if executed_qty <= 0:
+                    continue
+                fill_delta = executed_qty - order.executed_amount_base
+                if fill_delta <= 0:
+                    continue
+
                 fee = TradeFeeBase.new_spot_fee(
                     fee_schema=self.trade_fee_schema(),
                     trade_type=order.trade_type,
-                    percent_token=trade["commissionAsset"],
-                    flat_fees=[TokenAmount(amount=Decimal(trade["commission"]), token=trade["commissionAsset"])]
+                    percent=self.estimate_fee_pct(is_maker=True),  # get fee rate, equal for maker and taker
                 )
-                trade_update = TradeUpdate(
-                    trade_id=str(trade["id"]),
+
+                ts_str = order_data.get("orderTime") or order_data.get("insertDateTime")
+                fill_price = Decimal(str(order_data["price"]))
+                fill_quote = fill_delta * fill_price
+                fill_timestamp = datetime.strptime(ts_str, "%d %b %Y %H:%M:%S.%f").timestamp()
+
+                trade_updates.append(TradeUpdate(
+                    trade_id=f"{order_data['id']}-{executed_qty}",
                     client_order_id=order.client_order_id,
-                    exchange_order_id=exchange_order_id,
-                    trading_pair=trading_pair,
+                    exchange_order_id=order.exchange_order_id,  # uniqueKey, not numeric id
+                    trading_pair=order.trading_pair,
                     fee=fee,
-                    fill_base_amount=Decimal(trade["qty"]),
-                    fill_quote_amount=Decimal(trade["quoteQty"]),
-                    fill_price=Decimal(trade["price"]),
-                    fill_timestamp=trade["time"] * 1e-3,
-                )
-                trade_updates.append(trade_update)
+                    fill_base_amount=fill_delta,
+                    fill_quote_amount=fill_quote,
+                    fill_price=fill_price,
+                    fill_timestamp=fill_timestamp,
+                    is_taker=False,
+                ))
 
         return trade_updates
 
