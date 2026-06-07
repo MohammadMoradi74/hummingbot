@@ -175,9 +175,7 @@ class MobinAPIOrderBookDataSource(OrderBookTrackerDataSource):
             message_queue.put_nowait(order_book_message)
 
     def _channel_originating_message(self, event_message: Dict[str, Any]) -> str:
-        print(event_message)
         message = json.loads(event_message.rstrip('\x1e\x00\x1f'))
-        print("decoded message: {}".format(message))
         channel = ""
         if 'time' in message:
             return channel
