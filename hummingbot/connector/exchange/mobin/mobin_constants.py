@@ -28,6 +28,7 @@ PORTFOLIO_PATH_URL = "/Portfolios/Get"
 MY_TRADES_PATH_URL = "/myTrades"
 MY_ORDERS_PATH_URL = "/Orders/Today"
 ORDER_PATH_URL = "/Requests/SaveRequest"
+CANCEL_ORDER_PATH_URL = "/Requests/CancelRequest"
 MOBIN_STREAM_PATH_URL = "https://pusher9.mobinsb.ir/mmtp/negotiate?negotiateVersion=1"
 
 WS_HEARTBEAT_TIME_INTERVAL = 30
@@ -117,6 +118,11 @@ RATE_LIMITS = [
               linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 20),
                              LinkedLimitWeightPair(RAW_REQUESTS, 1)]),
     RateLimit(limit_id=ORDER_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE,
+              linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 4),
+                             LinkedLimitWeightPair(ORDERS, 1),
+                             LinkedLimitWeightPair(ORDERS_24HR, 1),
+                             LinkedLimitWeightPair(RAW_REQUESTS, 1)]),
+    RateLimit(limit_id=CANCEL_ORDER_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE,
               linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 4),
                              LinkedLimitWeightPair(ORDERS, 1),
                              LinkedLimitWeightPair(ORDERS_24HR, 1),

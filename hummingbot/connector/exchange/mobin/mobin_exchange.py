@@ -14,7 +14,7 @@ from hummingbot.connector.exchange_py_base import ExchangePyBase
 from hummingbot.connector.trading_rule import TradingRule
 from hummingbot.connector.utils import TradeFillOrderDetails, combine_to_hb_trading_pair
 from hummingbot.core.data_type.common import OrderType, TradeType
-from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderUpdate, TradeUpdate
+from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate, TradeUpdate
 from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTrackerDataSource
 from hummingbot.core.data_type.trade_fee import DeductedFromReturnsTradeFee, TokenAmount, TradeFeeBase
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
@@ -248,37 +248,22 @@ class MobinExchange(ExchangePyBase):
     async def _place_cancel(self, order_id: str, tracked_order: InFlightOrder):
         unique_key = tracked_order.exchange_order_id
         numeric_id = await self._resolve_numeric_order_id(unique_key)
-
         if numeric_id is None:
-            raise IOError(f"Cannot cancel: numeric order id not found for uniqueKey={unique_key}")
+            # nothing live to cancel
+            raise IOError(f"Mobin order not found for cancel (uniqueKey={unique_key})")
 
-        symbol = await self.exchange_symbol_associated_to_pair(tracked_order.trading_pair)
-        api_params = {
-            "instrumentId": symbol,
-            "quantity": int(tracked_order.amount - tracked_order.executed_amount_base),
-            "price": int(tracked_order.price),
-            "accountType": 1,
-            "orderType": 1,
-            "validityType": 1,
-            "pending": 0,
-            "orderSide": CONSTANTS.SIDE_BUY if tracked_order.trade_type is TradeType.BUY else CONSTANTS.SIDE_SELL,
-            "requestType": 3,
-            "orderId": int(numeric_id),
-            "validityDate": None,
-            "lockedPrice": 0,
-            "usePledge": False,
-        }
+        order_side = CONSTANTS.SIDE_BUY if tracked_order.trade_type is TradeType.BUY else CONSTANTS.SIDE_SELL
+        api_params = {"orderId": int(numeric_id), "orderSide": order_side}
 
         cancel_result = await self._api_post(
-            path_url=CONSTANTS.ORDER_PATH_URL,
+            path_url=CONSTANTS.CANCEL_ORDER_PATH_URL,
             data=api_params,
             is_auth_required=True,
+            limit_id=CONSTANTS.CANCEL_ORDER_PATH_URL,
         )
-
-        if not cancel_result.get("success") or cancel_result.get("requestErrorCode", 0) != 0:
-            raise IOError(f"Cancel SaveRequest rejected: {cancel_result}")
-
-        return True  # confirm final state via WS or _request_order_status
+        if not cancel_result.get("success", True) or cancel_result.get("requestErrorCode", 0) != 0:
+            raise IOError(f"Cancel rejected: {cancel_result}")
+        return True
 
     async def _make_trading_rules_request(self) -> Any:
         exchange_info = await self._api_get(path_url=self.trading_rules_request_path, is_auth_required=True)
@@ -340,9 +325,9 @@ class MobinExchange(ExchangePyBase):
                 self.logger().exception(f"Error parsing the trading pair rule {rule}. Skipping.")
         return retval
 
-    async def _status_polling_loop_fetch_updates(self):
-        await self._update_order_fills_from_trades()
-        await super()._status_polling_loop_fetch_updates()
+    # async def _status_polling_loop_fetch_updates(self):
+    #     await self._update_order_fills_from_trades()
+    #     await super()._status_polling_loop_fetch_updates()
 
     async def _update_trading_fees(self):
         """
@@ -567,26 +552,58 @@ class MobinExchange(ExchangePyBase):
 
         return trade_updates
 
+    def _map_today_row_to_state(self, row: Dict[str, Any]) -> OrderState:
+        if row.get("errorCode"):
+            return OrderState.FAILED
+        executed = Decimal(str(row.get("executedQuantity", 0)))
+        remaining = Decimal(str(row.get("remainingQuantity", 0)))
+        quantity = Decimal(str(row.get("quantity", 0)))
+        order_state = row.get("orderState")
+        if executed > 0 and (remaining <= 0 or executed >= quantity):
+            return OrderState.FILLED
+        if executed > 0 and remaining > 0:
+            return OrderState.PARTIALLY_FILLED
+        if order_state == 3:
+            return OrderState.OPEN
+        if order_state == 5:
+            return OrderState.FAILED
+        if order_state == 7:
+            return OrderState.CANCELED if executed == 0 else OrderState.FILLED
+        return OrderState.OPEN
+
+    def _parse_mobin_timestamp(self, ts_str: Optional[str]) -> float:
+        if not ts_str:
+            return self.current_timestamp
+        # handles "08 Jun 2026 11:24:08.583952" and "2 June 2026 16:06:52.982"
+        for fmt in ("%d %b %Y %H:%M:%S.%f", "%d %B %Y %H:%M:%S.%f"):
+            try:
+                return datetime.strptime(ts_str, fmt).timestamp()
+            except ValueError:
+                continue
+        return self.current_timestamp
+
     async def _request_order_status(self, tracked_order: InFlightOrder) -> OrderUpdate:
-        trading_pair = await self.exchange_symbol_associated_to_pair(trading_pair=tracked_order.trading_pair)
-        updated_order_data = await self._api_get(
-            path_url=CONSTANTS.ORDER_PATH_URL,
-            params={
-                "symbol": trading_pair,
-                "origClientOrderId": tracked_order.client_order_id},
-            is_auth_required=True)
+        unique_key = tracked_order.exchange_order_id
+        await self._get_today_orders(force_refresh=True)
+        row = self._find_today_order_by_unique_key(unique_key)
 
-        new_state = CONSTANTS.ORDER_STATE[updated_order_data["status"]]
+        if row is None:
+            raise IOError(f"Order not found in Today for uniqueKey={unique_key}")
 
-        order_update = OrderUpdate(
+        if row.get("id") is not None:
+            self._mobin_numeric_order_ids[unique_key] = str(row["id"])
+            self._mobin_unique_key_by_request_id[str(row["id"])] = unique_key
+
+        new_state = self._map_today_row_to_state(row)
+        ts_str = row.get("lastUpdate") or row.get("orderTime") or row.get("insertDateTime")
+
+        return OrderUpdate(
             client_order_id=tracked_order.client_order_id,
-            exchange_order_id=str(updated_order_data["orderId"]),
+            exchange_order_id=unique_key,  # keep uniqueKey as exchange_order_id
             trading_pair=tracked_order.trading_pair,
-            update_timestamp=updated_order_data["updateTime"] * 1e-3,
+            update_timestamp=self._parse_mobin_timestamp(ts_str),
             new_state=new_state,
         )
-
-        return order_update
 
     async def _update_balances(self):
         local_asset_names = set(self._account_balances.keys())
