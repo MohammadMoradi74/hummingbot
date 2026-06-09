@@ -1,5 +1,4 @@
 import asyncio
-import time
 from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
@@ -50,6 +49,11 @@ class MobinExchange(ExchangePyBase):
         self._trading_pairs = trading_pairs
         self._last_trades_poll_mobin_timestamp = 1.0
         super().__init__(balance_asset_limit, rate_limits_share_pct)
+        # Mobin specific params
+        self._mobin_numeric_order_ids: Dict[str, str] = {}  # uniqueKey -> Today id
+        self._mobin_unique_key_by_request_id: Dict[str, str] = {}  # RequestId -> uniqueKey
+        self._today_orders_cache: List[Dict[str, Any]] = []
+        self._today_orders_cache_ts: float = 0.0
 
     @staticmethod
     def to_hb_order_type(mobin_type: str) -> OrderType:
@@ -177,7 +181,6 @@ class MobinExchange(ExchangePyBase):
         side_str = CONSTANTS.SIDE_BUY if trade_type is TradeType.BUY else CONSTANTS.SIDE_SELL
         price_str = f"{int(price)}"
         symbol = await self.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
-
         api_params = {"instrumentId": symbol,
                       "quantity": amount_str,
                       "price": price_str,
@@ -190,39 +193,92 @@ class MobinExchange(ExchangePyBase):
                       "lockedPrice": 0,
                       "usePledge": "false"}
 
-        try:
-            # TODO: Handle error codes!
-            order_result = await self._api_post(
-                path_url=CONSTANTS.ORDER_PATH_URL,
-                data=api_params,
-                is_auth_required=True)
+        order_result = await self._api_post(
+            path_url=CONSTANTS.ORDER_PATH_URL,
+            data=api_params,
+            is_auth_required=True,
+        )
 
-            o_id = order_result["uniqueKey"]
-            transact_time = time.time() * 1e-3
-        except IOError as e:
-            error_description = str(e)
-            is_server_overloaded = ("status is 503" in error_description
-                                    and "Unknown error, please check your request or try again later." in error_description)
-            if is_server_overloaded:
-                o_id = "UNKNOWN"
-                transact_time = time.time() * 1e-3
-            else:
-                raise
-        return o_id, transact_time
+        if not order_result.get("success") or order_result.get("requestErrorCode", 0) != 0:
+            raise IOError(f"SaveRequest rejected: {order_result}")
+
+        unique_key = order_result["uniqueKey"]
+        transact_time = self.current_timestamp
+
+        # Resolve numeric id early (short retry — request is async)
+        for _ in range(2):
+            numeric_id = await self._resolve_numeric_order_id(unique_key)
+            if numeric_id is not None:
+                break
+            await self._sleep(0.3)
+        return unique_key, transact_time
+
+    async def _get_today_orders(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
+        now = self.current_timestamp
+        if not force_refresh and now - self._today_orders_cache_ts < 10.0:
+            return self._today_orders_cache
+        rows = await self._api_get(
+            path_url=CONSTANTS.MY_ORDERS_PATH_URL,
+            params={"displayFailedRequest": "False"},
+            is_auth_required=True,
+            limit_id=CONSTANTS.MY_ORDERS_PATH_URL,
+        )
+        self._today_orders_cache = rows
+        self._today_orders_cache_ts = now
+        return rows
+
+    def _find_today_order_by_unique_key(self, unique_key: str) -> Optional[Dict[str, Any]]:
+        for row in self._today_orders_cache:
+            if row.get("uniqueKey") == unique_key and row.get("requestType") == 1:
+                return row
+        return None
+
+    async def _resolve_numeric_order_id(self, unique_key: str) -> Optional[str]:
+        if unique_key in self._mobin_numeric_order_ids:
+            return self._mobin_numeric_order_ids[unique_key]
+        await self._get_today_orders(force_refresh=True)
+        row = self._find_today_order_by_unique_key(unique_key)
+        if row and row.get("id") is not None:
+            numeric_id = str(row["id"])
+            self._mobin_numeric_order_ids[unique_key] = numeric_id
+            self._mobin_unique_key_by_request_id[numeric_id] = unique_key
+            return numeric_id
+        return None
 
     async def _place_cancel(self, order_id: str, tracked_order: InFlightOrder):
-        symbol = await self.exchange_symbol_associated_to_pair(trading_pair=tracked_order.trading_pair)
+        unique_key = tracked_order.exchange_order_id
+        numeric_id = await self._resolve_numeric_order_id(unique_key)
+
+        if numeric_id is None:
+            raise IOError(f"Cannot cancel: numeric order id not found for uniqueKey={unique_key}")
+
+        symbol = await self.exchange_symbol_associated_to_pair(tracked_order.trading_pair)
         api_params = {
-            "symbol": symbol,
-            "origClientOrderId": order_id,
+            "instrumentId": symbol,
+            "quantity": int(tracked_order.amount - tracked_order.executed_amount_base),
+            "price": int(tracked_order.price),
+            "accountType": 1,
+            "orderType": 1,
+            "validityType": 1,
+            "pending": 0,
+            "orderSide": CONSTANTS.SIDE_BUY if tracked_order.trade_type is TradeType.BUY else CONSTANTS.SIDE_SELL,
+            "requestType": 3,
+            "orderId": int(numeric_id),
+            "validityDate": None,
+            "lockedPrice": 0,
+            "usePledge": False,
         }
-        cancel_result = await self._api_delete(
+
+        cancel_result = await self._api_post(
             path_url=CONSTANTS.ORDER_PATH_URL,
-            params=api_params,
-            is_auth_required=True)
-        if cancel_result.get("status") == "CANCELED":
-            return True
-        return False
+            data=api_params,
+            is_auth_required=True,
+        )
+
+        if not cancel_result.get("success") or cancel_result.get("requestErrorCode", 0) != 0:
+            raise IOError(f"Cancel SaveRequest rejected: {cancel_result}")
+
+        return True  # confirm final state via WS or _request_order_status
 
     async def _make_trading_rules_request(self) -> Any:
         exchange_info = await self._api_get(path_url=self.trading_rules_request_path, is_auth_required=True)
