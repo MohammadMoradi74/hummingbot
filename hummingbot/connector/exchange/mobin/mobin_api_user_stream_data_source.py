@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, List, Optional
 
 from hummingbot.connector.exchange.mobin import mobin_constants as CONSTANTS
 from hummingbot.connector.exchange.mobin.mobin_auth import MobinAuth
+from hummingbot.connector.exchange.mobin.mobin_utils import iter_signalr_frames
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
 from hummingbot.core.utils.async_utils import safe_ensure_future
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
@@ -38,6 +39,10 @@ class MobinAPIUserStreamDataSource(UserStreamTrackerDataSource):
 
         self._listen_key_initialized_event: asyncio.Event = asyncio.Event()
         self._last_listen_key_ping_ts = 0
+
+    async def _process_event_message(self, event_message, queue: asyncio.Queue):
+        for frame in iter_signalr_frames(event_message):
+            queue.put_nowait(frame)  # dict per frame, not raw string
 
     async def _connected_websocket_assistant(self) -> WSAssistant:
         """
