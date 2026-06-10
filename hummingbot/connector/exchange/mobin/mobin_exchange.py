@@ -1,8 +1,11 @@
 import asyncio
+import base64
+import gzip
 from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
+import msgpack
 from bidict import bidict
 
 from hummingbot.connector.constants import s_decimal_NaN
@@ -10,6 +13,7 @@ from hummingbot.connector.exchange.mobin import mobin_constants as CONSTANTS, mo
 from hummingbot.connector.exchange.mobin.mobin_api_order_book_data_source import MobinAPIOrderBookDataSource
 from hummingbot.connector.exchange.mobin.mobin_api_user_stream_data_source import MobinAPIUserStreamDataSource
 from hummingbot.connector.exchange.mobin.mobin_auth import MobinAuth
+from hummingbot.connector.exchange.mobin.mobin_utils import iter_signalr_frames
 from hummingbot.connector.exchange_py_base import ExchangePyBase
 from hummingbot.connector.trading_rule import TradingRule
 from hummingbot.connector.utils import TradeFillOrderDetails, combine_to_hb_trading_pair
@@ -335,65 +339,155 @@ class MobinExchange(ExchangePyBase):
         """
         pass
 
+    @staticmethod
+    def _decode_signalr_payload(b64_payload: str) -> Dict[str, Any]:
+        decoded_bytes = gzip.decompress(base64.b64decode(b64_payload))
+        return msgpack.unpackb(decoded_bytes, raw=False, strict_map_key=False)
+
+    @staticmethod
+    def _is_user_stream_message(message: Dict[str, Any]) -> bool:
+        if message.get("type") == 6:
+            return False
+        if message.get("target") == "time":
+            return False
+        return message.get("target") == "sle" and "arguments" in message
+
+    async def _resolve_unique_key_from_request_event(self, data: Dict[str, Any]) -> Optional[str]:
+        request_ids = []
+        if data.get("RequestId") is not None:
+            request_ids.append(str(data["RequestId"]))
+        if data.get("OriginalRequestId"):
+            request_ids.append(str(data["OriginalRequestId"]))
+
+        for request_id in request_ids:
+            unique_key = self._mobin_unique_key_by_request_id.get(request_id)
+            if unique_key:
+                return unique_key
+
+        await self._get_today_orders(force_refresh=True)
+        for request_id in request_ids:
+            for row in self._today_orders_cache:
+                if str(row.get("id")) == request_id and row.get("requestType") == 1:
+                    unique_key = row.get("uniqueKey")
+                    if unique_key:
+                        self._mobin_unique_key_by_request_id[request_id] = unique_key
+                        self._mobin_numeric_order_ids[unique_key] = request_id
+                        return unique_key
+        return None
+
+    @staticmethod
+    def _map_request_event_to_state(data: Dict[str, Any]) -> Optional[OrderState]:
+        event_type = data.get("RequestEventType")
+        req_type = data.get("Type")
+
+        if event_type == "RejectedByOMS":
+            return OrderState.FAILED
+
+        if event_type == "Cancelled" and req_type == "Cancellation":
+            return OrderState.CANCELED
+
+        if event_type == "SentByOMS" and req_type == "Cancellation":
+            return OrderState.PENDING_CANCEL
+
+        if event_type == "Created" and req_type == "Creation":
+            if data.get("IsInBook"):
+                return OrderState.OPEN
+            return OrderState.PENDING_CREATE
+
+        # Unknown / intermediate events — let REST polling handle them
+        return None
+
+    def _process_account_update(self, data: Dict[str, Any]) -> None:
+        # WS Account payload updates IRR (quote) balance
+        if "TradableRemain" in data:
+            free = Decimal(str(data.get("TradableRemain", 0)))
+            total = Decimal(str(data.get("Remain", data.get("TradableRemain", 0))))
+            self._account_available_balances["IRR"] = free
+            self._account_balances["IRR"] = total
+
     async def _user_stream_event_listener(self):
         """
-        This functions runs in background continuously processing the events received from the exchange by the user
-        stream data source. It keeps reading events from the queue until the task is interrupted.
-        The events received are balance updates, order updates and trade events.
+        Processes Mobin private SignalR user stream events.
+
+        Queue items are either:
+          - a parsed dict (one frame), from MobinAPIUserStreamDataSource, or
+          - a raw WS string with one or more frames separated by \\x1e
         """
         async for event_message in self._iter_user_event_queue():
             try:
-                event_type = event_message.get("e")
-                # Refer to https://github.com/mobin-exchange/mobin-official-api-docs/blob/master/user-data-stream.md
-                # As per the order update section in Mobin the ID of the order being canceled is under the "C" key
-                if event_type == "executionReport":
-                    execution_type = event_message.get("x")
-                    if execution_type != "CANCELED":
-                        client_order_id = event_message.get("c")
-                    else:
-                        client_order_id = event_message.get("C")
+                for message in iter_signalr_frames(event_message):
+                    if not self._is_user_stream_message(message):
+                        continue
 
-                    if execution_type == "TRADE":
-                        tracked_order = self._order_tracker.all_fillable_orders.get(client_order_id)
-                        if tracked_order is not None:
-                            fee = TradeFeeBase.new_spot_fee(
-                                fee_schema=self.trade_fee_schema(),
-                                trade_type=tracked_order.trade_type,
-                                percent_token=event_message["N"],
-                                flat_fees=[TokenAmount(amount=Decimal(event_message["n"]), token=event_message["N"])]
-                            )
-                            trade_update = TradeUpdate(
-                                trade_id=str(event_message["t"]),
-                                client_order_id=client_order_id,
-                                exchange_order_id=str(event_message["i"]),
-                                trading_pair=tracked_order.trading_pair,
-                                fee=fee,
-                                fill_base_amount=Decimal(event_message["l"]),
-                                fill_quote_amount=Decimal(event_message["l"]) * Decimal(event_message["L"]),
-                                fill_price=Decimal(event_message["L"]),
-                                fill_timestamp=event_message["T"] * 1e-3,
-                            )
-                            self._order_tracker.process_trade_update(trade_update)
+                    event_name = message["arguments"][0]  # "Request" or "Account"
+                    payload = self._decode_signalr_payload(message["arguments"][1])
 
-                    tracked_order = self._order_tracker.all_updatable_orders.get(client_order_id)
-                    if tracked_order is not None:
-                        order_update = OrderUpdate(
-                            trading_pair=tracked_order.trading_pair,
-                            update_timestamp=event_message["E"] * 1e-3,
-                            new_state=CONSTANTS.ORDER_STATE[event_message["X"]],
-                            client_order_id=client_order_id,
-                            exchange_order_id=str(event_message["i"]),
+                    if event_name == "Account":
+                        self._process_account_update(payload)
+                        continue
+
+                    if event_name != "Request":
+                        continue
+
+                    unique_key = await self._resolve_unique_key_from_request_event(payload)
+                    if unique_key is None:
+                        self.logger().debug(
+                            f"Untracked Mobin request event: "
+                            f"RequestId={payload.get('RequestId')} "
+                            f"OriginalRequestId={payload.get('OriginalRequestId')} "
+                            f"event={payload.get('RequestEventType')} "
+                            f"type={payload.get('Type')}"
                         )
-                        self._order_tracker.process_order_update(order_update=order_update)
+                        continue
 
-                elif event_type == "outboundAccountPosition":
-                    balances = event_message["B"]
-                    for balance_entry in balances:
-                        asset_name = balance_entry["a"]
-                        free_balance = Decimal(balance_entry["f"])
-                        total_balance = Decimal(balance_entry["f"]) + Decimal(balance_entry["l"])
-                        self._account_available_balances[asset_name] = free_balance
-                        self._account_balances[asset_name] = total_balance
+                    tracked_order = self._order_tracker.all_updatable_orders_by_exchange_order_id.get(unique_key)
+                    if tracked_order is None:
+                        continue
+
+                    new_state = self._map_request_event_to_state(payload)
+                    if new_state is None:
+                        continue
+
+                    ts_str = payload.get("DateTime") or payload.get("DateOfEvent")
+                    misc_updates = None
+                    if payload.get("Description"):
+                        misc_updates = {"error_message": payload["Description"]}
+
+                    order_update = OrderUpdate(
+                        client_order_id=tracked_order.client_order_id,
+                        exchange_order_id=unique_key,
+                        trading_pair=tracked_order.trading_pair,
+                        update_timestamp=self._parse_mobin_timestamp(ts_str),
+                        new_state=new_state,
+                        misc_updates=misc_updates,
+                    )
+                    self._order_tracker.process_order_update(order_update)
+
+                    executed_qty = payload.get("ExecutedQuantity")
+                    if executed_qty is not None:
+                        executed_qty = Decimal(str(executed_qty))
+                        if executed_qty > tracked_order.executed_amount_base:
+                            fill_delta = executed_qty - tracked_order.executed_amount_base
+                            if fill_delta > 0:
+                                price = Decimal(str(payload.get("Price", tracked_order.price)))
+                                fee = TradeFeeBase.new_spot_fee(
+                                    fee_schema=self.trade_fee_schema(),
+                                    trade_type=tracked_order.trade_type,
+                                    percent=self.estimate_fee_pct(is_maker=True),
+                                )
+                                trade_update = TradeUpdate(
+                                    trade_id=f"{payload.get('RequestId')}-{executed_qty}",
+                                    client_order_id=tracked_order.client_order_id,
+                                    exchange_order_id=unique_key,
+                                    trading_pair=tracked_order.trading_pair,
+                                    fee=fee,
+                                    fill_base_amount=fill_delta,
+                                    fill_quote_amount=fill_delta * price,
+                                    fill_price=price,
+                                    fill_timestamp=self._parse_mobin_timestamp(ts_str),
+                                    is_taker=False,
+                                )
+                                self._order_tracker.process_trade_update(trade_update)
 
             except asyncio.CancelledError:
                 raise
