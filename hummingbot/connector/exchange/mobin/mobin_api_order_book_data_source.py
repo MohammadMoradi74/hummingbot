@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import msgpack
 
-from hummingbot.connector.exchange.mobin import mobin_constants as CONSTANTS, mobin_web_utils as web_utils
+from hummingbot.connector.exchange.mobin import mobin_constants as CONSTANTS, mobin_utils, mobin_web_utils as web_utils
 from hummingbot.connector.exchange.mobin.mobin_order_book import MobinOrderBook
 from hummingbot.core.data_type.order_book_message import OrderBookMessage
 from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTrackerDataSource
@@ -143,7 +143,8 @@ class MobinAPIOrderBookDataSource(OrderBookTrackerDataSource):
         )
         return snapshot_msg
 
-    def _decode_signalr_message(self, b64_payload: str):
+    @staticmethod
+    def _decode_signalr_message(b64_payload: str):
         """Decode a gzip+base64 encoded MessagePack payload from SignalR"""
         # Step 1: Decode base64 and decompress gzip
         decoded_bytes = gzip.decompress(base64.b64decode(b64_payload))
@@ -154,39 +155,67 @@ class MobinAPIOrderBookDataSource(OrderBookTrackerDataSource):
 
         return data
 
+    @staticmethod
+    def _coerce_signalr_message(event_message: Any) -> Optional[Dict[str, Any]]:
+        if isinstance(event_message, dict):
+            return event_message
+        for message in mobin_utils.iter_signalr_frames(event_message):
+            return message
+        return None
+
+    async def _process_websocket_messages(self, websocket_assistant: WSAssistant):
+        async for ws_response in websocket_assistant.iter_messages():
+            data = ws_response.data
+            if data is None:
+                continue
+            for message in mobin_utils.iter_signalr_frames(data):
+                channel: str = self._channel_originating_message(event_message=message)
+                valid_channels = self._get_messages_queue_keys()
+                if channel in valid_channels:
+                    self._message_queue[channel].put_nowait(message)
+                else:
+                    await self._process_message_for_unknown_channel(
+                        event_message=message,
+                        websocket_assistant=websocket_assistant,
+                    )
+
     async def _parse_trade_message(self, raw_message: Dict[str, Any], message_queue: asyncio.Queue):
-        message = json.loads(raw_message.rstrip('\x1e\x00\x1f'))
-        if "arguments" in message:
-            decoded_message = self._decode_signalr_message(message["arguments"][1])
-            # TODO: fix trading_pair
-            trading_pair = decoded_message.get("InstrumentId")
-            trade_message = MobinOrderBook.trade_message_from_exchange(
-                decoded_message, {"trading_pair": trading_pair})
-            message_queue.put_nowait(trade_message)
+        message = self._coerce_signalr_message(raw_message)
+        if message is None:
+            return
+        if "arguments" not in message:
+            return
+        decoded_message = self._decode_signalr_message(message["arguments"][1])
+        trading_pair = decoded_message.get("InstrumentId")
+        trade_message = MobinOrderBook.trade_message_from_exchange(
+            decoded_message, {"trading_pair": trading_pair})
+        message_queue.put_nowait(trade_message)
 
-    async def _parse_order_book_diff_message(self, raw_message: Dict[str, Any], message_queue: asyncio.Queue):
-        message = json.loads(raw_message.rstrip('\x1e\x00\x1f'))
-        if "arguments" in message:
-            decoded_message = self._decode_signalr_message(message["arguments"][1])
-            # TODO: fix trading_pair
-            trading_pair = decoded_message.get("InstrumentId")
-            order_book_message: OrderBookMessage = MobinOrderBook.diff_message_from_exchange(
-                decoded_message, time.time(), {"trading_pair": trading_pair})
-            message_queue.put_nowait(order_book_message)
+    async def _parse_order_book_diff_message(self, raw_message: Any, message_queue: asyncio.Queue):
+        message = self._coerce_signalr_message(raw_message)
+        if message is None:
+            return
+        if "arguments" not in message:
+            return
+        decoded_message = self._decode_signalr_message(message["arguments"][1])
+        trading_pair = decoded_message.get("InstrumentId")
+        order_book_message: OrderBookMessage = MobinOrderBook.diff_message_from_exchange(
+            decoded_message, time.time(), {"trading_pair": trading_pair})
+        message_queue.put_nowait(order_book_message)
 
-    def _channel_originating_message(self, event_message: Dict[str, Any]) -> str:
-        message = json.loads(event_message.rstrip('\x1e\x00\x1f'))
+    def _channel_originating_message(self, event_message: Any) -> str:
+        message = self._coerce_signalr_message(event_message)
+        if message is None:
+            return ""
+        if message.get("type") == 6:
+            return ""
+        if message.get("target") == "time" or "time" in message:
+            return ""
         channel = ""
-        if 'time' in message:
-            return channel
-
-        # TODO: Decode the message
-        if 'arguments' in message:
-            event_type = message['arguments'][0]
+        if "arguments" in message:
+            event_type = message["arguments"][0]
             if event_type == CONSTANTS.DIFF_EVENT_TYPE:
                 channel = self._diff_messages_queue_key
-
-            if event_type == CONSTANTS.TRADE_EVENT_TYPE:
+            elif event_type == CONSTANTS.TRADE_EVENT_TYPE:
                 channel = self._trade_messages_queue_key
-
         return channel
