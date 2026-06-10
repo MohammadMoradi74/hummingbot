@@ -1,5 +1,6 @@
+import json
 from decimal import Decimal
-from typing import Any, Dict
+from typing import Any, Dict, Iterator, Union
 
 from pydantic import ConfigDict, Field, SecretStr
 
@@ -14,6 +15,19 @@ DEFAULT_FEES = TradeFeeSchema(
     taker_percent_fee_decimal=Decimal("0.0012"),  # 0.12% taker fee for ETFs
     buy_percent_fee_deducted_from_returns=True  # Fee deducted from IRR (quote currency)
 )
+
+
+def iter_signalr_frames(raw_message: Union[str, Dict[str, Any], Any]) -> Iterator[Dict[str, Any]]:
+    # User stream queue may already contain a parsed dict (one frame).
+    if isinstance(raw_message, dict):
+        yield raw_message
+        return
+    if not isinstance(raw_message, str) or not raw_message:
+        return
+    for part in raw_message.split("\x1e"):
+        part = part.strip()
+        if part:
+            yield json.loads(part)
 
 
 def is_exchange_information_valid(exchange_info: Dict[str, Any]) -> bool:
