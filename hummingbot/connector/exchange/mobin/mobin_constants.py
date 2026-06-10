@@ -72,9 +72,14 @@ ORDER_STATE = {
 DIFF_EVENT_TYPE = "InstrumentInfo"
 TRADE_EVENT_TYPE = "Trade"
 
+# Mobin broker order throttling (place + cancel combined)
+MOBIN_ORDER_OPS = "MOBIN_ORDER_OPS"  # max 20 ops / minute (place + cancel)
+MOBIN_ORDER_MIN_GAP = "MOBIN_ORDER_MIN_GAP"  # min 5 seconds between any order op
+MOBIN_ORDER_OPS_PER_MINUTE = 20
+MOBIN_ORDER_MIN_INTERVAL_SECONDS = 5
+
 RATE_LIMITS = [
     RateLimit(limit_id='negotiate', limit=6000, time_interval=ONE_MINUTE),
-
     # Pools
     RateLimit(limit_id=REQUEST_WEIGHT, limit=6000, time_interval=ONE_MINUTE),
     RateLimit(limit_id=ORDERS, limit=100, time_interval=10 * ONE_SECOND),
@@ -117,16 +122,17 @@ RATE_LIMITS = [
     RateLimit(limit_id=MY_ORDERS_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE,
               linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 20),
                              LinkedLimitWeightPair(RAW_REQUESTS, 1)]),
-    RateLimit(limit_id=ORDER_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE,
-              linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 4),
-                             LinkedLimitWeightPair(ORDERS, 1),
-                             LinkedLimitWeightPair(ORDERS_24HR, 1),
-                             LinkedLimitWeightPair(RAW_REQUESTS, 1)]),
-    RateLimit(limit_id=CANCEL_ORDER_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE,
-              linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 4),
-                             LinkedLimitWeightPair(ORDERS, 1),
-                             LinkedLimitWeightPair(ORDERS_24HR, 1),
-                             LinkedLimitWeightPair(RAW_REQUESTS, 1)])
+    # Shared pools for SaveRequest + CancelRequest
+    RateLimit(limit_id=MOBIN_ORDER_OPS, limit=MOBIN_ORDER_OPS_PER_MINUTE, time_interval=ONE_MINUTE),
+    RateLimit(limit_id=MOBIN_ORDER_MIN_GAP, limit=1, time_interval=MOBIN_ORDER_MIN_INTERVAL_SECONDS),
+    # Place order
+    RateLimit(limit_id=ORDER_PATH_URL, limit=MOBIN_ORDER_OPS_PER_MINUTE, time_interval=ONE_MINUTE,
+              linked_limits=[LinkedLimitWeightPair(MOBIN_ORDER_OPS, 1),
+                             LinkedLimitWeightPair(MOBIN_ORDER_MIN_GAP, 1)]),
+    # Cancel order
+    RateLimit(limit_id=CANCEL_ORDER_PATH_URL, limit=MOBIN_ORDER_OPS_PER_MINUTE, time_interval=ONE_MINUTE,
+              linked_limits=[LinkedLimitWeightPair(MOBIN_ORDER_OPS, 1),
+                             LinkedLimitWeightPair(MOBIN_ORDER_MIN_GAP, 1)])
 ]
 
 ORDER_NOT_EXIST_ERROR_CODE = -2013
