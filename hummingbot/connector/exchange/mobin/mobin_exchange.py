@@ -16,14 +16,12 @@ from hummingbot.connector.exchange.mobin.mobin_auth import MobinAuth
 from hummingbot.connector.exchange.mobin.mobin_utils import iter_signalr_frames
 from hummingbot.connector.exchange_py_base import ExchangePyBase
 from hummingbot.connector.trading_rule import TradingRule
-from hummingbot.connector.utils import TradeFillOrderDetails, combine_to_hb_trading_pair
+from hummingbot.connector.utils import combine_to_hb_trading_pair
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate, TradeUpdate
 from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTrackerDataSource
-from hummingbot.core.data_type.trade_fee import DeductedFromReturnsTradeFee, TokenAmount, TradeFeeBase
+from hummingbot.core.data_type.trade_fee import DeductedFromReturnsTradeFee, TradeFeeBase
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
-from hummingbot.core.event.events import MarketEvent, OrderFilledEvent
-from hummingbot.core.utils.async_utils import safe_gather
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
 
@@ -329,10 +327,6 @@ class MobinExchange(ExchangePyBase):
                 self.logger().exception(f"Error parsing the trading pair rule {rule}. Skipping.")
         return retval
 
-    # async def _status_polling_loop_fetch_updates(self):
-    #     await self._update_order_fills_from_trades()
-    #     await super()._status_polling_loop_fetch_updates()
-
     async def _update_trading_fees(self):
         """
         Update fees information from the exchange
@@ -494,103 +488,6 @@ class MobinExchange(ExchangePyBase):
             except Exception:
                 self.logger().error("Unexpected error in user stream listener loop.", exc_info=True)
                 await self._sleep(5.0)
-
-    async def _update_order_fills_from_trades(self):
-        """
-        This is intended to be a backup measure to get filled events with trade ID for orders,
-        in case Mobin's user stream events are not working.
-        NOTE: It is not required to copy this functionality in other connectors.
-        This is separated from _update_order_status which only updates the order status without producing filled
-        events, since Mobin's get order endpoint does not return trade IDs.
-        The minimum poll interval for order status is 10 seconds.
-        """
-        small_interval_last_tick = self._last_poll_timestamp / self.UPDATE_ORDER_STATUS_MIN_INTERVAL
-        small_interval_current_tick = self.current_timestamp / self.UPDATE_ORDER_STATUS_MIN_INTERVAL
-        long_interval_last_tick = self._last_poll_timestamp / self.LONG_POLL_INTERVAL
-        long_interval_current_tick = self.current_timestamp / self.LONG_POLL_INTERVAL
-
-        if (long_interval_current_tick > long_interval_last_tick
-                or (self.in_flight_orders and small_interval_current_tick > small_interval_last_tick)):
-            query_time = int(self._last_trades_poll_mobin_timestamp * 1e3)
-            self._last_trades_poll_mobin_timestamp = self._time_synchronizer.time()
-            order_by_exchange_id_map = {}
-            for order in self._order_tracker.all_fillable_orders.values():
-                order_by_exchange_id_map[order.exchange_order_id] = order
-
-            tasks = []
-            trading_pairs = self.trading_pairs
-            for trading_pair in trading_pairs:
-                params = {
-                    "symbol": await self.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
-                }
-                if self._last_poll_timestamp > 0:
-                    params["startTime"] = query_time
-                tasks.append(self._api_get(
-                    path_url=CONSTANTS.MY_TRADES_PATH_URL,
-                    params=params,
-                    is_auth_required=True))
-
-            self.logger().debug(f"Polling for order fills of {len(tasks)} trading pairs.")
-            results = await safe_gather(*tasks, return_exceptions=True)
-
-            for trades, trading_pair in zip(results, trading_pairs):
-
-                if isinstance(trades, Exception):
-                    self.logger().network(
-                        f"Error fetching trades update for the order {trading_pair}: {trades}.",
-                        app_warning_msg=f"Failed to fetch trade update for {trading_pair}."
-                    )
-                    continue
-                for trade in trades:
-                    exchange_order_id = str(trade["orderId"])
-                    if exchange_order_id in order_by_exchange_id_map:
-                        # This is a fill for a tracked order
-                        tracked_order = order_by_exchange_id_map[exchange_order_id]
-                        fee = TradeFeeBase.new_spot_fee(
-                            fee_schema=self.trade_fee_schema(),
-                            trade_type=tracked_order.trade_type,
-                            percent_token=trade["commissionAsset"],
-                            flat_fees=[TokenAmount(amount=Decimal(trade["commission"]), token=trade["commissionAsset"])]
-                        )
-                        trade_update = TradeUpdate(
-                            trade_id=str(trade["id"]),
-                            client_order_id=tracked_order.client_order_id,
-                            exchange_order_id=exchange_order_id,
-                            trading_pair=trading_pair,
-                            fee=fee,
-                            fill_base_amount=Decimal(trade["qty"]),
-                            fill_quote_amount=Decimal(trade["quoteQty"]),
-                            fill_price=Decimal(trade["price"]),
-                            fill_timestamp=trade["time"] * 1e-3,
-                        )
-                        self._order_tracker.process_trade_update(trade_update)
-                    elif self.is_confirmed_new_order_filled_event(str(trade["id"]), exchange_order_id, trading_pair):
-                        # This is a fill of an order registered in the DB but not tracked any more
-                        self._current_trade_fills.add(TradeFillOrderDetails(
-                            market=self.display_name,
-                            exchange_trade_id=str(trade["id"]),
-                            symbol=trading_pair))
-                        self.trigger_event(
-                            MarketEvent.OrderFilled,
-                            OrderFilledEvent(
-                                timestamp=float(trade["time"]) * 1e-3,
-                                order_id=self._exchange_order_ids.get(str(trade["orderId"]), None),
-                                trading_pair=trading_pair,
-                                trade_type=TradeType.BUY if trade["isBuyer"] else TradeType.SELL,
-                                order_type=OrderType.LIMIT_MAKER if trade["isMaker"] else OrderType.LIMIT,
-                                price=Decimal(trade["price"]),
-                                amount=Decimal(trade["qty"]),
-                                trade_fee=DeductedFromReturnsTradeFee(
-                                    flat_fees=[
-                                        TokenAmount(
-                                            trade["commissionAsset"],
-                                            Decimal(trade["commission"])
-                                        )
-                                    ]
-                                ),
-                                exchange_trade_id=str(trade["id"])
-                            ))
-                        self.logger().info(f"Recreating missing trade in TradeFill: {trade}")
 
     async def _all_trade_updates_for_order(self, order: InFlightOrder) -> List[TradeUpdate]:
         # Since Mobin has no per-fill API, /Orders/Today gives order-level aggregates,
