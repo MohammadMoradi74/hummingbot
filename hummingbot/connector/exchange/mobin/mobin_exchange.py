@@ -734,6 +734,13 @@ class MobinExchange(ExchangePyBase):
             del self._account_available_balances[asset_name]
             del self._account_balances[asset_name]
 
+    async def _update_time_synchronizer(self, pass_on_non_cancelled_error: bool = False):
+        """
+        Mobin uses JWT Bearer auth, not timestamp-based HMAC.
+        Server time synchronization is not required.
+        """
+        return
+
     def _initialize_trading_pair_symbols_from_exchange_info(self, exchange_info: Dict[str, Any]):
         mapping = bidict()
         for symbol_data in filter(mobin_utils.is_exchange_information_valid, exchange_info):
