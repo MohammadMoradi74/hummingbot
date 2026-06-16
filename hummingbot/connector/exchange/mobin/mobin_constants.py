@@ -24,7 +24,7 @@ SERVER_TIME_PATH_URL = "/Instruments/InformationMinimal?id=IRTKLOTF0001"
 
 # Private API endpoints or BinanceClient function
 ACCOUNTS_PATH_URL = "/Accounts/Get"
-PORTFOLIO_PATH_URL = "/Portfolios/Get"
+PORTFOLIO_PATH_URL = "/Portfolios/GetVirtualPortfolio"
 MY_TRADES_PATH_URL = "/myTrades"
 MY_ORDERS_PATH_URL = "/Orders/Today"
 ORDER_PATH_URL = "/Requests/SaveRequest"
@@ -76,7 +76,7 @@ TRADE_EVENT_TYPE = "Trade"
 MOBIN_ORDER_OPS = "MOBIN_ORDER_OPS"  # max 20 ops / minute (place + cancel)
 MOBIN_ORDER_MIN_GAP = "MOBIN_ORDER_MIN_GAP"  # min 5 seconds between any order op
 MOBIN_ORDER_OPS_PER_MINUTE = 20
-MOBIN_ORDER_MIN_INTERVAL_SECONDS = 5
+MOBIN_ORDER_MIN_INTERVAL_SECONDS = 2
 
 RATE_LIMITS = [
     RateLimit(limit_id='negotiate', limit=6000, time_interval=ONE_MINUTE),
