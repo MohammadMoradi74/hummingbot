@@ -24,7 +24,7 @@ SERVER_TIME_PATH_URL = "/Instruments/InformationMinimal?id=IRTKLOTF0001"
 
 # Private API endpoints or BinanceClient function
 ACCOUNTS_PATH_URL = "/Accounts/Get"
-PORTFOLIO_PATH_URL = "/Portfolios/GetVirtualPortfolio"
+PORTFOLIO_PATH_URL = "/Portfolios/Get"
 MY_TRADES_PATH_URL = "/myTrades"
 MY_ORDERS_PATH_URL = "/Orders/Today"
 ORDER_PATH_URL = "/Requests/SaveRequest"

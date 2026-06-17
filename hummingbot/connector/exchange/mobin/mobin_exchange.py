@@ -628,8 +628,9 @@ class MobinExchange(ExchangePyBase):
 
         for balance_entry in portfolio_info:
             asset_name = balance_entry["instrumentId"]
-            free_balance = Decimal(balance_entry["asset"])  # For more accurecy, you sould use open orders
-            total_balance = Decimal(balance_entry["asset"])
+            total_balance = Decimal(balance_entry["runTimeAsset"])
+            sell_locked = Decimal(balance_entry["sellOpenOrderQuantity"])
+            free_balance = total_balance - sell_locked
             self._account_available_balances[asset_name] = free_balance
             self._account_balances[asset_name] = total_balance
             remote_asset_names.add(asset_name)
