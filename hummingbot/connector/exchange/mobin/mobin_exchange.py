@@ -555,7 +555,7 @@ class MobinExchange(ExchangePyBase):
             return OrderState.OPEN
         if order_state == 5:
             return OrderState.FAILED
-        if order_state == 7:
+        if order_state in (7, 8):  # 7=canceled, 8=fully done on Mobin
             return OrderState.CANCELED if executed == 0 else OrderState.FILLED
         return OrderState.OPEN
 
