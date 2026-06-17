@@ -374,7 +374,18 @@ class MobinExchange(ExchangePyBase):
         if event_type == "RejectedByOMS":
             return OrderState.FAILED
 
+        if event_type == "Traded" and req_type == "Creation":
+            remaining = Decimal(str(data.get("RemainingQuantity", 0)))
+            if remaining > 0:
+                return OrderState.PARTIALLY_FILLED
+            return OrderState.FILLED
+
         if event_type == "Cancelled" and req_type == "Cancellation":
+            executed = Decimal(str(data.get("ExecutedQuantity", 0)))
+            # if partially/fully traded before cancel, treat as filled not canceled
+            if executed > 0:
+                remaining = Decimal(str(data.get("RemainingQuantity", 0)))
+                return OrderState.FILLED if remaining <= 0 else OrderState.PARTIALLY_FILLED
             return OrderState.CANCELED
 
         if event_type == "SentByOMS" and req_type == "Cancellation":
@@ -555,7 +566,7 @@ class MobinExchange(ExchangePyBase):
             return OrderState.OPEN
         if order_state == 5:
             return OrderState.FAILED
-        if order_state in (7, 8):  # 7=canceled, 8=fully done on Mobin
+        if order_state == 7:
             return OrderState.CANCELED if executed == 0 else OrderState.FILLED
         return OrderState.OPEN
 
