@@ -22,6 +22,7 @@ from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState,
 from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTrackerDataSource
 from hummingbot.core.data_type.trade_fee import DeductedFromReturnsTradeFee, TradeFeeBase
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
+from hummingbot.core.utils.async_utils import safe_ensure_future
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
 
@@ -56,6 +57,8 @@ class MobinExchange(ExchangePyBase):
         self._mobin_unique_key_by_request_id: Dict[str, str] = {}  # RequestId -> uniqueKey
         self._today_orders_cache: List[Dict[str, Any]] = []
         self._today_orders_cache_ts: float = 0.0
+        self._balance_refresh_task: Optional[asyncio.Task] = None
+        self._balance_refresh_debounce_s = 0.5
 
     @staticmethod
     def to_hb_order_type(mobin_type: str) -> OrderType:
@@ -407,6 +410,20 @@ class MobinExchange(ExchangePyBase):
             self._account_available_balances["IRR"] = free
             self._account_balances["IRR"] = total
 
+    def _schedule_balance_refresh(self) -> None:
+        if self._balance_refresh_task is not None and not self._balance_refresh_task.done():
+            self._balance_refresh_task.cancel()
+        self._balance_refresh_task = safe_ensure_future(self._debounced_balance_refresh())
+
+    async def _debounced_balance_refresh(self) -> None:
+        try:
+            await self._sleep(self._balance_refresh_debounce_s)
+            await self._update_balances()
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            self.logger().warning("Failed to refresh Mobin balances after user-stream event.", exc_info=True)
+
     async def _user_stream_event_listener(self):
         """
         Processes Mobin private SignalR user stream events.
@@ -490,6 +507,9 @@ class MobinExchange(ExchangePyBase):
                                     is_taker=False,
                                 )
                                 self._order_tracker.process_trade_update(trade_update)
+                                # Update balance, as balance is not updated via websocket. Only IRR is updated with
+                                # Account message in websocket. For updating other assets use rest api
+                                self._schedule_balance_refresh()
 
             except asyncio.CancelledError:
                 raise
