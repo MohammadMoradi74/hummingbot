@@ -314,8 +314,9 @@ class MobinExchange(ExchangePyBase):
                 min_order_size = Decimal(str(rule.get("orderMinimumQuantity", 1)))
                 tick_size = Decimal(str(rule.get("fixedPriceTick", 1)))
                 step_size = Decimal(str(rule.get("lot", 1)))
-                min_notional = Decimal(1_000_000)  # min amount of order value; 1M or 5M rial for ETFs
-
+                # min amount of order value; 1M or 5M rial for ETFs set to 1_000 to sell small amounts for buy,
+                # handle in strategy. let the Mobin API reject other situations
+                min_notional = Decimal(1)
                 retval.append(
                     TradingRule(trading_pair,
                                 min_order_size=min_order_size,
