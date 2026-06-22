@@ -32,7 +32,7 @@ def is_exchange_information_valid(exchange_info: Dict[str, Any]) -> bool:
 
 
 class BitpinConfigMap(BaseConnectorConfigMap):
-    connector: str = Field(default="bitpin", const=True, client_data=None)
+    connector: str = Field(default="bitpin", Literal=True, client_data=None)
     bitpin_api_key: SecretStr = Field(
         default=...,
         client_data=ClientFieldData(
@@ -67,7 +67,7 @@ OTHER_DOMAINS_DEFAULT_FEES = {"bitpin_org": DEFAULT_FEES}
 
 
 class BitpinORGConfigMap(BaseConnectorConfigMap):
-    connector: str = Field(default="bitpin_org", const=True, client_data=None)
+    connector: str = Field(default="bitpin_org", Literal=True, client_data=None)
     bitpin_api_key: SecretStr = Field(
         default=...,
         client_data=ClientFieldData(
