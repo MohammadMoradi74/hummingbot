@@ -47,8 +47,8 @@ class BitpinOrderBook(OrderBook):
         return OrderBookMessage(OrderBookMessageType.SNAPSHOT, {
             "trading_pair": msg["trading_pair"],
             "update_id": int(timestamp),  # Set update_id as time of request
-            "bids": msg["bid"],
-            "asks": msg["ask"]
+            "bids": msg["bids"],
+            "asks": msg["asks"]
         }, timestamp=timestamp)
 
     @classmethod
