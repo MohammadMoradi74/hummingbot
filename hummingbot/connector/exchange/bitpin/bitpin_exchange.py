@@ -64,7 +64,8 @@ class BitpinExchange(ExchangePyBase):
         return BitpinAuth(
             api_key=self.api_key,
             secret_key=self.secret_key,
-            time_provider=self._time_synchronizer)
+            time_provider=self._time_synchronizer,
+            domain=self._domain)
 
     @property
     def name(self) -> str:
@@ -157,6 +158,35 @@ class BitpinExchange(ExchangePyBase):
             connector=self,
             api_factory=self._web_assistants_factory,
             domain=self.domain,
+        )
+
+    async def _api_request(
+            self,
+            path_url,
+            overwrite_url: Optional[str] = None,
+            method: RESTMethod = RESTMethod.GET,
+            params: Optional[Dict[str, Any]] = None,
+            data: Optional[Dict[str, Any]] = None,
+            is_auth_required: bool = False,
+            return_err: bool = False,
+            limit_id: Optional[str] = None,
+            headers: Optional[Dict[str, Any]] = None,
+            **kwargs,
+    ) -> Dict[str, Any]:
+        if is_auth_required:
+            rest_assistant = await self._web_assistants_factory.get_rest_assistant()
+            await self._auth.ensure_authenticated(rest_assistant)
+        return await super()._api_request(
+            path_url=path_url,
+            overwrite_url=overwrite_url,
+            method=method,
+            params=params,
+            data=data,
+            is_auth_required=is_auth_required,
+            return_err=return_err,
+            limit_id=limit_id,
+            headers=headers,
+            **kwargs,
         )
 
     def _get_fee(self,
