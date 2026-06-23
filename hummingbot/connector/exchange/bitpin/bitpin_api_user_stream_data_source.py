@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, List, Optional
 
 from hummingbot.connector.exchange.bitpin import bitpin_constants as CONSTANTS
 from hummingbot.connector.exchange.bitpin.bitpin_auth import BitpinAuth
+from hummingbot.connector.exchange.bitpin.bitpin_ws_utils import BitpinWSHelper
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
 from hummingbot.core.utils.async_utils import safe_ensure_future
 from hummingbot.core.web_assistant.connections.data_types import WSJSONRequest
@@ -16,9 +17,7 @@ if TYPE_CHECKING:
 
 
 class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
-
-    LISTEN_KEY_KEEP_ALIVE_INTERVAL = 500  # Recommended to Ping/Update listen key to keep connection alive
-    HEARTBEAT_TIME_INTERVAL = 300
+    WS_CREDENTIALS_REFRESH_INTERVAL = CONSTANTS.WS_INFO_REFRESH_INTERVAL
 
     _logger: Optional[HummingbotLogger] = None
 
@@ -36,119 +35,107 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
         self._api_factory = api_factory
 
         self._listen_key_initialized_event: asyncio.Event = asyncio.Event()
+
+        self._ws_credentials_initialized_event = asyncio.Event()
+        self._last_ws_credentials_refresh_ts = 0
+        self._manage_ws_credentials_task = None
+
         self._last_listen_key_ping_ts = 0
-        self._current_listen_key = None
-        self._current_refresh_key = None
+        self._ws_token: Optional[str] = None
+        self._user_identifier: Optional[str] = None
 
     async def _connected_websocket_assistant(self) -> WSAssistant:
         """
         Creates an instance of WSAssistant connected to the exchange
         """
-        self._manage_listen_key_task = safe_ensure_future(self._manage_listen_key_task_loop())
-        await self._listen_key_initialized_event.wait()
-
-        ws: WSAssistant = await self._get_ws_assistant()
-        # TODO: Separate rest and websocket domain. Bitpin has removed ir domain for websocket!!!
-        url = f"{CONSTANTS.WSS_URL.format('org')}"
-        await ws.connect(ws_url=url, ping_timeout=CONSTANTS.WS_HEARTBEAT_TIME_INTERVAL)
+        self._manage_ws_credentials_task = safe_ensure_future(self._manage_ws_credentials_task_loop())
+        await self._ws_credentials_initialized_event.wait()
+        ws = await self._get_ws_assistant()
+        await ws.connect(
+            ws_url=BitpinWSHelper.ws_url(CONSTANTS.WS_DOMAIN),
+            ping_timeout=CONSTANTS.WS_HEARTBEAT_TIME_INTERVAL,
+        )
         return ws
 
     async def _subscribe_channels(self, websocket_assistant: WSAssistant):
-        """
-        Subscribes to the trade events and diff orders events through the provided websocket connection.
-
-        Bitpin does not require any channel subscription.
-
-        :param websocket_assistant: the websocket assistant used to connect to the exchange
-        """
         try:
-            payload = {
-                "method": "authenticate",
-                "token": self._current_listen_key,
-            }
-            authentication_request: WSJSONRequest = WSJSONRequest(payload=payload)
-
-            await websocket_assistant.send(authentication_request)
-
-            self.logger().info("Authentication to private user stream...")
+            # 1) Connect to Centrifugo WITH ws_token (required for private channel)
+            await BitpinWSHelper.send_connect(websocket_assistant, token=self._ws_token)
+            await BitpinWSHelper.wait_for_connect_reply(websocket_assistant)
+            # 2) Subscribe to private user orders channel
+            channel = BitpinWSHelper.user_orders_channel(self._user_identifier)
+            await BitpinWSHelper.subscribe(websocket_assistant, channel)
+            self.logger().info(f"Subscribed to private user stream channel: {channel}")
         except asyncio.CancelledError:
             raise
         except Exception:
             self.logger().error(
-                "Unexpected error occurred authenticating to user stream...",
-                exc_info=True
+                "Unexpected error occurred subscribing to user stream...",
+                exc_info=True,
             )
             raise
 
-    async def _get_listen_key(self):
-        # rest_assistant = await self._api_factory.get_rest_assistant()
+    async def _fetch_ws_credentials(self) -> tuple[str, str]:
         try:
-            # data = await rest_assistant.execute_request(
-            #     url=web_utils.public_rest_url(path_url=CONSTANTS.BITPIN_USER_STREAM_PATH_URL, domain=self._domain),
-            #     data={"api_key": self._auth.api_key, "secret_key": self._auth.secret_key},
-            #     method=RESTMethod.POST,
-            #     throttler_limit_id=CONSTANTS.BITPIN_USER_STREAM_PATH_URL,
-            #     headers=self._auth.header_for_authentication()
-            # )
-            await self._auth.authenticate()
+            rest_assistant = await self._api_factory.get_rest_assistant()
+            return await self._auth.get_ws_credentials(rest_assistant)
         except asyncio.CancelledError:
             raise
         except Exception as exception:
-            raise IOError(f"Error fetching user stream listen key. Error: {exception}")
+            raise IOError(f"Error fetching WS credentials. Error: {exception}") from exception
 
-        # return data["access"], data["refresh"]
-        return BitpinAuth.access_token, BitpinAuth.refresh_token
-
-    async def _ping_listen_key(self) -> bool:
-        # rest_assistant = await self._api_factory.get_rest_assistant()
+    async def _refresh_ws_credentials(self) -> bool:
         try:
-            await self._auth.refresh_authenticate()
-            # data = await rest_assistant.execute_request(
-            #     url=web_utils.public_rest_url(path_url=CONSTANTS.BITPIN_USER_STREAM_PATH_URL2, domain=self._domain),
-            #     data={"refresh": self._current_refresh_key},
-            #     method=RESTMethod.POST,
-            #     return_err=True,
-            #     throttler_limit_id=CONSTANTS.BITPIN_USER_STREAM_PATH_URL,
-            #     headers=self._auth.header_for_authentication()
-            # )
-
-            # if "access" not in data:
-            #     self.logger().warning(f"Failed to refresh the listen key {self._current_listen_key}: {data}")
-            #     return False
-
+            ws_token, user_identifier = await self._fetch_ws_credentials()
+            token_changed = ws_token != self._ws_token
+            self._ws_token = ws_token
+            self._user_identifier = user_identifier
+            return not token_changed  # False => force reconnect (token changed/expired)
         except asyncio.CancelledError:
             raise
         except Exception as exception:
-            self.logger().warning(f"Failed to refresh the listen key: {exception}")
+            self.logger().warning(f"Failed to refresh WS credentials: {exception}")
             return False
 
-        self._current_listen_key = BitpinAuth.access_token
-        # self._current_listen_key = data["access"]
-        return True
-
-    async def _manage_listen_key_task_loop(self):
+    async def _manage_ws_credentials_task_loop(self):
         try:
             while True:
                 now = int(time.time())
-                if self._current_listen_key is None:
-                    self._current_listen_key, self._current_refresh_key = await self._get_listen_key()
-                    self.logger().info(f"Successfully obtained listen key {self._current_listen_key}")
-                    self._listen_key_initialized_event.set()
-                    self._last_listen_key_ping_ts = int(time.time())
+                if self._ws_token is None:
+                    self._ws_token, self._user_identifier = await self._fetch_ws_credentials()
+                    self.logger().info(
+                        f"Successfully obtained WS credentials for user {self._user_identifier}"
+                    )
+                    self._ws_credentials_initialized_event.set()
+                    self._last_ws_credentials_refresh_ts = now
 
-                if now - self._last_listen_key_ping_ts >= self.LISTEN_KEY_KEEP_ALIVE_INTERVAL:
-                    success: bool = await self._ping_listen_key()
-                    if not success:
-                        self.logger().error("Error occurred renewing listen key ...")
+                elif now - self._last_ws_credentials_refresh_ts >= self.WS_CREDENTIALS_REFRESH_INTERVAL:
+                    unchanged = await self._refresh_ws_credentials()
+                    if not unchanged:
+                        self.logger().info("WS token changed/expired. Forcing reconnect...")
+                        if self._ws_assistant is not None:
+                            await self._ws_assistant.disconnect()
                         break
-                    else:
-                        self.logger().info(f"Refreshed listen key {self._current_listen_key}.")
-                        self._last_listen_key_ping_ts = int(time.time())
+                    self.logger().info("Refreshed WS credentials.")
+                    self._last_ws_credentials_refresh_ts = now
                 else:
-                    await self._sleep(self.LISTEN_KEY_KEEP_ALIVE_INTERVAL)
+                    await self._sleep(self.WS_CREDENTIALS_REFRESH_INTERVAL)
         finally:
-            # self._current_listen_key = None
-            self._listen_key_initialized_event.clear()
+            self._ws_credentials_initialized_event.clear()
+
+    async def _process_websocket_messages(self, websocket_assistant: WSAssistant, queue: asyncio.Queue):
+        async for ws_response in websocket_assistant.iter_messages():
+            data = ws_response.data
+            if not data:
+                continue
+
+            if BitpinWSHelper.is_ping(data):
+                await websocket_assistant.send(WSJSONRequest(payload={}))
+                continue
+
+            event_data = BitpinWSHelper.extract_event_data(data)
+            if event_data:
+                await self._process_event_message(event_message=event_data, queue=queue)
 
     async def _get_ws_assistant(self) -> WSAssistant:
         if self._ws_assistant is None:
@@ -157,7 +144,8 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
 
     async def _on_user_stream_interruption(self, websocket_assistant: Optional[WSAssistant]):
         await super()._on_user_stream_interruption(websocket_assistant=websocket_assistant)
-        self._manage_listen_key_task and self._manage_listen_key_task.cancel()
-        # self._current_listen_key = None
-        self._listen_key_initialized_event.clear()
+        self._manage_ws_credentials_task and self._manage_ws_credentials_task.cancel()
+        self._ws_token = None
+        self._user_identifier = None
+        self._ws_credentials_initialized_event.clear()
         await self._sleep(5)

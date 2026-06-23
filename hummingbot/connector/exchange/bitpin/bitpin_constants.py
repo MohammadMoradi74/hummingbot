@@ -21,6 +21,11 @@ WS_USER_ORDER_CHANNEL = "user:order_info#"
 # event types unchanged
 DIFF_EVENT_TYPE = "market_data"
 TRADE_EVENT_TYPE = "matches_update"
+# User stream WS events
+USER_ORDER_EVENT_TYPE = "user_order_update"
+USER_MATCH_EVENT_TYPE = "user_match_update"
+# ws-info rate limit: 10 req/min (per docs)
+WS_INFO_REFRESH_INTERVAL = 30 * 60  # refresh ws_token every 30 min (safe under 10/min limit)
 
 #
 PUBLIC_API_VERSION = "v1"
@@ -124,7 +129,9 @@ RATE_LIMITS = [
               linked_limits=[LinkedLimitWeightPair(REQUEST_WEIGHT, 4),
                              LinkedLimitWeightPair(ORDERS, 1),
                              LinkedLimitWeightPair(ORDERS_24HR, 1),
-                             LinkedLimitWeightPair(RAW_REQUESTS, 1)])
+                             LinkedLimitWeightPair(RAW_REQUESTS, 1)]),
+    RateLimit(limit_id=WS_INFO_PATH_URL, limit=10, time_interval=ONE_MINUTE),
+    RateLimit(limit_id=BITPIN_USER_STREAM_PATH_URL2, limit=200, time_interval=ONE_DAY),
 ]
 #
 # ORDER_NOT_EXIST_ERROR_CODE = -2013
