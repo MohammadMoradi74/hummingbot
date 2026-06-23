@@ -9,7 +9,19 @@ MAX_ORDER_ID_LEN = 32
 #
 # # Base URL
 REST_URL = "https://api.bitpin.{}/api/"
-WSS_URL = "wss://ws.bitpin.{}/"
+
+# WEBSOCKET
+WSS_URL = "wss://centrifugo.bitpin.{}/connection/websocket"
+WS_DOMAIN = "ir"  # docs use bitpin.ir; REST may use self._domain separately
+WS_INFO_PATH_URL = "/usr/ws-info/"
+WS_ORDERBOOK_CHANNEL_PREFIX = "orderbook"
+WS_MATCHES_CHANNEL_PREFIX = "matches"
+WS_MARKET_CHANNEL_PREFIX = "market"
+WS_USER_ORDER_CHANNEL = "user:order_info#"
+# event types unchanged
+DIFF_EVENT_TYPE = "market_data"
+TRADE_EVENT_TYPE = "matches_update"
+
 #
 PUBLIC_API_VERSION = "v1"
 PRIVATE_API_VERSION = "v1"
