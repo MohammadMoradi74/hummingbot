@@ -1,0 +1,168 @@
+import asyncio
+import json
+import time
+from typing import TYPE_CHECKING, List, Optional
+
+from hummingbot.connector.exchange.mobin import mobin_constants as CONSTANTS
+from hummingbot.connector.exchange.mobin.mobin_auth import MobinAuth
+from hummingbot.connector.exchange.mobin.mobin_utils import iter_signalr_frames
+from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
+from hummingbot.core.utils.async_utils import safe_ensure_future
+from hummingbot.core.web_assistant.connections.data_types import RESTMethod
+from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
+from hummingbot.core.web_assistant.ws_assistant import WSAssistant
+from hummingbot.logger import HummingbotLogger
+
+if TYPE_CHECKING:
+    from hummingbot.connector.exchange.mobin.mobin_exchange import MobinExchange
+
+
+class MobinAPIUserStreamDataSource(UserStreamTrackerDataSource):
+
+    LISTEN_KEY_KEEP_ALIVE_INTERVAL = 300  # Recommended to Ping/Update listen key to keep connection alive
+    HEARTBEAT_TIME_INTERVAL = 15.0  # SignalR ping interval
+    LISTEN_KEY_RETRY_INTERVAL = 5.0  # retry delay on errors
+
+    _logger: Optional[HummingbotLogger] = None
+
+    def __init__(self,
+                 auth: MobinAuth,
+                 trading_pairs: List[str],
+                 connector: 'MobinExchange',
+                 api_factory: WebAssistantsFactory,
+                 domain: str = CONSTANTS.DEFAULT_DOMAIN):
+        super().__init__()
+        self._auth: MobinAuth = auth
+        self._current_listen_key = None
+        self._domain = domain
+        self._api_factory = api_factory
+
+        self._listen_key_initialized_event: asyncio.Event = asyncio.Event()
+        self._last_listen_key_ping_ts = 0
+
+    async def _process_event_message(self, event_message, queue: asyncio.Queue):
+        for frame in iter_signalr_frames(event_message):
+            queue.put_nowait(frame)  # dict per frame, not raw string
+
+    async def _connected_websocket_assistant(self) -> WSAssistant:
+        """
+        Creates an instance of WSAssistant connected to the exchange
+        """
+        self._manage_listen_key_task = safe_ensure_future(self._manage_listen_key_task_loop())
+        await self._listen_key_initialized_event.wait()
+
+        ws: WSAssistant = await self._get_ws_assistant()
+        url = f"{CONSTANTS.WSS_URL.format(self._domain)}?id={self._current_listen_key}"
+
+        # set ping_timout=None to prevent sending aihttop ping.
+        await ws.connect(ws_url=url, ping_timeout=None,
+                         ws_headers=self._auth.header_for_authentication())
+
+        handshake_payload = {"protocol": "json", "version": 1}
+        await ws._connection._connection.send_str(json.dumps(handshake_payload) + "\x1e")
+
+        # Wait for handshake response (usually "{}\x1e")
+        await ws._connection._connection.receive_str()
+
+        return ws
+
+    async def _subscribe_channels(self, websocket_assistant: WSAssistant):
+        """
+        Subscribes to the trade events and diff orders events through the provided websocket connection.
+
+        Mobin does not require any channel subscription.
+
+        :param websocket_assistant: the websocket assistant used to connect to the exchange
+        """
+        pass
+
+    async def _get_listen_key(self):
+        rest_assistant = await self._api_factory.get_rest_assistant()
+        try:
+            data = await rest_assistant.execute_request(
+                url=CONSTANTS.MOBIN_STREAM_PATH_URL,
+                method=RESTMethod.POST,
+                throttler_limit_id=CONSTANTS.MOBIN_STREAM_PATH_URL,
+                headers=self._auth.header_for_authentication()
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exception:
+            raise IOError(f"Error fetching user stream listen key. Error: {exception}")
+
+        return data["connectionToken"]
+
+    async def _ping_listen_key(self, websocket_assistant: Optional[WSAssistant] = None) -> bool:
+        """
+        Sends a SignalR keepalive ping on the websocket.
+        Mobin uses {"type": 6} + record separator \\x1e, not a REST listenKey PUT.
+        """
+        ws = websocket_assistant or self._ws_assistant
+        try:
+            if ws is None or not ws._connection.connected:
+                return False
+            ping_payload = json.dumps({"type": 6}) + "\x1e"
+            await ws._connection._connection.send_str(ping_payload)
+            self._last_listen_key_ping_ts = int(time.time())
+            return True
+        except asyncio.CancelledError:
+            raise
+        except Exception as exception:
+            self.logger().warning(f"Failed to send SignalR ping: {exception}")
+            return False
+
+    async def _send_ping(self, websocket_assistant: WSAssistant):
+        await self._ping_listen_key(websocket_assistant)
+
+    async def _manage_listen_key_task_loop(self):
+        """
+        Mobin user stream lifecycle:
+        1. Obtain connectionToken via negotiate (once per connection attempt)
+        2. While websocket is connected, send SignalR type-6 pings periodically
+        3. On failure, clear token so reconnect fetches a fresh one
+        """
+        self.logger().info("Starting Mobin user stream management task...")
+        while True:
+            try:
+                now = int(time.time())
+                # 1) Get connection token if missing
+                if self._current_listen_key is None:
+                    self._current_listen_key = await self._get_listen_key()
+                    self._last_listen_key_ping_ts = now
+                    self._listen_key_initialized_event.set()
+                    self.logger().info("Successfully obtained Mobin connection token")
+
+                # 2) Send SignalR heartbeat if websocket is up
+                ws = self._ws_assistant
+                if (
+                        ws is not None
+                        and ws._connection.connected
+                        and now - self._last_listen_key_ping_ts >= self.HEARTBEAT_TIME_INTERVAL
+                ):
+                    success = await self._ping_listen_key(ws)
+                    if not success:
+                        self.logger().warning("SignalR ping failed; websocket may disconnect soon.")
+
+                await self._sleep(self.LISTEN_KEY_RETRY_INTERVAL)
+
+            except asyncio.CancelledError:
+                self._current_listen_key = None
+                self._listen_key_initialized_event.clear()
+                raise
+            except Exception as e:
+                self.logger().error(f"Error in Mobin user stream management loop: {e}")
+                self._current_listen_key = None
+                self._listen_key_initialized_event.clear()
+                await self._sleep(self.LISTEN_KEY_RETRY_INTERVAL)
+
+    async def _get_ws_assistant(self) -> WSAssistant:
+        if self._ws_assistant is None:
+            self._ws_assistant = await self._api_factory.get_ws_assistant()
+        return self._ws_assistant
+
+    async def _on_user_stream_interruption(self, websocket_assistant: Optional[WSAssistant]):
+        await super()._on_user_stream_interruption(websocket_assistant=websocket_assistant)
+        self._manage_listen_key_task and self._manage_listen_key_task.cancel()
+        self._current_listen_key = None
+        self._listen_key_initialized_event.clear()
+        await self._sleep(5)
