@@ -360,6 +360,27 @@ class BitpinAPIOrderBookDataSourceUnitTests(unittest.TestCase):
         # Add another simple test to check
         self.assertEqual(20, len(msg.asks))
 
+    def test_process_websocket_messages_ignores_non_json_payload(self):
+        class MockResponse:
+            def __init__(self, data):
+                self.data = data
+
+        class MockWSAssistant:
+            def __init__(self):
+                self.sent = []
+
+            async def iter_messages(self):
+                yield MockResponse("not-a-json-payload")
+
+            async def send(self, request):
+                self.sent.append(request.payload)
+
+        ws = MockWSAssistant()
+
+        self.async_run_with_timeout(self.data_source._process_websocket_messages(ws))
+
+        self.assertEqual(0, len(ws.sent))
+
     @aioresponses()
     def test_listen_for_order_book_snapshots_cancelled_when_fetching_snapshot(self, mock_api):
         url = web_utils.public_rest_url(path_url=CONSTANTS.SNAPSHOT_PATH_URL, domain=self.domain)
