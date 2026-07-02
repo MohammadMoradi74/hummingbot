@@ -125,12 +125,12 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
 
     async def _process_websocket_messages(self, websocket_assistant: WSAssistant, queue: asyncio.Queue):
         async for ws_response in websocket_assistant.iter_messages():
-            data = ws_response.data
-            if not data:
+            data = BitpinWSHelper.normalize_message(ws_response.data)
+            if data is None:
                 continue
 
             if BitpinWSHelper.is_ping(data):
-                await websocket_assistant.send(WSJSONRequest(payload={}))
+                await websocket_assistant.send(WSJSONRequest(payload=BitpinWSHelper.pong_payload(data)))
                 continue
 
             event_data = BitpinWSHelper.extract_event_data(data)

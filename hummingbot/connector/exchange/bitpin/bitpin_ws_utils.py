@@ -1,3 +1,4 @@
+import json
 from typing import Any, Dict, Optional
 
 from hummingbot.core.web_assistant.connections.data_types import WSJSONRequest
@@ -42,20 +43,47 @@ class BitpinWSHelper:
         return f"user:order_info#{user_identifier}"
 
     @classmethod
+    def normalize_message(cls, message: Any) -> Optional[Dict[str, Any]]:
+        if isinstance(message, dict):
+            return message
+        if isinstance(message, str):
+            try:
+                parsed = json.loads(message)
+            except json.JSONDecodeError:
+                return None
+            return parsed if isinstance(parsed, dict) else None
+        return None
+
+    @classmethod
     def is_ping(cls, message: Dict[str, Any]) -> bool:
-        return message == {}
+        if message == {}:
+            return True
+        if message.get("type") == "ping" or message.get("ping") is True:
+            return True
+        push = message.get("push")
+        return isinstance(push, dict) and "ping" in push
+
+    @classmethod
+    def pong_payload(cls, message: Dict[str, Any]) -> Dict[str, Any]:
+        if message == {}:
+            return {}
+        return {"pong": {}}
 
     @classmethod
     def is_connect_reply(cls, message: Dict[str, Any]) -> bool:
-        return "connect" in message and "id" in message
+        return "connect" in message
 
     @classmethod
     def is_error_reply(cls, message: Dict[str, Any]) -> bool:
         return "error" in message
 
     @classmethod
-    def extract_event_data(cls, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def extract_event_data(cls, message: Any) -> Optional[Dict[str, Any]]:
         """Unwrap Centrifugo publication → Bitpin event payload."""
+        message = cls.normalize_message(message)
+        if message is None:
+            return None
+
         if cls.is_ping(message) or cls.is_connect_reply(message):
             return None
         if "error" in message:
@@ -63,11 +91,16 @@ class BitpinWSHelper:
 
         # Centrifugo v4+ push
         push = message.get("push")
-        if push is not None:
-            pub = push.get("pub", {})
-            data = pub.get("data")
-            if isinstance(data, dict):
-                return data
+        if isinstance(push, dict):
+            pub = push.get("pub")
+            if isinstance(pub, dict):
+                data = pub.get("data")
+                if isinstance(data, dict):
+                    return data
+                if isinstance(data, str):
+                    decoded = cls.normalize_message(data)
+                    if decoded is not None:
+                        return decoded
             return None
 
         # Direct event (fallback / tests)
@@ -89,9 +122,11 @@ class BitpinWSHelper:
                 response = await ws.receive()
                 if response is None or response.data is None:
                     raise ConnectionError("WS closed before connect reply")
-                data = response.data
+                data = cls.normalize_message(response.data)
+                if data is None:
+                    continue
                 if cls.is_ping(data):
-                    await ws.send(WSJSONRequest(payload={}))
+                    await ws.send(WSJSONRequest(payload=cls.pong_payload(data)))
                     continue
                 if cls.is_connect_reply(data):
                     return
