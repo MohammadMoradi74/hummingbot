@@ -10,8 +10,8 @@ CENTRALIZED = True
 EXAMPLE_PAIR = "USDT-IRT"
 
 DEFAULT_FEES = TradeFeeSchema(
-    maker_percent_fee_decimal=Decimal("0.0035"),
-    taker_percent_fee_decimal=Decimal("0.003"),
+    maker_percent_fee_decimal=Decimal("0.003"),
+    taker_percent_fee_decimal=Decimal("0.0035"),
     buy_percent_fee_deducted_from_returns=True
 )
 
