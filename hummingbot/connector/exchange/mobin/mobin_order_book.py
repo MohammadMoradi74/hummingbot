@@ -35,7 +35,7 @@ class MobinOrderBook(OrderBook):
 
         # Use timestamp as unique identifier, there's no unique identifier in the response
         return OrderBookMessage(OrderBookMessageType.SNAPSHOT, {
-            "trading_pair": msg["instrumentId"],
+            "trading_pair": msg["trading_pair"],
             "update_id": int(timestamp),
             "bids": bids,
             "asks": asks
@@ -73,8 +73,8 @@ class MobinOrderBook(OrderBook):
                 if sell_quantity > 0:  # Only add non-zero quantities
                     asks.append([sell_price, sell_quantity])
 
-        # Use timestamp as update_id
-        update_id = int(timestamp)
+        # Use timestamp as update_id (microsecond resolution so rapid diffs aren't collapsed/rejected)
+        update_id = int(timestamp * 1e6)
 
         return OrderBookMessage(OrderBookMessageType.DIFF, {
             "trading_pair": msg["trading_pair"],

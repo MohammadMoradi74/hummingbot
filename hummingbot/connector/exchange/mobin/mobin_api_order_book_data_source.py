@@ -186,7 +186,8 @@ class MobinAPIOrderBookDataSource(OrderBookTrackerDataSource):
         if "arguments" not in message:
             return
         decoded_message = self._decode_signalr_message(message["arguments"][1])
-        trading_pair = decoded_message.get("InstrumentId")
+        instrument_id = decoded_message.get("InstrumentId")
+        trading_pair = await self._connector.trading_pair_associated_to_exchange_symbol(instrument_id)
         trade_message = MobinOrderBook.trade_message_from_exchange(
             decoded_message, {"trading_pair": trading_pair})
         message_queue.put_nowait(trade_message)
@@ -198,7 +199,8 @@ class MobinAPIOrderBookDataSource(OrderBookTrackerDataSource):
         if "arguments" not in message:
             return
         decoded_message = self._decode_signalr_message(message["arguments"][1])
-        trading_pair = decoded_message.get("InstrumentId")
+        instrument_id = decoded_message.get("InstrumentId")
+        trading_pair = await self._connector.trading_pair_associated_to_exchange_symbol(instrument_id)
         order_book_message: OrderBookMessage = MobinOrderBook.diff_message_from_exchange(
             decoded_message, time.time(), {"trading_pair": trading_pair})
         message_queue.put_nowait(order_book_message)
