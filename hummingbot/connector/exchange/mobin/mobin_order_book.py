@@ -36,7 +36,7 @@ class MobinOrderBook(OrderBook):
         # Use timestamp as unique identifier, there's no unique identifier in the response
         return OrderBookMessage(OrderBookMessageType.SNAPSHOT, {
             "trading_pair": msg["trading_pair"],
-            "update_id": int(timestamp),
+            "update_id": int(timestamp * 1e6),
             "bids": bids,
             "asks": asks
         }, timestamp=timestamp)
@@ -73,13 +73,10 @@ class MobinOrderBook(OrderBook):
                 if sell_quantity > 0:  # Only add non-zero quantities
                     asks.append([sell_price, sell_quantity])
 
-        # Use timestamp as update_id (microsecond resolution so rapid diffs aren't collapsed/rejected)
-        update_id = int(timestamp * 1e6)
-
-        return OrderBookMessage(OrderBookMessageType.DIFF, {
+        # Use timestamp as unique identifier, there's no unique identifier in the response
+        return OrderBookMessage(OrderBookMessageType.SNAPSHOT, {
             "trading_pair": msg["trading_pair"],
-            "first_update_id": update_id,  # SignalR doesn't provide first_update_id, use same as update_id
-            "update_id": update_id,
+            "update_id": int(timestamp * 1e6),
             "bids": bids,
             "asks": asks
         }, timestamp=timestamp)
