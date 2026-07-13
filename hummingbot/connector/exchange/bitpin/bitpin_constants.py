@@ -44,6 +44,7 @@ SERVER_TIME_PATH_URL = "/mkt/tickers/"
 ACCOUNTS_PATH_URL = "/wlt/wallets/"
 MY_TRADES_PATH_URL = "/odr/fills/"
 ORDER_PATH_URL = "/odr/orders/"
+ORDER_CANCEL_BY_IDENTIFIER_PATH_URL = "/odr/orders/identifier/"
 BITPIN_USER_STREAM_PATH_URL = "/usr/authenticate/"
 BITPIN_USER_STREAM_PATH_URL2 = '/usr/refresh_token/'
 #
@@ -138,3 +139,5 @@ RATE_LIMITS = [
 # ORDER_NOT_EXIST_MESSAGE = "Order does not exist"
 UNKNOWN_ORDER_ERROR_CODE = 406
 UNKNOWN_ORDER_MESSAGE = "not allowed"
+ORDER_NOT_EXIST_ERROR_CODE = 404  # adjust if Bitpin docs say otherwise for GET order
+ORDER_NOT_EXIST_MESSAGE = "not found"  # match real GET /orders/{id}/ error text

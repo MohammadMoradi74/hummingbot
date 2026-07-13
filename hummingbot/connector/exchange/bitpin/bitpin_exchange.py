@@ -133,9 +133,12 @@ class BitpinExchange(ExchangePyBase):
         ) and CONSTANTS.ORDER_NOT_EXIST_MESSAGE in str(status_update_exception)
 
     def _is_order_not_found_during_cancelation_error(self, cancelation_exception: Exception) -> bool:
-        return str(CONSTANTS.UNKNOWN_ORDER_ERROR_CODE) in str(
-            cancelation_exception
-        ) and CONSTANTS.UNKNOWN_ORDER_MESSAGE in str(cancelation_exception)
+        msg = str(cancelation_exception)
+        if str(CONSTANTS.UNKNOWN_ORDER_ERROR_CODE) in msg and CONSTANTS.UNKNOWN_ORDER_MESSAGE in msg:
+            return True
+        if "status is 404" in msg and "Not found" in msg:
+            return True
+        return False
 
     def _create_web_assistants_factory(self) -> WebAssistantsFactory:
         return web_utils.build_api_factory(
@@ -199,74 +202,106 @@ class BitpinExchange(ExchangePyBase):
         is_maker = order_type is OrderType.LIMIT_MAKER
         return DeductedFromReturnsTradeFee(percent=self.estimate_fee_pct(is_maker))
 
-    async def _place_order(self,
-                           order_id: str,
-                           trading_pair: str,
-                           amount: Decimal,
-                           trade_type: TradeType,
-                           order_type: OrderType,
-                           price: Decimal,
-                           **kwargs) -> Tuple[str, float]:
-        order_result = None
+    def _parse_order_timestamp(self, order_data: Dict[str, Any]) -> float:
+        return self._find_update_time_order_data(order_data)
+
+    def _is_successful_cancel_response(self, cancel_result: Any) -> bool:
+        # Bitpin returns 204 No Content → REST layer may give None or empty body
+        return cancel_result is None or cancel_result == ""
+
+    async def _cancel_order_on_exchange(self, path_url: str) -> bool:
+        cancel_result = await self._api_delete(
+            path_url=path_url,
+            limit_id=CONSTANTS.ORDER_PATH_URL,
+            is_auth_required=True,
+        )
+        return self._is_successful_cancel_response(cancel_result)
+
+    async def _place_order(
+            self,
+            order_id: str,
+            trading_pair: str,
+            amount: Decimal,
+            trade_type: TradeType,
+            order_type: OrderType,
+            price: Decimal,
+            **kwargs,
+    ) -> Tuple[str, float]:
         amount_str = f"{amount:.6f}"
         type_str = BitpinExchange.bitpin_order_type(order_type)
         side_str = CONSTANTS.SIDE_BUY if trade_type is TradeType.BUY else CONSTANTS.SIDE_SELL
-        # TODO: This request is too slow sometimes. Make it faster.
         symbol = await self.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
-        api_params = {"symbol": symbol,
-                      "side": side_str,
-                      "base_amount": amount_str,
-                      "type": type_str,
-                      "identifier": order_id
-                      }
-        if order_type is OrderType.LIMIT or order_type is OrderType.LIMIT_MAKER:
-            price_str = f"{price:f}"
-            api_params["price"] = price_str
-        # if order_type == OrderType.LIMIT: # not in bitpin
-        #     api_params["timeInForce"] = CONSTANTS.TIME_IN_FORCE_GTC
+
+        api_params: Dict[str, Any] = {
+            "symbol": symbol,
+            "side": side_str,
+            "base_amount": amount_str,
+            "type": type_str,
+            "identifier": order_id,
+        }
+        if order_type in (OrderType.LIMIT, OrderType.LIMIT_MAKER):
+            api_params["price"] = f"{price:f}"
 
         try:
             order_result = await self._api_post(
                 path_url=CONSTANTS.ORDER_PATH_URL,
                 data=api_params,
-                is_auth_required=True)
+                is_auth_required=True,
+                limit_id=CONSTANTS.ORDER_PATH_URL,
+            )
+            if not order_result or "id" not in order_result:
+                raise IOError(f"Bitpin place order returned unexpected payload: {order_result}")
+
             o_id = str(order_result["id"])
-            transact_time = order_result["created_at"]
+            transact_time = self._parse_order_timestamp(order_result)
+            return o_id, transact_time
+
         except IOError as e:
             error_description = str(e)
-            is_server_overloaded = ("status is 503" in error_description
-                                    and "Unknown error, please check your request or try again later." in error_description)
-
+            is_server_overloaded = ("status is 503" in error_description and
+                                    "Unknown error, please check your request or try again later." in error_description)
             if is_server_overloaded:
-                o_id = "UNKNOWN"
-                transact_time = self._time_synchronizer.time()
-            else:
+                # Same pattern as binance/mexc: allow status polling to recover the real id
+                return "UNKNOWN", self._time_synchronizer.time()
+            raise
+
+    async def _place_cancel(self, order_id: str, tracked_order: InFlightOrder) -> bool:
+        """
+        Cancel via exchange order id when available; otherwise via client identifier.
+        Bitpin docs:
+          DELETE /odr/orders/{order_id}/
+          DELETE /odr/orders/identifier/{order_identifier}/
+        """
+        exchange_order_id = tracked_order.exchange_order_id
+
+        cancel_paths: List[str] = []
+
+        if exchange_order_id and exchange_order_id != "UNKNOWN":
+            cancel_paths.append(f"{CONSTANTS.ORDER_PATH_URL}{exchange_order_id}/")
+
+        # Always allow identifier cancel (fixes None exchange_order_id + 503 UNKNOWN cases)
+        cancel_paths.append(f"{CONSTANTS.ORDER_CANCEL_BY_IDENTIFIER_PATH_URL}{order_id}/")
+
+        last_error: Optional[Exception] = None
+
+        for path_url in cancel_paths:
+            try:
+                if await self._cancel_order_on_exchange(path_url):
+                    return True
+            except ContentTypeError as e:
+                if e.status == 204:
+                    return True
+                last_error = e
+            except OSError as e:
+                if self._is_order_not_found_during_cancelation_error(e):
+                    # Try next path (e.g. id cancel 406 → identifier cancel)
+                    last_error = e
+                    continue
                 raise
-        return o_id, transact_time
 
-    async def _place_cancel(self, order_id: str, tracked_order: InFlightOrder):
-        try:
-            cancel_result = await self._api_delete(
-                path_url=CONSTANTS.ORDER_PATH_URL + tracked_order.exchange_order_id + '/',
-                limit_id=CONSTANTS.ORDER_PATH_URL,
-                is_auth_required=True)
-            # If successful it returns '' response which is translated to None in the cancel_output
-            if cancel_result is None:
-                return True
-
-        # OSError('Error executing request DELETE https://api.bitpin.ir/api/v1/odr/orders/1163595821/.
-        # HTTP status is 406. Error: {"detail":"not allowed"}')
-        except OSError as e:
-            if '406' in e.args[0]:
-                return False
-        # It expect a content, so if the content is '' (when the code is 204) you should handle the error
-        # This is the error:
-        # raise ContentTypeError(aiohttp.client_exceptions.ContentTypeError: 204,
-        # message = 'Attempt to decode JSON with unexpected mimetype: ',
-        # url = 'https://api.bitpin.ir/api/v1/odr/orders/1163474499/'
-        except ContentTypeError as e:
-            if e.status == 204:
-                return True
+        if last_error is not None and self._is_order_not_found_during_cancelation_error(last_error):
+            # Let ExchangePyBase call process_order_not_found()
+            raise last_error
 
         return False
 
@@ -631,8 +666,13 @@ class BitpinExchange(ExchangePyBase):
         return datetime.fromisoformat(ts_str).timestamp()
 
     async def _request_order_status(self, tracked_order: InFlightOrder) -> OrderUpdate:
+        if tracked_order.exchange_order_id and tracked_order.exchange_order_id != "UNKNOWN":
+            path_url = f"{CONSTANTS.ORDER_PATH_URL}{tracked_order.exchange_order_id}/"
+        else:
+            path_url = f"{CONSTANTS.ORDER_CANCEL_BY_IDENTIFIER_PATH_URL}{tracked_order.client_order_id}/"
+
         updated_order_data = await self._api_get(
-            path_url=CONSTANTS.ORDER_PATH_URL + tracked_order.exchange_order_id + '/',
+            path_url=path_url,
             limit_id=CONSTANTS.ORDER_PATH_URL,
             is_auth_required=True)
 
