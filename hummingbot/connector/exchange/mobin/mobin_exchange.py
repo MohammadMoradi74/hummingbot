@@ -248,7 +248,8 @@ class MobinExchange(ExchangePyBase):
         return None
 
     async def _place_cancel(self, order_id: str, tracked_order: InFlightOrder):
-        unique_key = tracked_order.exchange_order_id
+        # Same race: strategy cancel at 30s is fine, but cancel during PENDING_CREATE must wait.
+        unique_key = await tracked_order.get_exchange_order_id()
         numeric_id = await self._resolve_numeric_order_id(unique_key)
         if numeric_id is None:
             # nothing live to cancel
@@ -603,7 +604,9 @@ class MobinExchange(ExchangePyBase):
         return self.current_timestamp
 
     async def _request_order_status(self, tracked_order: InFlightOrder) -> OrderUpdate:
-        unique_key = tracked_order.exchange_order_id
+        # Wait until place-order assigns exchange_order_id (uniqueKey), or TimeoutError (10s).
+        # Base class handles TimeoutError without treating it as "Order not found in Today".
+        unique_key = await tracked_order.get_exchange_order_id()
         await self._get_today_orders(force_refresh=True)
         row = self._find_today_order_by_unique_key(unique_key)
 
