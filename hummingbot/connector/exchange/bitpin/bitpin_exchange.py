@@ -185,6 +185,7 @@ class BitpinExchange(ExchangePyBase):
                                               return_err=return_err, limit_id=limit_id, headers=headers, **kwargs, )
         except OSError as e:
             if is_auth_required and ("401" in str(e) or "token_not_valid" in str(e)):
+                self.logger().info("Bitpin access token expired; refreshed and retrying request")
                 await self._auth.refresh_authenticate(rest_assistant)
                 return await super()._api_request(path_url=path_url, overwrite_url=overwrite_url, method=method,
                                                   params=params, data=data, is_auth_required=is_auth_required,
