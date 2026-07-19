@@ -406,17 +406,6 @@ class BitpinExchange(ExchangePyBase):
                         )
                         self._order_tracker.process_trade_update(trade_update)
 
-                    if tracked_order is not None:
-                        order_update = OrderUpdate(
-                            trading_pair=tracked_order.trading_pair,
-                            update_timestamp=datetime.fromisoformat(
-                                event_message["event_time"].replace('Z', '+00:00')).timestamp(),
-                            new_state=CONSTANTS.ORDER_STATE["FILLED"],
-                            client_order_id=client_order_id,
-                            exchange_order_id=str(event_message["order_id"]),
-                        )
-                        self._order_tracker.process_order_update(order_update=order_update)
-
                 # TODO: NEED IMPLEMENTATION
                 elif event_type == "user_order_update":
                     # Handle order status update
