@@ -1,4 +1,6 @@
 import asyncio
+import base64
+import json
 from typing import Dict, Optional, Tuple
 
 from hummingbot.connector.exchange.bitpin import bitpin_constants as CONSTANTS, bitpin_web_utils as web_utils
@@ -9,6 +11,9 @@ from hummingbot.core.web_assistant.rest_assistant import RESTAssistant
 
 
 class BitpinAuth(AuthBase):
+    # Refresh slightly before JWT exp to avoid first-request 401s (~15m access TTL)
+    _TOKEN_REFRESH_SKEW_SECONDS = 60.0
+
     def __init__(
         self,
         api_key: str,
@@ -23,6 +28,7 @@ class BitpinAuth(AuthBase):
 
         self._access_token: Optional[str] = None
         self._refresh_token: Optional[str] = None
+        self._access_token_expires_at: float = 0.0
         self._token_lock = asyncio.Lock()
 
     @property
@@ -40,14 +46,20 @@ class BitpinAuth(AuthBase):
 
     async def ensure_authenticated(self, rest_assistant: RESTAssistant) -> None:
         async with self._token_lock:
-            if self._access_token is None:
-                await self._authenticate(rest_assistant)
+            if self._token_needs_refresh():
+                if self._refresh_token is None:
+                    await self._authenticate(rest_assistant)
+                else:
+                    await self._refresh_access_token(rest_assistant)
 
     async def authenticate(self, rest_assistant: RESTAssistant) -> None:
         await self.ensure_authenticated(rest_assistant)
 
     async def refresh_authenticate(self, rest_assistant: RESTAssistant) -> None:
         async with self._token_lock:
+            # Another coroutine may already have refreshed after a 401
+            if not self._token_needs_refresh():
+                return
             await self._refresh_access_token(rest_assistant)
 
     async def get_ws_credentials(self, rest_assistant: RESTAssistant) -> Tuple[str, str]:
@@ -76,6 +88,22 @@ class BitpinAuth(AuthBase):
             "Authorization": f"Bearer {self._access_token}",
         }
 
+    def _token_needs_refresh(self) -> bool:
+        if self._access_token is None:
+            return True
+        return self.time_provider.time() >= (self._access_token_expires_at - self._TOKEN_REFRESH_SKEW_SECONDS)
+
+    @staticmethod
+    def _parse_jwt_exp(token: str) -> float:
+        payload = token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        claims = json.loads(base64.urlsafe_b64decode(payload.encode("utf-8")))
+        return float(claims["exp"])
+
+    def _store_access_token(self, access_token: str) -> None:
+        self._access_token = access_token
+        self._access_token_expires_at = self._parse_jwt_exp(access_token)
+
     async def _authenticate(self, rest_assistant: RESTAssistant) -> None:
         data = await rest_assistant.execute_request(
             url=web_utils.private_rest_url(CONSTANTS.BITPIN_USER_STREAM_PATH_URL, domain=self._domain),
@@ -84,7 +112,7 @@ class BitpinAuth(AuthBase):
             is_auth_required=False,
             throttler_limit_id=CONSTANTS.BITPIN_USER_STREAM_PATH_URL,
         )
-        self._access_token = data["access"]
+        self._store_access_token(data["access"])
         self._refresh_token = data["refresh"]
 
     async def _refresh_access_token(self, rest_assistant: RESTAssistant) -> None:
@@ -92,11 +120,17 @@ class BitpinAuth(AuthBase):
             await self._authenticate(rest_assistant)
             return
 
-        data = await rest_assistant.execute_request(
-            url=web_utils.private_rest_url(CONSTANTS.BITPIN_USER_STREAM_PATH_URL2, domain=self._domain),
-            method=RESTMethod.POST,
-            data={"refresh": self._refresh_token},
-            is_auth_required=False,
-            throttler_limit_id=CONSTANTS.BITPIN_USER_STREAM_PATH_URL2,
-        )
-        self._access_token = data["access"]
+        try:
+            # Docs: POST /usr/refresh_token/ → {"access": "..."} only
+            # https://docs.bitpin.ir/v1/docs/authentication/refresh_token
+            data = await rest_assistant.execute_request(
+                url=web_utils.private_rest_url(CONSTANTS.BITPIN_USER_STREAM_PATH_URL2, domain=self._domain),
+                method=RESTMethod.POST,
+                data={"refresh": self._refresh_token},
+                is_auth_required=False,
+                throttler_limit_id=CONSTANTS.BITPIN_USER_STREAM_PATH_URL2,
+            )
+            self._store_access_token(data["access"])
+        except Exception:
+            # Refresh token expired/invalid → full re-auth with api_key/secret
+            await self._authenticate(rest_assistant)
