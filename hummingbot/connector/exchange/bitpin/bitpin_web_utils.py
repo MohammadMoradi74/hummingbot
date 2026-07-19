@@ -71,5 +71,6 @@ async def get_current_server_time(
         method=RESTMethod.GET,
         throttler_limit_id=CONSTANTS.SERVER_TIME_PATH_URL,
     )
-    server_time = max(item["timestamp"] for item in response if item["timestamp"] is not None)
+    # Bitpin ticker timestamp is seconds; synchronizer expects ms
+    server_time = max(item["timestamp"] for item in response if item["timestamp"] is not None) * 1e3
     return server_time
