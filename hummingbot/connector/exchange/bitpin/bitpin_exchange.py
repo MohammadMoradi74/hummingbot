@@ -19,7 +19,7 @@ from hummingbot.connector.exchange_py_base import ExchangePyBase
 from hummingbot.connector.trading_rule import TradingRule
 from hummingbot.connector.utils import TradeFillOrderDetails, combine_to_hb_trading_pair
 from hummingbot.core.data_type.common import OrderType, TradeType
-from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderUpdate, TradeUpdate
+from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate, TradeUpdate
 from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTrackerDataSource
 from hummingbot.core.data_type.trade_fee import DeductedFromReturnsTradeFee, TokenAmount, TradeFeeBase
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
@@ -80,7 +80,7 @@ class BitpinExchange(ExchangePyBase):
 
     @property
     def domain(self):
-        return self._domain
+        return self ._domain
 
     @property
     def client_order_id_max_length(self):
@@ -305,6 +305,43 @@ class BitpinExchange(ExchangePyBase):
             raise last_error
 
         return False
+
+    async def _resolve_order_after_cancel_not_found(self, order: InFlightOrder) -> bool:
+        """Cancel failed because order is gone from the open book (filled/canceled).
+        Resolve via GET order + fills instead of treating as lost."""
+        try:
+            await self._update_orders_fills(orders=[order])
+            order_update = await self._request_order_status(tracked_order=order)
+            self._order_tracker.process_order_update(order_update)
+            return order_update.new_state in (OrderState.FILLED, OrderState.CANCELED)
+        except Exception:
+            self.logger().debug(
+                f"Could not resolve order {order.client_order_id} after cancel not-found.",
+                exc_info=True,
+            )
+            return False
+
+    async def _execute_order_cancel(self, order: InFlightOrder) -> Optional[str]:
+        try:
+            cancelled = await self._execute_order_cancel_and_process_update(order=order)
+            if cancelled:
+                return order.client_order_id
+        except asyncio.CancelledError:
+            raise
+        except asyncio.TimeoutError:
+            self.logger().warning(
+                f"Failed to cancel the order {order.client_order_id} because it does not have an exchange order id yet"
+            )
+            await self._order_tracker.process_order_not_found(order.client_order_id)
+        except Exception as ex:
+            if self._is_order_not_found_during_cancelation_error(cancelation_exception=ex):
+                if await self._resolve_order_after_cancel_not_found(order):
+                    return order.client_order_id
+                self.logger().warning(f"Failed to cancel order {order.client_order_id} (order not found)")
+                await self._order_tracker.process_order_not_found(order.client_order_id)
+            else:
+                self.logger().error(f"Failed to cancel order {order.client_order_id}", exc_info=True)
+        return None
 
     async def _format_trading_rules(self, exchange_info_dict: Dict[str, Any]) -> List[TradingRule]:
         """
