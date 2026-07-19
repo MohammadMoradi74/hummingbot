@@ -548,22 +548,21 @@ class BitpinExchange(ExchangePyBase):
         trade_updates = []
 
         if order.exchange_order_id is not None:
-            exchange_order_id = int(order.exchange_order_id)
-            trading_pair = await self.exchange_symbol_associated_to_pair(trading_pair=order.trading_pair)
+            exchange_symbol = await self.exchange_symbol_associated_to_pair(trading_pair=order.trading_pair)
             all_fills_response = await self._api_get(
                 path_url=CONSTANTS.MY_TRADES_PATH_URL,
                 params={
-                    "symbol": trading_pair,
+                    "symbol": exchange_symbol,
                     "side": order.trade_type.name.lower()
                 },
                 is_auth_required=True,
                 limit_id=CONSTANTS.MY_TRADES_PATH_URL)
 
-            # Bitpin has no params for order_id, so extract trades with specific order_ids
-            all_fills_response = [fill for fill in all_fills_response if fill['order_id'] == order.exchange_order_id]
+            # Bitpin returns order_id as int; InFlightOrder stores str
+            target_order_id = str(order.exchange_order_id)
+            matched_fills = [fill for fill in all_fills_response if str(fill["order_id"]) == target_order_id]
 
-            for trade in all_fills_response:
-                exchange_order_id = str(trade["order_id"])
+            for trade in matched_fills:
                 fee = TradeFeeBase.new_spot_fee(
                     fee_schema=self.trade_fee_schema(),
                     trade_type=order.trade_type,
@@ -573,8 +572,8 @@ class BitpinExchange(ExchangePyBase):
                 trade_update = TradeUpdate(
                     trade_id=str(trade["id"]),
                     client_order_id=order.client_order_id,
-                    exchange_order_id=exchange_order_id,
-                    trading_pair=trading_pair,
+                    exchange_order_id=str(trade["order_id"]),
+                    trading_pair=order.trading_pair,  # HB pair, not BTC_IRT
                     fee=fee,
                     fill_base_amount=Decimal(trade["base_amount"]),
                     fill_quote_amount=Decimal(trade["quote_amount"]),
