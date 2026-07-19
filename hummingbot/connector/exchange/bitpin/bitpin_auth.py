@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+import time
 from typing import Dict, Optional, Tuple
 
 from hummingbot.connector.exchange.bitpin import bitpin_constants as CONSTANTS, bitpin_web_utils as web_utils
@@ -15,11 +16,11 @@ class BitpinAuth(AuthBase):
     _TOKEN_REFRESH_SKEW_SECONDS = 60.0
 
     def __init__(
-        self,
-        api_key: str,
-        secret_key: str,
-        time_provider: TimeSynchronizer,
-        domain: str = CONSTANTS.DEFAULT_DOMAIN,
+            self,
+            api_key: str,
+            secret_key: str,
+            time_provider: TimeSynchronizer,
+            domain: str = CONSTANTS.DEFAULT_DOMAIN,
     ):
         self.api_key = api_key
         self.secret_key = secret_key
@@ -55,10 +56,10 @@ class BitpinAuth(AuthBase):
     async def authenticate(self, rest_assistant: RESTAssistant) -> None:
         await self.ensure_authenticated(rest_assistant)
 
-    async def refresh_authenticate(self, rest_assistant: RESTAssistant) -> None:
+    async def refresh_authenticate(self, rest_assistant: RESTAssistant, stale_token: Optional[str] = None) -> None:
         async with self._token_lock:
-            # Another coroutine may already have refreshed after a 401
-            if not self._token_needs_refresh():
+            # Another coroutine already replaced the token that got 401
+            if stale_token is not None and self._access_token != stale_token:
                 return
             await self._refresh_access_token(rest_assistant)
 
@@ -91,7 +92,8 @@ class BitpinAuth(AuthBase):
     def _token_needs_refresh(self) -> bool:
         if self._access_token is None:
             return True
-        return self.time_provider.time() >= (self._access_token_expires_at - self._TOKEN_REFRESH_SKEW_SECONDS)
+        # JWT exp is real Unix time — do NOT use TimeSynchronizer (Bitpin ticker units break it)
+        return time.time() >= (self._access_token_expires_at - self._TOKEN_REFRESH_SKEW_SECONDS)
 
     @staticmethod
     def _parse_jwt_exp(token: str) -> float:
