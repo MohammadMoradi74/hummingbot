@@ -110,14 +110,14 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
                     self._last_ws_credentials_refresh_ts = now
 
                 elif now - self._last_ws_credentials_refresh_ts >= self.WS_CREDENTIALS_REFRESH_INTERVAL:
-                    unchanged = await self._refresh_ws_credentials()
-                    if not unchanged:
-                        self.logger().info("WS token changed/expired. Forcing reconnect...")
-                        if self._ws_assistant is not None:
-                            await self._ws_assistant.disconnect()
-                        break
-                    self.logger().info("Refreshed WS credentials.")
-                    self._last_ws_credentials_refresh_ts = now
+                    # Refresh token, then always reconnect. Centrifugo connection TTL
+                    # (~15.5m → close 3005) is not extended by REST ws-info alone.
+                    await self._refresh_ws_credentials()
+                    self.logger().info("Refreshing Bitpin WS session before Centrifugo TTL expiry...")
+                    if self._ws_assistant is not None:
+                        await self._ws_assistant.disconnect()
+                    break
+
                 else:
                     await self._sleep(self.WS_CREDENTIALS_REFRESH_INTERVAL)
         finally:

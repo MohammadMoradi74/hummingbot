@@ -25,7 +25,7 @@ TRADE_EVENT_TYPE = "matches_update"
 USER_ORDER_EVENT_TYPE = "user_order_update"
 USER_MATCH_EVENT_TYPE = "user_match_update"
 # ws-info rate limit: 10 req/min (per docs)
-WS_INFO_REFRESH_INTERVAL = 30 * 60  # refresh ws_token every 30 min (safe under 10/min limit)
+WS_INFO_REFRESH_INTERVAL = 10 * 60  # refresh ws_token every 30 min (safe under 10/min limit)
 
 #
 PUBLIC_API_VERSION = "v1"
