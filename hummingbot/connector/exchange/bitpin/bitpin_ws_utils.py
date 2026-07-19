@@ -65,9 +65,8 @@ class BitpinWSHelper:
 
     @classmethod
     def pong_payload(cls, message: Dict[str, Any]) -> Dict[str, Any]:
-        if message == {}:
-            return {}
-        return {"pong": {}}
+        # Centrifugo JSON protocol: reply to app ping with empty command {}
+        return {}
 
     @classmethod
     def is_connect_reply(cls, message: Dict[str, Any]) -> bool:
