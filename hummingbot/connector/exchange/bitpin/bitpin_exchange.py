@@ -692,27 +692,33 @@ class BitpinExchange(ExchangePyBase):
         return datetime.fromisoformat(ts_str).timestamp()
 
     async def _request_order_status(self, tracked_order: InFlightOrder) -> OrderUpdate:
+        # Prefer GET /odr/orders/{id}/ — GET .../identifier/... often returns HTTP 500 on Bitpin
         if tracked_order.exchange_order_id and tracked_order.exchange_order_id != "UNKNOWN":
             path_url = f"{CONSTANTS.ORDER_PATH_URL}{tracked_order.exchange_order_id}/"
+            updated_order_data = await self._api_get(
+                path_url=path_url,
+                limit_id=CONSTANTS.ORDER_PATH_URL,
+                is_auth_required=True,
+            )
         else:
-            path_url = f"{CONSTANTS.ORDER_CANCEL_BY_IDENTIFIER_PATH_URL}{tracked_order.client_order_id}/"
-
-        updated_order_data = await self._api_get(
-            path_url=path_url,
-            limit_id=CONSTANTS.ORDER_PATH_URL,
-            is_auth_required=True)
+            # No exchange id yet (just placed / UNKNOWN). Skip flaky identifier GET;
+            # keep current state until id arrives via create response or user stream.
+            return OrderUpdate(
+                client_order_id=tracked_order.client_order_id,
+                exchange_order_id=tracked_order.exchange_order_id,
+                trading_pair=tracked_order.trading_pair,
+                update_timestamp=self.current_timestamp,
+                new_state=tracked_order.current_state,
+            )
 
         new_state = CONSTANTS.ORDER_STATE[self._find_state_from_order_data(updated_order_data)]
-
-        order_update = OrderUpdate(
+        return OrderUpdate(
             client_order_id=tracked_order.client_order_id,
             exchange_order_id=str(updated_order_data["id"]),
             trading_pair=tracked_order.trading_pair,
             update_timestamp=self._find_update_time_order_data(updated_order_data),
             new_state=new_state,
         )
-
-        return order_update
 
     async def _update_balances(self):
         local_asset_names = set(self._account_balances.keys())
