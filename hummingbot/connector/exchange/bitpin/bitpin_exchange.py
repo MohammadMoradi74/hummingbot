@@ -452,13 +452,19 @@ class BitpinExchange(ExchangePyBase):
                     tracked_order = self._order_tracker.all_updatable_orders.get(client_order_id)
 
                     if tracked_order is not None:
-                        new_state = self._find_state_from_order_data(event_message)
+                        state_key = self._find_state_from_order_data(event_message)
+                        new_state = CONSTANTS.ORDER_STATE[state_key]
+                        # Bitpin WS: user_order_update (status) can arrive before user_match_update (fill).
+                        # HB completes FILLED only after trade volume is known — fetch fills first.
+                        # Pull /odr/fills/ so FILLED doesn't complete with amount 0 when match WS is late
+                        if new_state in (OrderState.FILLED, OrderState.PARTIALLY_FILLED):
+                            await self._update_orders_fills(orders=[tracked_order])  # REST backup before FILLED wait (5s)
 
                         order_update = OrderUpdate(
                             trading_pair=tracked_order.trading_pair,
                             update_timestamp=datetime.fromisoformat(
                                 event_message["event_time"].replace('Z', '+00:00')).timestamp(),
-                            new_state=CONSTANTS.ORDER_STATE[new_state],
+                            new_state=new_state,
                             client_order_id=client_order_id,
                             exchange_order_id=str(event_message["id"]),
                         )
