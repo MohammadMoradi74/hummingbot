@@ -43,6 +43,7 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
         self._last_listen_key_ping_ts = 0
         self._ws_token: Optional[str] = None
         self._user_identifier: Optional[str] = None
+        self._planned_ws_reconnect: bool = False
 
     async def _connected_websocket_assistant(self) -> WSAssistant:
         """
@@ -114,28 +115,35 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
                     # (~15.5m → close 3005) is not extended by REST ws-info alone.
                     await self._refresh_ws_credentials()
                     self.logger().info("Refreshing Bitpin WS session before Centrifugo TTL expiry...")
+                    self._planned_ws_reconnect = True  # intentional; not an error
                     if self._ws_assistant is not None:
                         await self._ws_assistant.disconnect()
-                    break
-
+                    self._last_ws_credentials_refresh_ts = now
+                    # keep credential loop alive — don't break
                 else:
                     await self._sleep(self.WS_CREDENTIALS_REFRESH_INTERVAL)
         finally:
             self._ws_credentials_initialized_event.clear()
 
     async def _process_websocket_messages(self, websocket_assistant: WSAssistant, queue: asyncio.Queue):
-        async for ws_response in websocket_assistant.iter_messages():
-            data = BitpinWSHelper.normalize_message(ws_response.data)
-            if data is None:
-                continue
+        try:
+            async for ws_response in websocket_assistant.iter_messages():
+                data = BitpinWSHelper.normalize_message(ws_response.data)
+                if data is None:
+                    continue
 
-            if BitpinWSHelper.is_ping(data):
-                await websocket_assistant.send(WSJSONRequest(payload=BitpinWSHelper.pong_payload(data)))
-                continue
+                if BitpinWSHelper.is_ping(data):
+                    await websocket_assistant.send(WSJSONRequest(payload=BitpinWSHelper.pong_payload(data)))
+                    continue
 
-            event_data = BitpinWSHelper.extract_event_data(data)
-            if event_data:
-                await self._process_event_message(event_message=event_data, queue=queue)
+                event_data = BitpinWSHelper.extract_event_data(data)
+                if event_data:
+                    await self._process_event_message(event_message=event_data, queue=queue)
+        except (ConnectionError, TypeError):
+            # Proactive TTL refresh disconnects mid-read; aiohttp can yield msg.data=None → TypeError
+            if self._planned_ws_reconnect:
+                return
+            raise
 
     async def _get_ws_assistant(self) -> WSAssistant:
         if self._ws_assistant is None:
@@ -143,6 +151,10 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
         return self._ws_assistant
 
     async def _on_user_stream_interruption(self, websocket_assistant: Optional[WSAssistant]):
+        if self._planned_ws_reconnect:
+            self._planned_ws_reconnect = False
+            return  # ws-info + credential task already fresh; listen loop will reconnect
+
         await super()._on_user_stream_interruption(websocket_assistant=websocket_assistant)
         self._manage_ws_credentials_task and self._manage_ws_credentials_task.cancel()
         self._ws_token = None
