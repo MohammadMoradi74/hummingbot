@@ -44,6 +44,7 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
         self._ws_token: Optional[str] = None
         self._user_identifier: Optional[str] = None
         self._planned_ws_reconnect: bool = False
+        self._ws_credentials_refresh_lock = asyncio.Lock()
 
     async def _ensure_ws_credentials_task_running(self):
         if self._manage_ws_credentials_task is not None and not self._manage_ws_credentials_task.done():
@@ -116,7 +117,14 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
             while True:
                 now = int(time.time())
                 if self._ws_token is None:
-                    self._ws_token, self._user_identifier = await self._fetch_ws_credentials()
+                    try:
+                        self._ws_token, self._user_identifier = await self._fetch_ws_credentials()
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as exception:
+                        self.logger().warning(f"Failed to fetch WS credentials: {exception}")
+                        await self._sleep(5)
+                        continue
                     self.logger().info(
                         f"Successfully obtained WS credentials for user {self._user_identifier}"
                     )
@@ -124,17 +132,21 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
                     self._last_ws_credentials_refresh_ts = now
 
                 elif now - self._last_ws_credentials_refresh_ts >= self.WS_CREDENTIALS_REFRESH_INTERVAL:
-                    # Refresh token, then always reconnect. Centrifugo connection TTL
-                    # (~15.5m → close 3005) is not extended by REST ws-info alone.
-                    await self._refresh_ws_credentials()
-                    self.logger().info("Refreshing Bitpin WS session before Centrifugo TTL expiry...")
-                    self._planned_ws_reconnect = True  # intentional; not an error
-                    if self._ws_assistant is not None:
-                        await self._ws_assistant.disconnect()
-                    self._last_ws_credentials_refresh_ts = now
-                    # keep credential loop alive — don't break
+                    async with self._ws_credentials_refresh_lock:
+                        now = int(time.time())
+                        if now - self._last_ws_credentials_refresh_ts < self.WS_CREDENTIALS_REFRESH_INTERVAL:
+                            continue
+                        # Refresh token, then always reconnect. Centrifugo connection TTL
+                        # (~15.5m → close 3005) is not extended by REST ws-info alone.
+                        await self._refresh_ws_credentials()
+                        self.logger().info("Refreshing Bitpin WS session before Centrifugo TTL expiry...")
+                        self._planned_ws_reconnect = True  # intentional; not an error
+                        if self._ws_assistant is not None:
+                            await self._ws_assistant.disconnect()
+                        self._last_ws_credentials_refresh_ts = now
                 else:
-                    await self._sleep(self.WS_CREDENTIALS_REFRESH_INTERVAL)
+                    remaining = self.WS_CREDENTIALS_REFRESH_INTERVAL - (now - self._last_ws_credentials_refresh_ts)
+                    await self._sleep(max(1, remaining))
         finally:
             self._ws_credentials_initialized_event.clear()
 
@@ -168,9 +180,6 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
             self._planned_ws_reconnect = False
             return  # ws-info + credential task already fresh; listen loop will reconnect
 
-        await super()._on_user_stream_interruption(websocket_assistant=websocket_assistant)
-        self._manage_ws_credentials_task and self._manage_ws_credentials_task.cancel()
-        self._ws_token = None
-        self._user_identifier = None
-        self._ws_credentials_initialized_event.clear()
+        websocket_assistant and await websocket_assistant.disconnect()
         await self._sleep(5)
+        # Keep _ws_token + credential task alive — reconnect reuses cached ws-info
