@@ -45,11 +45,24 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
         self._user_identifier: Optional[str] = None
         self._planned_ws_reconnect: bool = False
 
+    async def _ensure_ws_credentials_task_running(self):
+        if self._manage_ws_credentials_task is not None and not self._manage_ws_credentials_task.done():
+            return
+        if self._manage_ws_credentials_task is not None:
+            self._manage_ws_credentials_task.cancel()
+            try:
+                await self._manage_ws_credentials_task
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                pass
+        self._manage_ws_credentials_task = safe_ensure_future(self._manage_ws_credentials_task_loop())
+
     async def _connected_websocket_assistant(self) -> WSAssistant:
         """
         Creates an instance of WSAssistant connected to the exchange
         """
-        self._manage_ws_credentials_task = safe_ensure_future(self._manage_ws_credentials_task_loop())
+        await self._ensure_ws_credentials_task_running()
         await self._ws_credentials_initialized_event.wait()
         ws = await self._get_ws_assistant()
         await ws.connect(
