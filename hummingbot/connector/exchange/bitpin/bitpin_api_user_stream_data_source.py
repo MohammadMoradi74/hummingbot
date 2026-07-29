@@ -65,6 +65,14 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
         """
         await self._ensure_ws_credentials_task_running()
         await self._ws_credentials_initialized_event.wait()
+        # After 109 we clear _ws_token; refetch here so reconnect does not wait
+        # for the credentials task sleep (up to WS_INFO_REFRESH_INTERVAL).
+        if self._ws_token is None:
+            async with self._ws_credentials_refresh_lock:
+                if self._ws_token is None:
+                    self._ws_token, self._user_identifier = await self._fetch_ws_credentials()
+                    self._last_ws_credentials_refresh_ts = int(time.time())
+                    self._ws_credentials_initialized_event.set()
         ws = await self._get_ws_assistant()
         await ws.connect(
             ws_url=BitpinWSHelper.ws_url(CONSTANTS.WS_DOMAIN),
@@ -82,6 +90,10 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
             await BitpinWSHelper.subscribe(websocket_assistant, channel)
             self.logger().info(f"Subscribed to private user stream channel: {channel}")
         except asyncio.CancelledError:
+            raise
+        except ConnectionError as e:
+            if "109" in str(e) or "token expired" in str(e):
+                self._ws_token = None  # force refetch; do not reuse
             raise
         except Exception:
             self.logger().error(
@@ -102,10 +114,9 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
     async def _refresh_ws_credentials(self) -> bool:
         try:
             ws_token, user_identifier = await self._fetch_ws_credentials()
-            token_changed = ws_token != self._ws_token
             self._ws_token = ws_token
             self._user_identifier = user_identifier
-            return not token_changed  # False => force reconnect (token changed/expired)
+            return True
         except asyncio.CancelledError:
             raise
         except Exception as exception:
@@ -138,7 +149,10 @@ class BitpinAPIUserStreamDataSource(UserStreamTrackerDataSource):
                             continue
                         # Refresh token, then always reconnect. Centrifugo connection TTL
                         # (~15.5m → close 3005) is not extended by REST ws-info alone.
-                        await self._refresh_ws_credentials()
+                        ok = await self._refresh_ws_credentials()
+                        if not ok:
+                            await self._sleep(5)   # retry soon; do NOT disconnect; do NOT bump last_ts
+                            continue
                         self.logger().info("Refreshing Bitpin WS session before Centrifugo TTL expiry...")
                         self._planned_ws_reconnect = True  # intentional; not an error
                         if self._ws_assistant is not None:
