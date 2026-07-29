@@ -112,7 +112,7 @@ class MobinExchange(ExchangePyBase):
 
     @property
     def is_cancel_request_in_exchange_synchronous(self) -> bool:
-        return True
+        return False
 
     @property
     def is_trading_required(self) -> bool:
@@ -134,7 +134,10 @@ class MobinExchange(ExchangePyBase):
 
     def _is_order_not_found_during_cancelation_error(self, cancelation_exception: Exception) -> bool:
         msg = str(cancelation_exception)
-        return "Mobin order not found for cancel" in msg or "Order not found in Today" in msg
+        return ("Mobin order not found for cancel" in msg
+                or "Order not found in Today" in msg
+                or str(CONSTANTS.ORIGINAL_ORDER_IS_NOT_IN_BOOK) in msg  # 1600
+                or "OriginalOrderIsNotInBook" in msg)
 
     def _create_web_assistants_factory(self) -> WebAssistantsFactory:
         return web_utils.build_api_factory(
@@ -264,9 +267,27 @@ class MobinExchange(ExchangePyBase):
             is_auth_required=True,
             limit_id=CONSTANTS.CANCEL_ORDER_PATH_URL,
         )
-        if not cancel_result.get("success", True) or cancel_result.get("requestErrorCode", 0) != 0:
-            raise IOError(f"Cancel rejected: {cancel_result}")
-        return True
+        code = int(cancel_result.get("requestErrorCode", 0) or 0)
+        if cancel_result.get("success", True) and code == 0:
+            return True
+
+        # 1600 = OriginalOrderIsNotInBook → order filled/gone; reconcile, don't claim cancel success
+        if code == CONSTANTS.ORIGINAL_ORDER_IS_NOT_IN_BOOK:
+            await self._get_today_orders(force_refresh=True)
+            row = self._find_today_order_by_unique_key(unique_key)
+            if row is not None:
+                order_update = OrderUpdate(
+                    client_order_id=tracked_order.client_order_id,
+                    exchange_order_id=unique_key,
+                    trading_pair=tracked_order.trading_pair,
+                    update_timestamp=self.current_timestamp,
+                    new_state=self._map_today_row_to_state(row),
+                )
+                self._order_tracker.process_order_update(order_update)
+                return False  # cancel itself did not succeed; state already updated
+            raise IOError(f"Mobin order not found for cancel (uniqueKey={unique_key})")
+
+        raise IOError(f"Cancel rejected: {cancel_result}")
 
     async def _make_trading_rules_request(self) -> Any:
         exchange_info = await self._api_get(path_url=self.trading_rules_request_path, is_auth_required=True)
@@ -377,6 +398,10 @@ class MobinExchange(ExchangePyBase):
         req_type = data.get("Type")
 
         if event_type == "RejectedByOMS":
+            # Cancel rejected because order left the book (1600 OriginalOrderIsNotInBook)
+            # or other cancel reject — do NOT fail the live order. REST /Orders/Today reconciles.
+            if req_type == "Cancellation":
+                return None
             return OrderState.FAILED
 
         if event_type == "Traded" and req_type == "Creation":

@@ -139,3 +139,5 @@ ORDER_NOT_EXIST_ERROR_CODE = -2013
 ORDER_NOT_EXIST_MESSAGE = "Order does not exist"
 UNKNOWN_ORDER_ERROR_CODE = -2011
 UNKNOWN_ORDER_MESSAGE = "Unknown order sent"
+# RequestErrorCodeEnum from Mobin API docs
+ORIGINAL_ORDER_IS_NOT_IN_BOOK = 1600  # OriginalOrderIsNotInBook — filled/gone, not a hard fail
