@@ -740,3 +740,11 @@ class MobinExchange(ExchangePyBase):
             is_auth_required=True,
             limit_id=CONSTANTS.PING_PATH_URL
         )
+
+    def _get_poll_interval(self, timestamp: float) -> float:
+        # Mobin SignalR often stays "alive" (heartbeats) while missing fill events.
+        # Base LONG_POLL_INTERVAL=120s then delays /Orders/Today past strategy's 90s timeout.
+        # Poll faster only while we have live orders; idle keeps base long poll.
+        if self.in_flight_orders:
+            return self.UPDATE_ORDER_STATUS_MIN_INTERVAL  # 10.0
+        return super()._get_poll_interval(timestamp)
