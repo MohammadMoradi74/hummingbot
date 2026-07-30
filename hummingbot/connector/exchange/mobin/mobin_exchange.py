@@ -646,7 +646,15 @@ class MobinExchange(ExchangePyBase):
         row = self._find_today_order_by_unique_key(unique_key)
 
         if row is None:
-            raise IOError(f"Order not found in Today for uniqueKey={unique_key}")
+            # ponytail: Today indexing lags behind SaveRequest/fill/cancel — not "order lost"
+            self.logger().debug(f"Today miss for uniqueKey={unique_key}; keeping {tracked_order.current_state}")
+            return OrderUpdate(
+                client_order_id=tracked_order.client_order_id,
+                exchange_order_id=unique_key,
+                trading_pair=tracked_order.trading_pair,
+                update_timestamp=self.current_timestamp,
+                new_state=tracked_order.current_state,
+            )
 
         if row.get("id") is not None:
             self._mobin_numeric_order_ids[unique_key] = str(row["id"])
