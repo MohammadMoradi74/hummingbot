@@ -606,16 +606,19 @@ class MobinExchange(ExchangePyBase):
         return trade_updates
 
     def _map_today_row_to_state(self, row: Dict[str, Any]) -> OrderState:
-        if row.get("errorCode"):
-            return OrderState.FAILED
         executed = Decimal(str(row.get("executedQuantity", 0)))
         remaining = Decimal(str(row.get("remainingQuantity", 0)))
         quantity = Decimal(str(row.get("quantity", 0)))
         order_state = row.get("orderState")
+
+        # Fill before errorCode (1600 race can leave error-ish fields on a filled Creation row)
         if executed > 0 and (remaining <= 0 or executed >= quantity):
             return OrderState.FILLED
         if executed > 0 and remaining > 0:
             return OrderState.PARTIALLY_FILLED
+
+        if row.get("errorCode"):
+            return OrderState.FAILED
         if order_state == 3:
             return OrderState.OPEN
         if order_state == 5:
