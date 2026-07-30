@@ -134,10 +134,9 @@ class MobinExchange(ExchangePyBase):
 
     def _is_order_not_found_during_cancelation_error(self, cancelation_exception: Exception) -> bool:
         msg = str(cancelation_exception)
+        # Do NOT match 1600 / OriginalOrderIsNotInBook — that is "not in book", often filled
         return ("Mobin order not found for cancel" in msg
-                or "Order not found in Today" in msg
-                or str(CONSTANTS.ORIGINAL_ORDER_IS_NOT_IN_BOOK) in msg  # 1600
-                or "OriginalOrderIsNotInBook" in msg)
+                or "Order not found in Today" in msg)
 
     def _create_web_assistants_factory(self) -> WebAssistantsFactory:
         return web_utils.build_api_factory(
