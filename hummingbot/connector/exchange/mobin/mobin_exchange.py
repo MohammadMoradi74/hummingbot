@@ -271,8 +271,12 @@ class MobinExchange(ExchangePyBase):
         if cancel_result.get("success", True) and code == 0:
             return True
 
-        # 1600 = OriginalOrderIsNotInBook → order filled/gone; reconcile, don't claim cancel success
-        if code == CONSTANTS.ORIGINAL_ORDER_IS_NOT_IN_BOOK:
+        # 1600 OriginalOrderIsNotInBook / 1104 OriginalOrderWasNotFound:
+        # cancel/modify rejected because original order is gone (often filled).
+        # Cancel did NOT succeed. Reconcile via Today; if Today lags, keep live.
+        # Do NOT raise — that hits process_order_not_found → FAILED → double ROTATE.
+        if code in (CONSTANTS.ORIGINAL_ORDER_IS_NOT_IN_BOOK,
+                    CONSTANTS.ORIGINAL_ORDER_WAS_NOT_FOUND):
             await self._get_today_orders(force_refresh=True)
             row = self._find_today_order_by_unique_key(unique_key)
             if row is not None:
@@ -284,8 +288,12 @@ class MobinExchange(ExchangePyBase):
                     new_state=self._map_today_row_to_state(row),
                 )
                 self._order_tracker.process_order_update(order_update)
-                return False  # cancel itself did not succeed; state already updated
-            raise IOError(f"Mobin order not found for cancel (uniqueKey={unique_key})")
+            else:
+                self.logger().warning(
+                    f"Cancel code={code} but Today miss uniqueKey={unique_key}; "
+                    f"leaving open for status poll"
+                )
+            return False
 
         raise IOError(f"Cancel rejected: {cancel_result}")
 
