@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import re
 from test.isolated_asyncio_wrapper_test_case import IsolatedAsyncioWrapperTestCase
@@ -6,6 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from aioresponses.core import aioresponses
 from bidict import bidict
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ed25519
 
 from hummingbot.connector.exchange.nobitex import nobitex_constants as CONSTANTS, nobitex_web_utils as web_utils
 from hummingbot.connector.exchange.nobitex.nobitex_api_order_book_data_source import NobitexAPIOrderBookDataSource
@@ -36,9 +39,22 @@ class NobitexAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
         self.mocking_assistant = NetworkMockingAssistant(self.local_event_loop)
         await self.mocking_assistant.async_init()
 
+        private_key = ed25519.Ed25519PrivateKey.generate()
+        seed_bytes = private_key.private_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        public_key_bytes = private_key.public_key().public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+        api_key = base64.urlsafe_b64encode(public_key_bytes).decode("utf-8")
+        secret_key = base64.urlsafe_b64encode(seed_bytes).decode("utf-8")
+
         self.connector = NobitexExchange(
-            nobitex_api_key="",
-            nobitex_api_secret="",
+            nobitex_api_key=api_key,
+            nobitex_api_secret=secret_key,
             trading_pairs=[],
             trading_required=False,
             domain=self.domain)
