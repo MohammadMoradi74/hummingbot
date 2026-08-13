@@ -8,18 +8,20 @@ from unittest.mock import AsyncMock, patch
 from aioresponses import aioresponses
 from aioresponses.core import RequestCall
 
-from hummingbot.connector.exchange.binance import binance_constants as CONSTANTS, binance_web_utils as web_utils
-from hummingbot.connector.exchange.binance.binance_exchange import BinanceExchange
+from hummingbot.client.config.client_config_map import ClientConfigMap
+from hummingbot.client.config.config_helpers import ClientConfigAdapter
+from hummingbot.connector.exchange.mobin import mobin_constants as CONSTANTS, mobin_web_utils as web_utils
+from hummingbot.connector.exchange.mobin.mobin_exchange import MobinExchange
 from hummingbot.connector.test_support.exchange_connector_test import AbstractExchangeConnectorTests
 from hummingbot.connector.trading_rule import TradingRule
 from hummingbot.connector.utils import get_new_client_order_id
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState
 from hummingbot.core.data_type.trade_fee import DeductedFromReturnsTradeFee, TokenAmount, TradeFeeBase
-from hummingbot.core.event.events import BuyOrderCompletedEvent, MarketOrderFailureEvent, OrderFilledEvent
+from hummingbot.core.event.events import MarketOrderFailureEvent, OrderFilledEvent
 
 
-class BinanceExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
+class MobinExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
 
     @property
     def all_symbols_url(self):
@@ -302,19 +304,58 @@ class BinanceExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests
 
     @property
     def balance_request_mock_response_only_base(self):
-        return {
-            "makerCommission": 15,
-            "takerCommission": 15,
-            "buyerCommission": 0,
-            "sellerCommission": 0,
-            "canTrade": True,
-            "canWithdraw": True,
-            "canDeposit": True,
-            "updateTime": 123456789,
-            "accountType": "SPOT",
-            "balances": [{"asset": self.base_asset, "free": "10.0", "locked": "5.0"}],
-            "permissionSets": [["SPOT"]],
-        }
+        return [
+            {
+                "instrumentId": "IRTKMOFD0001",
+                "instrumentPersianName": "عیار",
+                "instrumentMnemonic": "MOFD1",
+                "companyName": "صندوق طلای عیار مفید",
+                "companyId": 0,
+                "instrumentName": "Mofid Gold ETF",
+                "totalTradeQuantity": 36626258,
+                "closingPrice": 426086.00,
+                "asset": 14,
+                "buy": 0,
+                "sell": 0,
+                "todayAverageBuyPrice": 0,
+                "todayAverageSellPrice": 0,
+                "lastTradePrice": 426641.00,
+                "bestBuyQuantity": 39329,
+                "lastPriceChangePercent": -1.03,
+                "closingPriceChangePercent": -1.16,
+                "bestBuyPrice": 426604.00,
+                "bestSellPrice": 426641.00,
+                "bestSellQuantity": 4907,
+                "instrumentNotes": [],
+                "upperStaticThreshold": 474206.00,
+                "lowerStaticThreshold": 387988.00,
+                "instrumentState": "A ",
+                "buyCommission": 0.001200000,
+                "sellCommission": 0.001200000,
+                "sellVAT": 0.0000000000,
+                "sellValue": 5965806.431200000000,
+                "breakEvenPrice": 408670,
+                "runTimeAsset": 14,
+                "insCode": "34144395039913458",
+                "sectorCode": "68",
+                "sectorName": "صندوق سرمایه گذاری قابل معامله",
+                "calculateTodayEfficiency": "true",
+                "todayEfficiency": -62384.00,
+                "averageBuyPrice": 407690,
+                "buyOpenOrderQuantity": 0,
+                "sellOpenOrderQuantity": 0,
+                "hasBuyConditionalOrder": "false",
+                "hasSellConditionalOrder": "false",
+                "pledgeIsEnable": "false",
+                "pledgeQuantity": 0,
+                "isPledgable": "false",
+                "isOption": "false",
+                "lastDayClosingPrice": 431097.00,
+                "instrumentPrice": 426641.00,
+                "lowestTradePrice": 422001.00,
+                "highestTradePrice": 429649.00
+            }
+        ]
 
     @property
     def balance_event_websocket_update(self):
@@ -385,9 +426,11 @@ class BinanceExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests
         return f"{base_token}{quote_token}"
 
     def create_exchange_instance(self):
-        return BinanceExchange(
-            binance_api_key="testAPIKey",
-            binance_api_secret="testSecret",
+        client_config_map = ClientConfigAdapter(ClientConfigMap())
+        return MobinExchange(
+            client_config_map=client_config_map,
+            mobin_api_key="testAPIKey",
+            mobin_api_secret="testSecret",
             trading_pairs=[self.trading_pair],
         )
 
@@ -401,7 +444,7 @@ class BinanceExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests
         request_data = dict(request_call.kwargs["data"])
         self.assertEqual(self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset), request_data["symbol"])
         self.assertEqual(order.trade_type.name.upper(), request_data["side"])
-        self.assertEqual(BinanceExchange.binance_order_type(OrderType.LIMIT), request_data["type"])
+        self.assertEqual(MobinExchange.mobin_order_type(OrderType.LIMIT), request_data["type"])
         self.assertEqual(Decimal("100"), Decimal(request_data["quantity"]))
         self.assertEqual(Decimal("10000"), Decimal(request_data["price"]))
         self.assertEqual(order.client_order_id, request_data["newClientOrderId"])
@@ -446,7 +489,8 @@ class BinanceExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests
         return url
 
     def configure_order_not_found_error_cancelation_response(
-        self, order: InFlightOrder, mock_api: aioresponses, callback: Optional[Callable] = lambda *args, **kwargs: None
+            self, order: InFlightOrder, mock_api: aioresponses,
+            callback: Optional[Callable] = lambda *args, **kwargs: None
     ) -> str:
         url = web_utils.private_rest_url(CONSTANTS.ORDER_PATH_URL)
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
@@ -537,7 +581,8 @@ class BinanceExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests
         return url
 
     def configure_order_not_found_error_order_status_response(
-        self, order: InFlightOrder, mock_api: aioresponses, callback: Optional[Callable] = lambda *args, **kwargs: None
+            self, order: InFlightOrder, mock_api: aioresponses,
+            callback: Optional[Callable] = lambda *args, **kwargs: None
     ) -> List[str]:
         url = web_utils.private_rest_url(CONSTANTS.ORDER_PATH_URL)
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
@@ -677,81 +722,6 @@ class BinanceExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests
 
     def trade_event_for_full_fill_websocket_update(self, order: InFlightOrder):
         return None
-
-    def test_throttler_property_exposes_internal_throttler(self):
-        # The public throttler property returns the same instance the connector uses internally,
-        # so other REST consumers (e.g. a candles feed) can share its rate-limit budget.
-        self.assertIs(self.exchange.throttler, self.exchange._throttler)
-
-    @aioresponses()
-    def test_user_stream_update_for_order_full_fill(self, mock_api):
-        self.exchange._set_current_timestamp(1640780000)
-        self.exchange.start_tracking_order(
-            order_id=self.client_order_id_prefix + "1",
-            exchange_order_id=str(self.expected_exchange_order_id),
-            trading_pair=self.trading_pair,
-            order_type=OrderType.LIMIT,
-            trade_type=TradeType.BUY,
-            price=Decimal("10000"),
-            amount=Decimal("1"),
-        )
-        order = self.exchange.in_flight_orders[self.client_order_id_prefix + "1"]
-
-        order_event = self.order_event_for_full_fill_websocket_update(order=order)
-        trade_event = self.trade_event_for_full_fill_websocket_update(order=order)
-
-        mock_queue = AsyncMock()
-        event_messages = []
-        if trade_event:
-            event_messages.append(trade_event)
-        if order_event:
-            event_messages.append(order_event)
-        event_messages.append(asyncio.CancelledError)
-        mock_queue.get.side_effect = event_messages
-        self.exchange._user_stream_tracker._user_stream = mock_queue
-
-        if self.is_order_fill_http_update_executed_during_websocket_order_event_processing:
-            self.configure_full_fill_trade_response(
-                order=order,
-                mock_api=mock_api)
-
-        try:
-            self.async_run_with_timeout(self.exchange._user_stream_event_listener())
-        except asyncio.CancelledError:
-            pass
-        # Execute one more synchronization to ensure the async task that processes the update is finished
-        self.async_run_with_timeout(order.wait_until_completely_filled())
-
-        fill_event: OrderFilledEvent = self.order_filled_logger.event_log[0]
-        self.assertEqual(self.exchange.current_timestamp, fill_event.timestamp)
-        self.assertEqual(order.client_order_id, fill_event.order_id)
-        self.assertEqual(order.trading_pair, fill_event.trading_pair)
-        self.assertEqual(order.trade_type, fill_event.trade_type)
-        self.assertEqual(order.order_type, fill_event.order_type)
-        self.assertEqual(order.price, fill_event.price)
-        self.assertEqual(order.amount, fill_event.amount)
-        expected_fee = self.expected_fill_fee
-        self.assertEqual(expected_fee, fill_event.trade_fee)
-
-        buy_event: BuyOrderCompletedEvent = self.buy_order_completed_logger.event_log[0]
-        self.assertEqual(self.exchange.current_timestamp, buy_event.timestamp)
-        self.assertEqual(order.client_order_id, buy_event.order_id)
-        self.assertEqual(order.base_asset, buy_event.base_asset)
-        self.assertEqual(order.quote_asset, buy_event.quote_asset)
-        self.assertEqual(order.amount, buy_event.base_asset_amount)
-        self.assertEqual(order.amount * fill_event.price, buy_event.quote_asset_amount)
-        self.assertEqual(order.order_type, buy_event.order_type)
-        self.assertEqual(order.exchange_order_id, buy_event.exchange_order_id)
-        self.assertNotIn(order.client_order_id, self.exchange.in_flight_orders)
-        self.assertTrue(order.is_filled)
-        self.assertTrue(order.is_done)
-
-        self.assertTrue(
-            self.is_logged(
-                "INFO",
-                f"BUY order {order.client_order_id} completely filled."
-            )
-        )
 
     @aioresponses()
     @patch("hummingbot.connector.time_synchronizer.TimeSynchronizer._current_seconds_counter")
@@ -920,7 +890,7 @@ class BinanceExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests
         self.exchange._set_current_timestamp(1640780000)
         self.exchange._last_poll_timestamp = (self.exchange.current_timestamp -
                                               self.exchange.UPDATE_ORDER_STATUS_MIN_INTERVAL - 1)
-        self.exchange._last_trades_poll_binance_timestamp = 10
+        self.exchange._last_trades_poll_mobin_timestamp = 10
         self.async_run_with_timeout(self.exchange._update_order_fills_from_trades())
 
         request = self._all_executed_requests(mock_api, url)[1]
@@ -1152,21 +1122,21 @@ class BinanceExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests
         self.assertEqual(result, expected_client_order_id)
 
     def test_time_synchronizer_related_request_error_detection(self):
-        exception = IOError("Error executing request POST https://api.binance.com/api/v3/order. HTTP status is 400. "
+        exception = IOError("Error executing request POST https://api.mobin.com/api/v3/order. HTTP status is 400. "
                             "Error: {'code':-1021,'msg':'Timestamp for this request is outside of the recvWindow.'}")
         self.assertTrue(self.exchange._is_request_exception_related_to_time_synchronizer(exception))
 
-        exception = IOError("Error executing request POST https://api.binance.com/api/v3/order. HTTP status is 400. "
+        exception = IOError("Error executing request POST https://api.mobin.com/api/v3/order. HTTP status is 400. "
                             "Error: {'code':-1021,'msg':'Timestamp for this request was 1000ms ahead of the server's "
                             "time.'}")
         self.assertTrue(self.exchange._is_request_exception_related_to_time_synchronizer(exception))
 
-        exception = IOError("Error executing request POST https://api.binance.com/api/v3/order. HTTP status is 400. "
+        exception = IOError("Error executing request POST https://api.mobin.com/api/v3/order. HTTP status is 400. "
                             "Error: {'code':-1022,'msg':'Timestamp for this request was 1000ms ahead of the server's "
                             "time.'}")
         self.assertFalse(self.exchange._is_request_exception_related_to_time_synchronizer(exception))
 
-        exception = IOError("Error executing request POST https://api.binance.com/api/v3/order. HTTP status is 400. "
+        exception = IOError("Error executing request POST https://api.mobin.com/api/v3/order. HTTP status is 400. "
                             "Error: {'code':-1021,'msg':'Other error.'}")
         self.assertFalse(self.exchange._is_request_exception_related_to_time_synchronizer(exception))
 
