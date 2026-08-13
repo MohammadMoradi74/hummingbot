@@ -1,7 +1,5 @@
 from typing import Callable, Optional
 
-import pandas as pd
-
 import hummingbot.connector.exchange.nobitex.nobitex_constants as CONSTANTS
 from hummingbot.connector.time_synchronizer import TimeSynchronizer
 from hummingbot.connector.utils import TimeSynchronizerRESTPreProcessor
@@ -73,5 +71,7 @@ async def get_current_server_time(
         method=RESTMethod.GET,
         throttler_limit_id=CONSTANTS.SERVER_TIME_PATH_URL,
     )
-    server_time = pd.DataFrame(response).iloc[0, 1:].max()  # get maximum timestamp as a proxy for server time
-    return server_time
+    # Nobitex has no /time endpoint; lastUpdate is unix ms
+    server_time = max(
+        item["lastUpdate"] for item in response.values() if isinstance(item, dict) and "lastUpdate" in item)
+    return float(server_time)
