@@ -7,9 +7,10 @@ DEFAULT_DOMAIN = "ir"
 # HBOT_ORDER_ID_PREFIX = "x-XEKWYICX"
 # MAX_ORDER_ID_LEN = 32
 
-# Base URL
-REST_URL = "https://api.nobitex.{}/"
+# Base URL (docs use apiv2.nobitex.ir)
+REST_URL = "https://apiv2.nobitex.{}/"
 WSS_URL = "wss://ws.nobitex.ir/connection/websocket"
+USER_AGENT = "TraderBot/hummingbot/1.0"
 #
 PUBLIC_API_VERSION = "v3"
 PRIVATE_API_VERSION = ""                # No version is available for private api
