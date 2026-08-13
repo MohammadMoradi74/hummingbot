@@ -1,13 +1,14 @@
 import base64
-from typing import Dict
+from typing import Dict, Tuple
 from urllib.parse import urlencode, urlparse
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from hummingbot.connector.exchange.nobitex import nobitex_constants as CONSTANTS
+from hummingbot.connector.exchange.nobitex import nobitex_constants as CONSTANTS, nobitex_web_utils as web_utils
 from hummingbot.connector.time_synchronizer import TimeSynchronizer
 from hummingbot.core.web_assistant.auth import AuthBase
-from hummingbot.core.web_assistant.connections.data_types import RESTRequest, WSRequest
+from hummingbot.core.web_assistant.connections.data_types import RESTMethod, RESTRequest, WSRequest
+from hummingbot.core.web_assistant.rest_assistant import RESTAssistant
 
 
 class NobitexAuth(AuthBase):
@@ -23,6 +24,7 @@ class NobitexAuth(AuthBase):
         self.secret_key = secret_key
         self.time_provider = time_provider
         self._private_key = self._load_private_key(secret_key)
+        self._websocket_auth_param: str | None = None
 
     @staticmethod
     def _load_private_key(secret_key: str) -> Ed25519PrivateKey:
@@ -39,6 +41,33 @@ class NobitexAuth(AuthBase):
     async def ws_authenticate(self, request: WSRequest) -> WSRequest:
         """Private WS uses /auth/ws/token/; connect auth is handled in the user stream."""
         return request
+
+    async def get_ws_credentials(
+            self,
+            rest_assistant: RESTAssistant,
+            domain: str = CONSTANTS.DEFAULT_DOMAIN,
+    ) -> Tuple[str, str]:
+        """
+        Fetch Centrifugo connection token + websocketAuthParam.
+        Docs: https://apidocs.nobitex.ir/websocket/get-websocket-token
+        Returns (ws_token, websocket_auth_param).
+        """
+        if self._websocket_auth_param is None:
+            profile_data = await rest_assistant.execute_request(
+                url=web_utils.private_rest_url(CONSTANTS.USER_PROFILE_PATH_URL, domain=domain),
+                method=RESTMethod.GET,
+                is_auth_required=True,
+                throttler_limit_id=CONSTANTS.USER_PROFILE_PATH_URL,
+            )
+            self._websocket_auth_param = profile_data["profile"]["websocketAuthParam"]
+
+        token_data = await rest_assistant.execute_request(
+            url=web_utils.private_rest_url(CONSTANTS.WS_TOKEN_PATH_URL, domain=domain),
+            method=RESTMethod.GET,
+            is_auth_required=True,
+            throttler_limit_id=CONSTANTS.WS_TOKEN_PATH_URL,
+        )
+        return token_data["token"], self._websocket_auth_param
 
     def header_for_authentication(self, request: RESTRequest) -> Dict[str, str]:
         timestamp = str(int(self.time_provider.time()))

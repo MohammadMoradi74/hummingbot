@@ -43,6 +43,14 @@ class NobitexWSHelper:
         return f"{CONSTANTS.WS_TRADES_CHANNEL_PREFIX}{symbol.upper()}"
 
     @classmethod
+    def private_orders_channel(cls, websocket_auth_param: str) -> str:
+        return f"{CONSTANTS.WS_PRIVATE_ORDERS_CHANNEL_PREFIX}{websocket_auth_param}"
+
+    @classmethod
+    def private_trades_channel(cls, websocket_auth_param: str) -> str:
+        return f"{CONSTANTS.WS_PRIVATE_TRADES_CHANNEL_PREFIX}{websocket_auth_param}"
+
+    @classmethod
     def symbol_from_channel(cls, channel: str) -> str:
         return channel.rsplit("-", 1)[-1]
 
