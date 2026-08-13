@@ -26,7 +26,9 @@ def private_rest_url(path_url: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> s
     :param domain: the Nobitex domain to connect to ("ir").
     :return: the full URL to the endpoint
     """
-    return CONSTANTS.REST_URL.format(domain) + CONSTANTS.PRIVATE_API_VERSION + path_url
+    # REST_URL ends with /; private version is empty → avoid //path in signed URL
+    base = CONSTANTS.REST_URL.format(domain).rstrip("/")
+    return f"{base}{CONSTANTS.PRIVATE_API_VERSION}{path_url}"
 
 
 def build_api_factory(
