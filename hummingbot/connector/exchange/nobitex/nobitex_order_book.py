@@ -42,12 +42,12 @@ class NobitexOrderBook(OrderBook):
         """
         if metadata:
             msg.update(metadata)
-        return OrderBookMessage(OrderBookMessageType.DIFF, {
+        # ponytail: Nobitex WS orderbook is a full book, not a diff
+        return OrderBookMessage(OrderBookMessageType.SNAPSHOT, {
             "trading_pair": msg["trading_pair"],
-            "first_update_id": msg["U"],
-            "update_id": msg["u"],
-            "bids": msg["b"],
-            "asks": msg["a"]
+            "update_id": int(msg["lastUpdate"]),
+            "bids": msg["bids"],
+            "asks": msg["asks"],
         }, timestamp=timestamp)
 
     @classmethod
@@ -60,12 +60,12 @@ class NobitexOrderBook(OrderBook):
         """
         if metadata:
             msg.update(metadata)
-        ts = msg["E"]
+        ts = int(msg["time"])
         return OrderBookMessage(OrderBookMessageType.TRADE, {
             "trading_pair": msg["trading_pair"],
-            "trade_type": float(TradeType.SELL.value) if msg["m"] else float(TradeType.BUY.value),
-            "trade_id": msg["t"],
+            "trade_type": float(TradeType.SELL.value) if str(msg["type"]).lower() == "sell" else float(TradeType.BUY.value),
+            "trade_id": ts,
             "update_id": ts,
-            "price": msg["p"],
-            "amount": msg["q"]
+            "price": msg["price"],
+            "amount": msg["volume"],
         }, timestamp=ts * 1e-3)

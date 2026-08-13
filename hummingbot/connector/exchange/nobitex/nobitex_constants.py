@@ -9,7 +9,7 @@ DEFAULT_DOMAIN = "ir"
 
 # Base URL
 REST_URL = "https://api.nobitex.{}/"
-# WSS_URL = "wss://stream.binance.{}:9443/ws"
+WSS_URL = "wss://ws.nobitex.ir/connection/websocket"
 #
 PUBLIC_API_VERSION = "v3"
 PRIVATE_API_VERSION = ""                # No version is available for private api
@@ -28,7 +28,7 @@ SERVER_TIME_PATH_URL = "/orderbook/all"
 # ORDER_PATH_URL = "/order"
 # BINANCE_USER_STREAM_PATH_URL = "/userDataStream"
 #
-# WS_HEARTBEAT_TIME_INTERVAL = 30
+WS_HEARTBEAT_TIME_INTERVAL = 20
 
 # Binance params
 
@@ -68,6 +68,8 @@ MAX_REQUEST = 5000
 # Websocket event types
 DIFF_EVENT_TYPE = "depthUpdate"
 TRADE_EVENT_TYPE = "trade"
+WS_ORDERBOOK_CHANNEL_PREFIX = "public:orderbook-"
+WS_TRADES_CHANNEL_PREFIX = "public:trades-"
 
 RATE_LIMITS = [
     # Pools
