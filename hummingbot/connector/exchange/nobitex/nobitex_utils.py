@@ -1,41 +1,69 @@
 from decimal import Decimal
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Tuple
 
 from pydantic import ConfigDict, Field, SecretStr
 
 from hummingbot.client.config.config_data_types import BaseConnectorConfigMap
+from hummingbot.connector.exchange.nobitex import nobitex_constants as CONSTANTS
 from hummingbot.core.data_type.trade_fee import TradeFeeSchema
 
 CENTRALIZED = True
-EXAMPLE_PAIR = "BTC-USDT"
+EXAMPLE_PAIR = "BTC-IRT"
 
 DEFAULT_FEES = TradeFeeSchema(
-    maker_percent_fee_decimal=Decimal("0.001"),
-    taker_percent_fee_decimal=Decimal("0.0013"),
-    buy_percent_fee_deducted_from_returns=True
+    maker_percent_fee_decimal=Decimal("0.0025"),
+    taker_percent_fee_decimal=Decimal("0.0025"),
+    buy_percent_fee_deducted_from_returns=True,
 )
 
 
-def is_exchange_information_valid(exchange_info: Dict[str, Any]) -> bool:
+def hb_quote_to_api(quote: str) -> str:
+    """HB quote (IRT/USDT) → Nobitex API currency (rls/usdt)."""
+    return CONSTANTS.QUOTE_ASSET_MAP.get(quote.upper(), quote.lower())
+
+
+def api_quote_to_hb(quote: str) -> str:
+    """Nobitex API currency → HB quote asset."""
+    return CONSTANTS.QUOTE_ASSET_MAP_REVERSE.get(quote.lower(), quote.upper())
+
+
+def exchange_symbol_for_tokens(base: str, quote: str) -> str:
+    """HB tokens → orderbook/options symbol, e.g. BTC + IRT → BTCIRT."""
+    api_quote = hb_quote_to_api(quote).upper()
+    if api_quote == "RLS":
+        api_quote = "IRT"  # options/orderbook keys use IRT suffix
+    return f"{base.upper()}{api_quote}"
+
+
+def split_exchange_symbol(symbol: str) -> Tuple[str, str]:
+    """BTCIRT / BTCUSDT → (BTC, IRT) HB-style quote."""
+    symbol = symbol.upper()
+    for quote in ("USDT", "IRT"):
+        if symbol.endswith(quote):
+            return symbol[: -len(quote)], quote
+    raise ValueError(f"Unrecognized Nobitex symbol: {symbol}")
+
+
+def currencies_from_trading_pair(trading_pair: str) -> Tuple[str, str]:
+    """BTC-IRT → (btc, rls) for order API src/dst."""
+    base, quote = trading_pair.split("-")
+    return base.lower(), hb_quote_to_api(quote)
+
+
+def stats_market_key(trading_pair: str) -> str:
+    """BTC-IRT → btc-rls for /market/stats."""
+    src, dst = currencies_from_trading_pair(trading_pair)
+    return f"{src}-{dst}"
+
+
+def is_exchange_information_valid(symbol: str, exchange_info: Optional[Dict[str, Any]] = None) -> bool:
     """
-    Verifies if a trading pair is enabled to operate with based on its exchange information
-    :param exchange_info: the exchange information for a trading pair
-    :return: True if the trading pair is enabled, False otherwise
+    Symbol keys in amountPrecisions (e.g. BTCIRT) are tradable markets.
     """
-    is_spot = False
-    is_trading = False
-
-    if exchange_info.get("status", None) == "TRADING":
-        is_trading = True
-
-    permissions_sets = exchange_info.get("permissionSets", list())
-    for permission_set in permissions_sets:
-        # PermissionSet is a list, find if in this list we have "SPOT" value or not
-        if "SPOT" in permission_set:
-            is_spot = True
-            break
-
-    return is_trading and is_spot
+    if not symbol or not isinstance(symbol, str):
+        return False
+    symbol = symbol.upper()
+    return symbol.endswith("IRT") or symbol.endswith("USDT")
 
 
 class NobitexConfigMap(BaseConnectorConfigMap):
