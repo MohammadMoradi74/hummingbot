@@ -116,13 +116,21 @@ class NobitexExchange(ExchangePyBase):
         text = str(request_exception).lower()
         return "timestamp" in text and ("invalid" in text or "expired" in text)
 
+    def _is_nobitex_order_not_found(self, error: Exception) -> bool:
+        text = str(error).lower()
+        return (
+            "status is 404" in text
+            or "notfound" in text
+            or "matches the given query" in text
+            or "not found" in text
+            or "does not exist" in text
+        )
+
     def _is_order_not_found_during_status_update_error(self, status_update_exception: Exception) -> bool:
-        text = str(status_update_exception).lower()
-        return "not found" in text or "does not exist" in text
+        return self._is_nobitex_order_not_found(status_update_exception)
 
     def _is_order_not_found_during_cancelation_error(self, cancelation_exception: Exception) -> bool:
-        text = str(cancelation_exception).lower()
-        return "not found" in text or "does not exist" in text
+        return self._is_nobitex_order_not_found(cancelation_exception)
 
     def _create_web_assistants_factory(self) -> WebAssistantsFactory:
         return web_utils.build_api_factory(

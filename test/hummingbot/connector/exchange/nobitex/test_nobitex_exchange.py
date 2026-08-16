@@ -291,8 +291,8 @@ class NobitexExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests
             callback: Optional[Callable] = lambda *args, **kwargs: None) -> str:
         url = web_utils.private_rest_url(CONSTANTS.ORDER_CANCEL_PATH_URL)
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
-        response = {"status": "failed", "message": "Order does not exist."}
-        mock_api.post(regex_url, status=400, body=json.dumps(response), callback=callback)
+        response = {"message": "No Order matches the given query.", "error": "NotFound"}
+        mock_api.post(regex_url, status=404, body=json.dumps(response), callback=callback)
         return url
 
     def configure_one_successful_one_erroneous_cancel_all_response(
@@ -368,8 +368,8 @@ class NobitexExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests
             callback: Optional[Callable] = lambda *args, **kwargs: None) -> List[str]:
         url = web_utils.private_rest_url(CONSTANTS.ORDER_STATUS_PATH_URL)
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
-        response = {"status": "failed", "message": "Order does not exist."}
-        mock_api.post(regex_url, status=400, body=json.dumps(response), callback=callback)
+        response = {"message": "No Order matches the given query.", "error": "NotFound"}
+        mock_api.post(regex_url, status=404, body=json.dumps(response), callback=callback)
         return [url]
 
     def configure_partial_fill_trade_response(
