@@ -407,7 +407,7 @@ class NobitexExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests
     def order_event_for_new_order_websocket_update(self, order: InFlightOrder):
         return {
             "_channel": f"{CONSTANTS.WS_PRIVATE_ORDERS_CHANNEL_PREFIX}{self.base_asset.lower()}",
-            "id": int(order.exchange_order_id),
+            "orderId": int(order.exchange_order_id),
             "clientOrderId": order.client_order_id,
             "status": "Active",
             "matchedAmount": "0",
@@ -418,7 +418,7 @@ class NobitexExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests
     def order_event_for_canceled_order_websocket_update(self, order: InFlightOrder):
         return {
             "_channel": f"{CONSTANTS.WS_PRIVATE_ORDERS_CHANNEL_PREFIX}{self.base_asset.lower()}",
-            "id": int(order.exchange_order_id),
+            "orderId": int(order.exchange_order_id),
             "clientOrderId": order.client_order_id,
             "status": "Canceled",
             "matchedAmount": "0",
@@ -429,7 +429,7 @@ class NobitexExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests
     def order_event_for_full_fill_websocket_update(self, order: InFlightOrder):
         return {
             "_channel": f"{CONSTANTS.WS_PRIVATE_ORDERS_CHANNEL_PREFIX}{self.base_asset.lower()}",
-            "id": int(order.exchange_order_id),
+            "orderId": int(order.exchange_order_id),
             "clientOrderId": order.client_order_id,
             "status": "Done",
             "matchedAmount": str(order.amount),

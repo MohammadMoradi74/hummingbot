@@ -204,7 +204,10 @@ class NobitexExchange(ExchangePyBase):
             raise IOError(f"Nobitex place order failed: {order_result}")
 
         order = order_result.get("order") or {}
-        o_id = str(order.get("id", "UNKNOWN"))
+        o_id = order.get("id")
+        if o_id in (None, ""):
+            raise IOError(f"Nobitex place order ok but missing id: {order_result}")
+        o_id = str(o_id)
         created = order.get("created_at")
         if created:
             ts = datetime.fromisoformat(created.replace("Z", "+00:00")).timestamp()
@@ -274,7 +277,7 @@ class NobitexExchange(ExchangePyBase):
         state = CONSTANTS.ORDER_STATE.get(status, OrderState.FAILED)
         # Partial fill while still open
         if state is OrderState.OPEN:
-            matched = Decimal(str(order_data.get("matchedAmount") or "0"))
+            matched = Decimal(str(order_data.get("matchedAmount") or order_data.get("filledAmount") or "0"))
             if matched > 0:
                 return OrderState.PARTIALLY_FILLED
         if state is OrderState.FILLED:
@@ -293,10 +296,14 @@ class NobitexExchange(ExchangePyBase):
                     await self._process_user_order_event(event_message)
                 else:
                     # Some payloads omit _channel or nest differently — try heuristics
-                    if "orderId" in event_message and "price" in event_message and "amount" in event_message:
-                        await self._process_user_trade_event(event_message)
-                    elif "status" in event_message and "id" in event_message:
+                    if "status" in event_message and (
+                        "orderId" in event_message
+                        or "id" in event_message
+                        or "clientOrderId" in event_message
+                    ):
                         await self._process_user_order_event(event_message)
+                    elif "orderId" in event_message and "price" in event_message and "amount" in event_message:
+                        await self._process_user_trade_event(event_message)
             except asyncio.CancelledError:
                 raise
             except Exception:
@@ -305,7 +312,9 @@ class NobitexExchange(ExchangePyBase):
 
     async def _process_user_order_event(self, event_message: Dict[str, Any]):
         client_order_id = event_message.get("clientOrderId")
-        exchange_order_id = str(event_message.get("id", ""))
+        # WS docs use orderId; REST-shaped payloads may use id. Never store "".
+        raw_id = event_message.get("orderId", event_message.get("id"))
+        exchange_order_id = str(raw_id) if raw_id not in (None, "") else None
         tracked_order = None
         if client_order_id:
             tracked_order = self._order_tracker.all_updatable_orders.get(client_order_id)
@@ -318,6 +327,14 @@ class NobitexExchange(ExchangePyBase):
         if tracked_order is None:
             return
 
+        if event_message.get("status") == "Failed":
+            self._update_order_after_failure(
+                order_id=tracked_order.client_order_id,
+                trading_pair=tracked_order.trading_pair,
+                exception=IOError(f"Nobitex order failed: {event_message}"),
+            )
+            return
+
         new_state = self._order_state_from_nobitex(event_message)
         if new_state in (OrderState.FILLED, OrderState.PARTIALLY_FILLED):
             await self._update_orders_fills(orders=[tracked_order])
@@ -326,7 +343,8 @@ class NobitexExchange(ExchangePyBase):
         if created:
             ts = datetime.fromisoformat(str(created).replace("Z", "+00:00")).timestamp()
         else:
-            ts = self.current_timestamp
+            event_time = event_message.get("eventTime")
+            ts = (float(event_time) / 1000.0) if event_time else self.current_timestamp
 
         self._order_tracker.process_order_update(
             OrderUpdate(
