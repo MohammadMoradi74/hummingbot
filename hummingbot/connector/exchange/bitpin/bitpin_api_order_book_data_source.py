@@ -149,3 +149,37 @@ class BitpinAPIOrderBookDataSource(OrderBookTrackerDataSource):
         if event_type == CONSTANTS.TRADE_EVENT_TYPE:
             return self._trade_messages_queue_key
         return ""
+
+    async def subscribe_to_trading_pair(self, trading_pair: str) -> bool:
+        if self._ws_assistant is None:
+            self.logger().warning(f"Cannot subscribe to {trading_pair}: WebSocket not connected")
+            return False
+        try:
+            symbol = await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
+            await BitpinWSHelper.subscribe(self._ws_assistant, BitpinWSHelper.orderbook_channel(symbol))
+            await BitpinWSHelper.subscribe(self._ws_assistant, BitpinWSHelper.matches_channel(symbol))
+            self.add_trading_pair(trading_pair)
+            self.logger().info(f"Subscribed to {trading_pair} order book and trade channels")
+            return True
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            self.logger().exception(f"Unexpected error subscribing to {trading_pair} channels")
+            return False
+
+    async def unsubscribe_from_trading_pair(self, trading_pair: str) -> bool:
+        if self._ws_assistant is None:
+            self.logger().warning(f"Cannot unsubscribe from {trading_pair}: WebSocket not connected")
+            return False
+        try:
+            symbol = await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
+            await BitpinWSHelper.unsubscribe(self._ws_assistant, BitpinWSHelper.orderbook_channel(symbol))
+            await BitpinWSHelper.unsubscribe(self._ws_assistant, BitpinWSHelper.matches_channel(symbol))
+            self.remove_trading_pair(trading_pair)
+            self.logger().info(f"Unsubscribed from {trading_pair} order book and trade channels")
+            return True
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            self.logger().exception(f"Unexpected error unsubscribing from {trading_pair} channels")
+            return False

@@ -31,6 +31,10 @@ class BitpinWSHelper:
         return {"id": cls._next_id(), "subscribe": {"channel": channel}}
 
     @classmethod
+    def unsubscribe_payload(cls, channel: str) -> Dict[str, Any]:
+        return {"id": cls._next_id(), "unsubscribe": {"channel": channel}}
+
+    @classmethod
     def orderbook_channel(cls, symbol: str) -> str:
         return f"orderbook:{symbol}"
 
@@ -136,3 +140,7 @@ class BitpinWSHelper:
     @classmethod
     async def subscribe(cls, ws: WSAssistant, channel: str) -> None:
         await ws.send(WSJSONRequest(payload=cls.subscribe_payload(channel)))
+
+    @classmethod
+    async def unsubscribe(cls, ws: WSAssistant, channel: str) -> None:
+        await ws.send(WSJSONRequest(payload=cls.unsubscribe_payload(channel)))
