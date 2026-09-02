@@ -68,6 +68,17 @@ class MobinAPIOrderBookDataSource(OrderBookTrackerDataSource):
 
         return data
 
+    async def _send_signalr_subscription(self, ws: WSAssistant, symbol: str, subscribe: bool) -> None:
+        subscribed = [symbol] if subscribe else []
+        unsubscribed = [] if subscribe else [symbol]
+        for target in ("SubscribeTrade", "SubscribeInformation"):
+            payload = {
+                "arguments": [{"subscribed": subscribed, "unsubscribed": unsubscribed}],
+                "target": target,
+                "type": 1,
+            }
+            await ws._connection._connection.send_str(json.dumps(payload) + "\x1e")
+
     async def _subscribe_channels(self, ws: WSAssistant):
         """
         Subscribes to the trade events and diff orders events through the provided websocket connection.
@@ -76,21 +87,7 @@ class MobinAPIOrderBookDataSource(OrderBookTrackerDataSource):
         try:
             for trading_pair in self._trading_pairs:
                 symbol = await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
-                # SignalR Subscription for Trades
-                subscribe_trade = {
-                    "arguments": [{"subscribed": [symbol], "unsubscribed": []}],
-                    "target": "SubscribeTrade",
-                    "type": 1
-                }
-                await ws._connection._connection.send_str(json.dumps(subscribe_trade) + "\x1e")
-
-                # SignalR Subscription for Order Book (Information/State)
-                subscribe_info = {
-                    "arguments": [{"subscribed": [symbol], "unsubscribed": []}],
-                    "target": "SubscribeInformation",
-                    "type": 1
-                }
-                await ws._connection._connection.send_str(json.dumps(subscribe_info) + "\x1e")
+                await self._send_signalr_subscription(ws, symbol, subscribe=True)
 
             self.logger().info("Subscribed to Mobin SignalR channels...")
         except asyncio.CancelledError:
@@ -221,3 +218,35 @@ class MobinAPIOrderBookDataSource(OrderBookTrackerDataSource):
             elif event_type == CONSTANTS.TRADE_EVENT_TYPE:
                 channel = self._trade_messages_queue_key
         return channel
+
+    async def subscribe_to_trading_pair(self, trading_pair: str) -> bool:
+        if self._ws_assistant is None:
+            self.logger().warning(f"Cannot subscribe to {trading_pair}: WebSocket not connected")
+            return False
+        try:
+            symbol = await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
+            await self._send_signalr_subscription(self._ws_assistant, symbol, subscribe=True)
+            self.add_trading_pair(trading_pair)
+            self.logger().info(f"Subscribed to {trading_pair} order book and trade channels")
+            return True
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            self.logger().exception(f"Unexpected error subscribing to {trading_pair} channels")
+            return False
+
+    async def unsubscribe_from_trading_pair(self, trading_pair: str) -> bool:
+        if self._ws_assistant is None:
+            self.logger().warning(f"Cannot unsubscribe from {trading_pair}: WebSocket not connected")
+            return False
+        try:
+            symbol = await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
+            await self._send_signalr_subscription(self._ws_assistant, symbol, subscribe=False)
+            self.remove_trading_pair(trading_pair)
+            self.logger().info(f"Unsubscribed from {trading_pair} order book and trade channels")
+            return True
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            self.logger().exception(f"Unexpected error unsubscribing from {trading_pair} channels")
+            return False
