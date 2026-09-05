@@ -7,6 +7,8 @@ from hummingbot.core.web_assistant.connections.data_types import RESTRequest, WS
 
 class MofidAuth(AuthBase):
     # Manual paste from browser/curl (test account). expires_in ~12h.
+    # Lightstreamer create_session LS_user (= JWT customer_isin claim).
+    ls_user: str = "11293241406857"
     token: str = (
         "eyJhbGciOiJSUzI1NiIsImtpZCI6ImI3MmYyMjczZTE4YTQ0YjQ5OTFmMDg3ODIzNzQyYmI1IiwidHlwIjoiYXQrand0In0."
         "eyJpc3MiOiJodHRwczovL2xvZ2luLmVtb2ZpZC5jb20iLCJuYmYiOjE3ODg1ODI2NjEsImlhdCI6MTc4ODU4MjY2MSwiZXhwIjox"

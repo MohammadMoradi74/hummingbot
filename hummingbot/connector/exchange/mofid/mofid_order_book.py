@@ -35,3 +35,22 @@ class MofidOrderBook(OrderBook):
             "bids": cls._sheets_to_entries(msg.get("buySheets", []), depth),
             "asks": cls._sheets_to_entries(msg.get("sellSheets", []), depth),
         }, timestamp=timestamp)
+
+    @classmethod
+    def diff_message_from_exchange(cls,
+                                   msg: Dict[str, Any],
+                                   timestamp: Optional[float] = None,
+                                   metadata: Optional[Dict] = None) -> OrderBookMessage:
+        """
+        Lightstreamer bestlimit updates replace the full top-N book (not incremental diffs).
+        Emit SNAPSHOT so the tracker rebuilds levels 1..N cleanly.
+        """
+        if metadata:
+            msg.update(metadata)
+        update_id = int((timestamp or 0) * 1e3)
+        return OrderBookMessage(OrderBookMessageType.SNAPSHOT, {
+            "trading_pair": msg["trading_pair"],
+            "update_id": update_id,
+            "bids": msg.get("bids", []),
+            "asks": msg.get("asks", []),
+        }, timestamp=timestamp)
