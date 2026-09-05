@@ -30,9 +30,20 @@ LS_ADAPTER_SET = "lsadapter-conf"
 LS_CID = "pcYgxn8m8 feOojyA1U661o3g2.pz47Ag7s"
 LS_BESTLIMIT_ADAPTER = "BESTLIMIT_ADAPTER"
 LS_SYMBOL_ADAPTER = "RLC_ADAPTER"
+LS_SLE_ADAPTER = "SLE_ADAPTER"
 LS_CREATE_SESSION_LIMIT_ID = "ls_create_session"
 LS_CHANNEL_BESTLIMIT = "bestlimit"
 LS_CHANNEL_SYMBOL = "symbol"
+
+# Private user stream (RAW groups on same LS host; no Binance listenKey)
+LS_CHANNEL_LOGIN = "login"
+LS_CHANNEL_ORDER = "order"
+LS_CHANNEL_MONEY = "money"
+USER_ORDER_EVENT_TYPE = "order"
+USER_MONEY_EVENT_TYPE = "money"
+USER_LOGIN_EVENT_TYPE = "login"
+LS_ORDER_SCHEMA = ["timestamp", "meta"]
+LS_META_ONLY_SCHEMA = ["meta"]
 
 ONE_MINUTE = 60
 MAX_REQUEST = 5000
