@@ -2,7 +2,7 @@ from typing import Dict
 
 from hummingbot.connector.time_synchronizer import TimeSynchronizer
 from hummingbot.core.web_assistant.auth import AuthBase
-from hummingbot.core.web_assistant.connections.data_types import RESTRequest, WSRequest
+from hummingbot.core.web_assistant.connections.data_types import RESTMethod, RESTRequest, WSRequest
 
 
 class MofidAuth(AuthBase):
@@ -10,27 +10,35 @@ class MofidAuth(AuthBase):
     # Lightstreamer create_session LS_user (= JWT customer_isin claim).
     ls_user: str = "11293241406857"
     token: str = (
-        "eyJhbGciOiJSUzI1NiIsImtpZCI6ImI3MmYyMjczZTE4YTQ0YjQ5OTFmMDg3ODIzNzQyYmI1IiwidHlwIjoiYXQrand0In0."
-        "eyJpc3MiOiJodHRwczovL2xvZ2luLmVtb2ZpZC5jb20iLCJuYmYiOjE3ODg1ODI2NjEsImlhdCI6MTc4ODU4MjY2MSwiZXhwIjox"
-        "Nzg4NjI1ODYxLCJhdWQiOlsiZWFzeTJfYXBpIiwibXRzX2FwaSIsImh0dHBzOi8vbG9naW4uZW1vZmlkLmNvbS9yZXNvdXJjZXMi"
-        "XSwic2NvcGUiOlsiZWFzeTJfYXBpIiwibXRzX2FwaSIsIm9wZW5pZCIsInByb2ZpbGUiLCJsb2dpbl9kZWxlZ2F0aW9uLWFwaSJd"
-        "LCJhbXIiOlsicHdkIl0sImNsaWVudF9pZCI6ImVhc3lfcGtjZSIsInN1YiI6IjYwMTU2ZjQzLTg3ZTktNDAwYS04ZTJjLTYxZmFh"
-        "MDRmNmJkNSIsImF1dGhfdGltZSI6MTc4ODAyNDM2OCwiaWRwIjoibG9jYWwiLCJwayI6IjYwMTU2ZjQzLTg3ZTktNDAwYS04ZTJj"
-        "LTYxZmFhMDRmNmJkNSIsInR3b19mYWN0b3JfZW5hYmxlZCI6ImZhbHNlIiwidXNlclR5cGUiOiJIYWdoaWdoaSIsImRpc3BsYXlf"
-        "bmFtZSI6Ilx1MDY0NVx1MDYyRFx1MDY0NVx1MDYyRiBcdTA2NDVcdTA2MzFcdTA2MjdcdTA2MkZcdTA2Q0MiLCJmaXJzdG5hbWUi"
-        "OiJcdTA2NDVcdTA2MkRcdTA2NDVcdTA2MkYiLCJsYXN0bmFtZSI6Ilx1MDY0NVx1MDYzMVx1MDYyN1x1MDYyRlx1MDZDQyIsIm5h"
-        "dGlvbmFsX2lkIjoiMzI0MTQwNjg1NyIsIm5hdGlvbmFsX2lkX3ZlcmlmaWVkIjoidHJ1ZSIsImVtYWlsIjoibW9oYW1tYWRtb3Jh"
-        "ZGkuZWVAZ21haWwuY29tIiwicGhvbmVfbnVtYmVyIjoiMDkzODgyNTExMjYiLCJwaG9uZV9udW1iZXJfdmVyaWZpZWQiOiJ0cnVl"
-        "IiwiY3VzdG9tZXJfaXNpbiI6IjExMjkzMjQxNDA2ODU3IiwiY3VzdG9tZXJfc2VnbWVudF9pZCI6IjA0MzU1NDQ0NTMxMTUyNTE0"
-        "MTU1MTUxNDU1NTUxMTQ1NDU1NTIyMzM1NDQ0NDU1NTU0IiwiY29udHJhY3QiOlsiVGVzdENvbnRyYWN0XzEuMCIsIkVjb250cmFj"
-        "dF8yLjAiLCJDb2RhbENhdXRpb25UcmFuc2FjdGlvbl8xLjAiLCJCYXNpY01hcmtldFJpc2tfMS4wIiwiV2FsbGV0Q29udHJhY3Rf"
-        "MS4xIiwiT21zTW9maWRfMS4wIiwiVHJhZGVPcHRpb25Db250cmFjdEVhc3lUcmFkZXJfMS4wIiwiQmFzaWNPcHRpb25SaXNrLUVh"
-        "c3lUcmFkZXJfMS4wIiwiQ292ZXJlZFdhcnJhbnRzXzEuMCIsIkhhbWlDb250cmFjdF8xLjAiLCJQYXBlckVDb250cmFjdF8xLjAi"
-        "LCJQYXBlclRlc3RDb250cmFjdF8xLjAiXSwic2lkIjoiNEEzN0I3M0I2QjI2Q0ZFMjg4OTJERTgxQ0VERkQ2MEQifQ."
-        "wYqP7Wld7p2I5gSb5ZMlD7DsAekZcAAQiV5NM_jOSwXSeZOCI7AhkWiuZvElNgF82P2_tbS9hmImP3GmX5u4vsrngU3R1tqRMvWN"
-        "GFZoIxRTuyHwisYLN4trnXOA4gC4jgmZC3gCZ9j3chejNeGILTpDjpuiqxjuBaE2nDX0ZrcRKwPnjV50hPGrqgWWoUd2y_qKkYMn"
-        "I_qGWMtGK_qGOp7-W2eDMtV5YGc3Fz3d6HNcA2IqQu7Afj3tftbCGHBlfcKYTeRXUSAmObG9ngV4J8kjCd2Fip6CkIx2MEyfqiCm"
-        "yr7e89uU28wEODxsKuZ9tL0TcEPlVAkN4Zl8NMvMQA"
+        "eyJhbGciOiJSUzI1NiIsImtpZCI6ImI3MmYyMjczZTE4YTQ0YjQ5OTFmMDg3ODIzNzQyYm"
+        "I1IiwidHlwIjoiYXQrand0In0.eyJpc3MiOiJodHRwczovL2xvZ2luLmVtb2ZpZC5jb20i"
+        "LCJuYmYiOjE3ODg2MDE5MTQsImlhdCI6MTc4ODYwMTkxNCwiZXhwIjoxNzg4NjQ1MTE0LC"
+        "JhdWQiOlsiZWFzeTJfYXBpIiwibXRzX2FwaSIsImh0dHBzOi8vbG9naW4uZW1vZmlkLmNv"
+        "bS9yZXNvdXJjZXMiXSwic2NvcGUiOlsiZWFzeTJfYXBpIiwibXRzX2FwaSIsIm9wZW5pZC"
+        "IsInByb2ZpbGUiLCJsb2dpbl9kZWxlZ2F0aW9uLWFwaSJdLCJhbXIiOlsicHdkIl0sImNs"
+        "aWVudF9pZCI6ImVhc3lfcGtjZSIsInN1YiI6IjYwMTU2ZjQzLTg3ZTktNDAwYS04ZTJjLT"
+        "YxZmFhMDRmNmJkNSIsImF1dGhfdGltZSI6MTc4ODYwMTkxMiwiaWRwIjoibG9jYWwiLCJw"
+        "ayI6IjYwMTU2ZjQzLTg3ZTktNDAwYS04ZTJjLTYxZmFhMDRmNmJkNSIsInR3b19mYWN0b3"
+        "JfZW5hYmxlZCI6ImZhbHNlIiwidXNlclR5cGUiOiJIYWdoaWdoaSIsImRpc3BsYXlfbmFt"
+        "ZSI6Ilx1MDY0NVx1MDYyRFx1MDY0NVx1MDYyRiBcdTA2NDVcdTA2MzFcdTA2MjdcdTA2Mk"
+        "ZcdTA2Q0MiLCJmaXJzdG5hbWUiOiJcdTA2NDVcdTA2MkRcdTA2NDVcdTA2MkYiLCJsYXN0"
+        "bmFtZSI6Ilx1MDY0NVx1MDYzMVx1MDYyN1x1MDYyRlx1MDZDQyIsIm5hdGlvbmFsX2lkIj"
+        "oiMzI0MTQwNjg1NyIsIm5hdGlvbmFsX2lkX3ZlcmlmaWVkIjoidHJ1ZSIsImVtYWlsIjoi"
+        "bW9oYW1tYWRtb3JhZGkuZWVAZ21haWwuY29tIiwicGhvbmVfbnVtYmVyIjoiMDkzODgyNT"
+        "ExMjYiLCJwaG9uZV9udW1iZXJfdmVyaWZpZWQiOiJ0cnVlIiwiY3VzdG9tZXJfaXNpbiI6"
+        "IjExMjkzMjQxNDA2ODU3IiwiY3VzdG9tZXJfc2VnbWVudF9pZCI6IjA0MzU1NDQ0NTMxMT"
+        "UyNTE0MTU1MTUxNDU1NTUxMTQ1NDU1NTIyMzM1NDQ0NDU1NTU0IiwiY29udHJhY3QiOlsi"
+        "VGVzdENvbnRyYWN0XzEuMCIsIkVjb250cmFjdF8yLjAiLCJDb2RhbENhdXRpb25UcmFuc2"
+        "FjdGlvbl8xLjAiLCJCYXNpY01hcmtldFJpc2tfMS4wIiwiV2FsbGV0Q29udHJhY3RfMS4x"
+        "IiwiT21zTW9maWRfMS4wIiwiVHJhZGVPcHRpb25Db250cmFjdEVhc3lUcmFkZXJfMS4wIi"
+        "wiQmFzaWNPcHRpb25SaXNrLUVhc3lUcmFkZXJfMS4wIiwiQ292ZXJlZFdhcnJhbnRzXzEu"
+        "MCIsIkhhbWlDb250cmFjdF8xLjAiLCJQYXBlckVDb250cmFjdF8xLjAiLCJQYXBlclRlc3"
+        "RDb250cmFjdF8xLjAiXSwic2lkIjoiMTZBNDY0N0ZDRDRDODFFMEVDRkZCMjY5NjZBNDZB"
+        "NzcifQ.oZysPqXW-lO4febIau4eaL6dINWva-6YpQBPPJTZixl6ju-AOMVtnXEcqHXHYMD"
+        "V4M3uT0x0ZoRWRrq49yDTXNEQuYfJ8ppvOoN8DtPFYJA4ZnDb_4JwN2GB1Ld-N9z9SAt6w"
+        "NwRvEv6SY0eGmvDNY81wRO-haUlsyU-6ur3JU5UVIrMAmrQULl-32__hZnRY9Ovo4GpB9s"
+        "sEqmI7AUivLJawrGyWNY9dpJu8UWkveasxlQwmeOxCeb9kKfbbpsr4WNVPdYwzji-LzytX"
+        "8hrpazaLruZ8vyF5CNK8yj_AGMJy-PHcSarX1_IG2jYKQJIk5Pr5-HNWEmpVH1tzsaqyQ"
     )
 
     def __init__(self, api_key: str, secret_key: str, time_provider: TimeSynchronizer):
@@ -42,6 +50,9 @@ class MofidAuth(AuthBase):
         headers = {}
         if request.headers is not None:
             headers.update(request.headers)
+        # RESTAssistant stamps GET with application/x-www-form-urlencoded; WAF returns HTML 200.
+        if request.method == RESTMethod.GET:
+            headers.pop("Content-Type", None)
         headers.update(self.header_for_authentication())
         request.headers = headers
         return request
@@ -50,4 +61,27 @@ class MofidAuth(AuthBase):
         return request
 
     def header_for_authentication(self) -> Dict[str, str]:
-        return {"Authorization": f"Bearer {MofidAuth.token}"}
+        # Browser-like headers required; bare aiohttp UA is blocked by WAF (HTML).
+        return {
+            "Authorization": f"Bearer {MofidAuth.token}",
+            "User-Agent": (
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+            ),
+            "Accept": "application/json, text/plain, */*",
+            "Accept-language": "fa",
+            "Referer": "https://d.easytrader.ir/",
+            "Origin": "https://d.easytrader.ir",
+        }
+
+    def ws_connect_headers(self) -> Dict[str, str]:
+        """Lightstreamer WS handshake headers (no Bearer; protocol required or 403)."""
+        from hummingbot.connector.exchange.mofid import mofid_constants as CONSTANTS
+        return {
+            "Origin": "https://d.easytrader.ir",
+            "User-Agent": (
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+            ),
+            "Sec-WebSocket-Protocol": CONSTANTS.LS_WS_PROTOCOL,
+        }

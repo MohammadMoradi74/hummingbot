@@ -1,6 +1,8 @@
+import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from hummingbot.connector.exchange.mofid import mofid_constants as CONSTANTS
+from hummingbot.core.data_type.common import TradeType
 from hummingbot.core.data_type.order_book import OrderBook
 from hummingbot.core.data_type.order_book_message import OrderBookMessage, OrderBookMessageType
 
@@ -54,3 +56,24 @@ class MofidOrderBook(OrderBook):
             "bids": msg.get("bids", []),
             "asks": msg.get("asks", []),
         }, timestamp=timestamp)
+
+    @classmethod
+    def trade_message_from_exchange(cls,
+                                    msg: Dict[str, Any],
+                                    metadata: Optional[Dict] = None) -> OrderBookMessage:
+        """
+        Synthetic trade from symbol stream: last-trade-price + cum-volume delta.
+        Side is unknown on the public feed — default BUY.
+        """
+        if metadata:
+            msg.update(metadata)
+        ts = float(msg.get("timestamp", time.time()))
+        trade_id = int(msg.get("trade_id", ts * 1e3))
+        return OrderBookMessage(OrderBookMessageType.TRADE, {
+            "trading_pair": msg["trading_pair"],
+            "trade_type": float(TradeType.BUY.value),
+            "trade_id": trade_id,
+            "update_id": trade_id,
+            "price": msg["price"],
+            "amount": msg["amount"],
+        }, timestamp=ts)

@@ -17,17 +17,22 @@ SNAPSHOT_PATH_URL = "/ms/api/MarketSheet/all"
 ORDER_BOOK_DEPTH = 5
 
 DIFF_EVENT_TYPE = "bestlimit"
-TRADE_EVENT_TYPE = "trade"  # unused for now (no trade stream)
+TRADE_EVENT_TYPE = "trade"  # synthetic from symbol last-price + cum-volume delta
 
 WS_HEARTBEAT_TIME_INTERVAL = 30.0
 
-# Lightstreamer (public bestlimit order book)
+# Lightstreamer (public bestlimit order book + symbol last trade)
 WSS_URL = "wss://ls.easytrader.ir/lightstreamer"
+# Required on WS handshake (403 without it).
+LS_WS_PROTOCOL = "TLCP-2.1.0.lightstreamer.com"
 LS_CREATE_SESSION_URL = "https://ls.easytrader.ir/lightstreamer/create_session.txt?LS_protocol=TLCP-2.1.0"
 LS_ADAPTER_SET = "lsadapter-conf"
 LS_CID = "pcYgxn8m8 feOojyA1U661o3g2.pz47Ag7s"
 LS_BESTLIMIT_ADAPTER = "BESTLIMIT_ADAPTER"
+LS_SYMBOL_ADAPTER = "RLC_ADAPTER"
 LS_CREATE_SESSION_LIMIT_ID = "ls_create_session"
+LS_CHANNEL_BESTLIMIT = "bestlimit"
+LS_CHANNEL_SYMBOL = "symbol"
 
 ONE_MINUTE = 60
 MAX_REQUEST = 5000

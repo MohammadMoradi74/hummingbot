@@ -153,13 +153,16 @@ class MofidAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
         mock_ws = AsyncMock()
         self.data_source._ls_session_id = "Sess123"
         await self.data_source._subscribe_channels(mock_ws)
-        self.assertTrue(mock_ws.send.called)
-        payload = mock_ws.send.call_args[0][0].payload
-        self.assertIn("control\r\n", payload)
-        decoded = urllib.parse.unquote(payload)
+        self.assertEqual(2, mock_ws.send.call_count)
+        payloads = [call.args[0].payload for call in mock_ws.send.call_args_list]
+        decoded = "\n".join(urllib.parse.unquote(p) for p in payloads)
         self.assertIn(f"bestlimit:{self.ex_trading_pair}", decoded)
         self.assertIn("BESTLIMIT_ADAPTER", decoded)
-        self.assertTrue(self._is_logged("INFO", "Subscribed to Mofid Lightstreamer bestlimit channels..."))
+        self.assertIn(f"symbol:{self.ex_trading_pair}", decoded)
+        self.assertIn("RLC_ADAPTER", decoded)
+        self.assertTrue(
+            self._is_logged("INFO", "Subscribed to Mofid Lightstreamer bestlimit and symbol channels...")
+        )
 
     async def test_subscribe_channels_raises_cancel_exception(self):
         mock_ws = AsyncMock()
@@ -236,7 +239,10 @@ class MofidAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
         )
         self.assertTrue(any(msg.startswith("bind_session") for msg in sent_text))
         self.assertTrue(any("bestlimit:" in urllib.parse.unquote(msg) for msg in sent_text))
-        self.assertTrue(self._is_logged("INFO", "Subscribed to Mofid Lightstreamer bestlimit channels..."))
+        self.assertTrue(any("symbol:" in urllib.parse.unquote(msg) for msg in sent_text))
+        self.assertTrue(
+            self._is_logged("INFO", "Subscribed to Mofid Lightstreamer bestlimit and symbol channels...")
+        )
 
     async def test_listen_for_order_book_diffs_cancelled(self):
         mock_queue = AsyncMock()
@@ -280,6 +286,71 @@ class MofidAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
         self.data_source._message_queue[CONSTANTS.TRADE_EVENT_TYPE] = mock_queue
         with self.assertRaises(asyncio.CancelledError):
             await self.data_source.listen_for_trades(self.local_event_loop, asyncio.Queue())
+
+    def _trade_event(self):
+        return {
+            "e": CONSTANTS.TRADE_EVENT_TYPE,
+            "isin": self.ex_trading_pair,
+            "price": "85400",
+            "amount": "150",
+            "timestamp": 1700000000.0,
+            "trade_id": 1700000000000,
+        }
+
+    async def test_listen_for_trades_successful(self):
+        mock_queue = AsyncMock()
+        mock_queue.get.side_effect = [self._trade_event(), asyncio.CancelledError()]
+        self.data_source._message_queue[CONSTANTS.TRADE_EVENT_TYPE] = mock_queue
+        msg_queue: asyncio.Queue = asyncio.Queue()
+        self.listening_task = self.local_event_loop.create_task(
+            self.data_source.listen_for_trades(self.local_event_loop, msg_queue)
+        )
+        msg: OrderBookMessage = await msg_queue.get()
+        self.assertEqual(self.trading_pair, msg.trading_pair)
+        self.assertEqual(1700000000000, msg.trade_id)
+        self.assertEqual(85400.0, float(msg.content["price"]))
+        self.assertEqual(150.0, float(msg.content["amount"]))
+
+    async def test_listen_for_trades_logs_exception(self):
+        mock_queue = AsyncMock()
+        mock_queue.get.side_effect = [self._trade_event(), asyncio.CancelledError()]
+        self.data_source._message_queue[CONSTANTS.TRADE_EVENT_TYPE] = mock_queue
+        self.connector.trading_pair_associated_to_exchange_symbol = AsyncMock(
+            side_effect=Exception("parse fail")
+        )
+        try:
+            await self.data_source.listen_for_trades(self.local_event_loop, asyncio.Queue())
+        except asyncio.CancelledError:
+            pass
+        self.assertTrue(
+            self._is_logged("ERROR", "Unexpected error when processing public trade updates from exchange")
+        )
+
+    async def test_symbol_snapshot_does_not_emit_trade(self):
+        isin = self.ex_trading_pair
+        self.data_source._symbol_state[isin] = {}
+        await self.data_source._handle_symbol_update(isin, ["85400", "1000000"])
+        self.assertEqual(0, self.data_source._message_queue[CONSTANTS.TRADE_EVENT_TYPE].qsize())
+        self.assertEqual(85400.0, self.data_source._last_traded_prices[self.trading_pair])
+        self.assertEqual("1000000", self.data_source._symbol_state[isin]["total-number-of-shares-traded"])
+
+    async def test_symbol_volume_delta_emits_trade(self):
+        isin = self.ex_trading_pair
+        self.data_source._symbol_state[isin] = {
+            "last-trade-price": "85400",
+            "total-number-of-shares-traded": "1000000",
+        }
+        await self.data_source._handle_symbol_update(isin, ["85500", "1000150"])
+        self.assertEqual(1, self.data_source._message_queue[CONSTANTS.TRADE_EVENT_TYPE].qsize())
+        event = self.data_source._message_queue[CONSTANTS.TRADE_EVENT_TYPE].get_nowait()
+        self.assertEqual("85500", event["price"])
+        self.assertEqual("150", event["amount"])
+        self.assertEqual(85500.0, self.data_source._last_traded_prices[self.trading_pair])
+
+    async def test_get_last_traded_prices_from_cache(self):
+        self.data_source._last_traded_prices[self.trading_pair] = 85400.0
+        prices = await self.data_source.get_last_traded_prices([self.trading_pair, "OTHER-IRR"])
+        self.assertEqual({self.trading_pair: 85400.0}, prices)
 
     @aioresponses()
     async def test_listen_for_order_book_snapshots_cancelled_when_fetching_snapshot(self, mock_api):

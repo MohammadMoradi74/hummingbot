@@ -10,6 +10,12 @@ BESTLIMIT_SCHEMA: List[str] = [
     "buy-volume-5", "sell-volume-5", "buy-order-count-5", "sell-order-count-5", "buy-price-5", "sell-price-5",
 ]
 
+# Minimal symbol schema for last price + cumulative day volume (synthetic trades).
+SYMBOL_TRADE_SCHEMA: List[str] = [
+    "last-trade-price",
+    "total-number-of-shares-traded",
+]
+
 
 def expand_tlcp_fields(raw_fields: List[str]) -> List[str]:
     """Expand Lightstreamer ^N compression (N unchanged empty fields)."""
