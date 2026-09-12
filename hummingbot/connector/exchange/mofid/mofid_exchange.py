@@ -448,6 +448,8 @@ class MofidExchange(ExchangePyBase):
         )
 
     async def _fetch_order_trades(self, exchange_order_id: str) -> List[Dict[str, Any]]:
+        # Live (tmp3): GET /easy/api/orderHistory/trades/ + header order-id=<place id / isr>.
+        # Correct shape is a bare list; can lag ~0.5s–minutes behind OMS (empty [] right after fill).
         result = await self._api_get(
             path_url=CONSTANTS.ORDER_TRADES_PATH_URL,
             is_auth_required=True,
@@ -458,13 +460,15 @@ class MofidExchange(ExchangePyBase):
             return result
         return result.get("trades") or result.get("records") or []
 
-    async def _all_trade_updates_for_order(self, order: InFlightOrder) -> List[TradeUpdate]:
-        trade_updates = []
-        if order.exchange_order_id is None:
-            return trade_updates
-
-        trades = await self._fetch_order_trades(order.exchange_order_id)
+    def _trade_updates_from_raw_trades(
+            self,
+            order: InFlightOrder,
+            trades: List[Dict[str, Any]],
+    ) -> List[TradeUpdate]:
+        """Parse fill rows from either open-order embed or orderHistory/trades."""
+        trade_updates: List[TradeUpdate] = []
         for trade in trades:
+            # Embed uses isCancel; history uses isCanceled (null when live).
             if trade.get("isCanceled") or trade.get("isCancel"):
                 continue
             qty = Decimal(str(trade.get("quantity", 0)))
@@ -477,6 +481,12 @@ class MofidExchange(ExchangePyBase):
                 percent=self._commission_for_isin(order.base_asset),
             )
             trade_id = str(trade.get("tradeNumber") or trade.get("id"))
+            # Embed: dateTime; history: date / createDateTime (live probe 2026-09-12).
+            ts_raw = (
+                trade.get("dateTime")
+                or trade.get("date")
+                or trade.get("createDateTime")
+            )
             trade_updates.append(
                 TradeUpdate(
                     trade_id=trade_id,
@@ -487,11 +497,33 @@ class MofidExchange(ExchangePyBase):
                     fill_base_amount=qty,
                     fill_quote_amount=qty * price,
                     fill_price=price,
-                    fill_timestamp=self._parse_mofid_timestamp(trade.get("date") or trade.get("createDateTime")),
+                    fill_timestamp=self._parse_mofid_timestamp(ts_raw),
                     is_taker=False,
                 )
             )
         return trade_updates
+
+    async def _all_trade_updates_for_order(self, order: InFlightOrder) -> List[TradeUpdate]:
+        if order.exchange_order_id is None:
+            return []
+
+        exchange_order_id = order.exchange_order_id
+        # Primary: GET /core/api/order → orders[].trades (same poll as status).
+        # Live: embed appears with orderState=20 / executedQuantity within ~0.5s; do not wait on history.
+        row = self._find_open_order(exchange_order_id)
+        if row is None:
+            await self._get_open_orders(force_refresh=True)
+            row = self._find_open_order(exchange_order_id)
+
+        embedded = list((row or {}).get("trades") or [])
+        if embedded:
+            return self._trade_updates_from_raw_trades(order, embedded)
+
+        # Fallback when order already dropped off the open list or embed still empty.
+        return self._trade_updates_from_raw_trades(
+            order,
+            await self._fetch_order_trades(exchange_order_id),
+        )
 
     async def _update_balances(self):
         local_asset_names = set(self._account_balances.keys())
