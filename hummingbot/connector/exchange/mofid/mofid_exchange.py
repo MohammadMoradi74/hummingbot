@@ -225,6 +225,8 @@ class MofidExchange(ExchangePyBase):
             raise IOError(f"Mofid place order rejected: {order_result}")
 
         exchange_order_id = str(order_result["id"])
+        # Live: buyPower drops / block rises as soon as order is OnBoard; don't wait only on money WS.
+        self._schedule_balance_refresh()
         return exchange_order_id, self.current_timestamp
 
     async def _place_cancel(self, order_id: str, tracked_order: InFlightOrder) -> bool:
@@ -236,6 +238,8 @@ class MofidExchange(ExchangePyBase):
             limit_id=CONSTANTS.CANCEL_ORDER_PATH_URL,
         )
         if cancel_result.get("isSuccessful"):
+            # Live: cancel clears block and restores buyPowerT0 promptly.
+            self._schedule_balance_refresh()
             return True
         raise IOError(f"Mofid cancel rejected: {cancel_result}")
 
@@ -542,8 +546,12 @@ class MofidExchange(ExchangePyBase):
             limit_id=CONSTANTS.MONEY_PATH_URL,
         )
         quote = CONSTANTS.QUOTE_ASSET
-        available = Decimal(str(money.get("buyPowerT0", 0)))
-        total = Decimal(str(money.get("t2", money.get("buyPowerT0", 0))))
+        # Live GET /easy/api/money (tmp3): buyPowerT0 = spendable; block/blockT2 = open-order lock.
+        # While a buy rests: buyPower falls, block rises, t2 stays flat — so total ≠ t2 for HB.
+        # Use available=buyPowerT0, total=buyPowerT0+block (prefer block, else blockT2).
+        available = Decimal(str(money.get("buyPowerT0", 0) or 0))
+        blocked = Decimal(str(money.get("block", money.get("blockT2", 0)) or 0))
+        total = available + blocked
         self._account_available_balances[quote] = available
         self._account_balances[quote] = total
         remote_asset_names.add(quote)

@@ -958,6 +958,27 @@ class MofidExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
         self.assertEqual(Decimal("10"), self.exchange.available_balances[self.base_asset])
         self.assertEqual(Decimal("0"), self.exchange.available_balances[self.quote_asset])
 
+        # Open buy lock: available=buyPowerT0, total=buyPowerT0+block (live resting-order shape).
+        mock_api.get(
+            re.compile(f"^{money_url}".replace(".", r"\.").replace("?", r"\?")),
+            body=json.dumps({
+                "buyPowerT0": 40497717,
+                "buyPowerT1": 40497717,
+                "buyPowerT2": 40497717,
+                "t2": 51513077,
+                "block": 11015360,
+                "blockT2": 11015360,
+            }),
+        )
+        mock_api.get(
+            re.compile(f"^{portfolio_url}".replace(".", r"\.").replace("?", r"\?")),
+            body=json.dumps({"items": []}),
+        )
+        await self.exchange._update_balances()
+        self.assertEqual(Decimal("40497717"), self.exchange.available_balances[self.quote_asset])
+        self.assertEqual(Decimal("51513077"), self.exchange.get_all_balances()[self.quote_asset])
+        self.assertNotIn(self.base_asset, self.exchange.available_balances)
+
     @aioresponses()
     async def test_check_network_success(self, mock_api):
         url = self.network_status_url
