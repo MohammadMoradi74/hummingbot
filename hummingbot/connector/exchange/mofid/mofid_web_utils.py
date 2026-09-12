@@ -38,9 +38,11 @@ def build_api_factory(
         auth: Optional[AuthBase] = None, ) -> WebAssistantsFactory:
     throttler = throttler or create_throttler()
     time_synchronizer = time_synchronizer or TimeSynchronizer()
+    # Live: /easy/api/account/server-time/{ms} requires Bearer (401 without auth).
     time_provider = time_provider or (lambda: get_current_server_time(
         throttler=throttler,
         domain=domain,
+        auth=auth,
     ))
     api_factory = WebAssistantsFactory(
         throttler=throttler,
@@ -51,8 +53,11 @@ def build_api_factory(
     return api_factory
 
 
-def build_api_factory_without_time_synchronizer_pre_processor(throttler: AsyncThrottler) -> WebAssistantsFactory:
-    api_factory = WebAssistantsFactory(throttler=throttler)
+def build_api_factory_without_time_synchronizer_pre_processor(
+        throttler: AsyncThrottler,
+        auth: Optional[AuthBase] = None,
+) -> WebAssistantsFactory:
+    api_factory = WebAssistantsFactory(throttler=throttler, auth=auth)
     return api_factory
 
 
@@ -60,20 +65,38 @@ def create_throttler() -> AsyncThrottler:
     return AsyncThrottler(CONSTANTS.RATE_LIMITS)
 
 
+def server_time_path(client_ms: Optional[int] = None) -> str:
+    """GET path: /easy/api/account/server-time/{clientUnixMs}."""
+    client_ms = int(client_ms if client_ms is not None else time.time() * 1e3)
+    return f"{CONSTANTS.SERVER_TIME_PATH_URL}/{client_ms}"
+
+
+def parse_server_timestamp_ms(response: dict) -> float:
+    """
+    Live body: {"diff": <int>, "serverTimestamp": <epoch_ms>}.
+    TimeSynchronizer expects milliseconds since epoch.
+    """
+    if "serverTimestamp" not in response:
+        raise KeyError(f"Mofid server-time missing serverTimestamp: {response!r}")
+    return float(response["serverTimestamp"])
+
+
 async def get_current_server_time(
         throttler: Optional[AsyncThrottler] = None,
         domain: str = CONSTANTS.DEFAULT_DOMAIN,
+        auth: Optional[AuthBase] = None,
 ) -> float:
     throttler = throttler or create_throttler()
-    api_factory = build_api_factory_without_time_synchronizer_pre_processor(throttler=throttler)
+    api_factory = build_api_factory_without_time_synchronizer_pre_processor(
+        throttler=throttler,
+        auth=auth,
+    )
     rest_assistant = await api_factory.get_rest_assistant()
-    client_ms = int(time.time() * 1e3)
-    path_url = f"{CONSTANTS.SERVER_TIME_PATH_URL}/{client_ms}"
+    path_url = server_time_path()
     response = await rest_assistant.execute_request(
-        url=public_rest_url(path_url=path_url, domain=domain),
+        url=private_rest_url(path_url=path_url, domain=domain),
         method=RESTMethod.GET,
         throttler_limit_id=CONSTANTS.SERVER_TIME_PATH_URL,
         is_auth_required=True,
     )
-    server_time = response["serverTimestamp"]
-    return server_time
+    return parse_server_timestamp_ms(response)

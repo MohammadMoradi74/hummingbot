@@ -489,6 +489,23 @@ class MofidExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
         self.assertEqual(OrderState.PENDING_CREATE, CONSTANTS.ORDER_STATE[7])
         self.assertEqual(OrderState.FILLED, CONSTANTS.ORDER_STATE[20])
 
+    def test_format_oms_rejection_surfaces_code_and_ignores_orphan_id(self):
+        # Live tmp3 failed place: isSuccessful=False with orphan id + omsError 7003.
+        result = {
+            "isSuccessful": False,
+            "id": "1121DMbrkZJixnoY",
+            "message": "7003: قیمت خارج از محدوده مجاز می‌باشد",
+            "omsError": [{
+                "name": "PriceIsNotInRangeError",
+                "error": "قیمت خارج از محدوده مجاز می‌باشد",
+                "code": 7003,
+            }],
+        }
+        msg = self.exchange._format_oms_rejection("place order", result)
+        self.assertIn("7003", msg)
+        self.assertIn("PriceIsNotInRangeError", msg)
+        self.assertNotIn("1121DMbrkZJixnoY", msg)
+
     def exchange_symbol_for_tokens(self, base_token: str, quote_token: str) -> str:
         return base_token
 
@@ -987,6 +1004,22 @@ class MofidExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
         network_status = await self.exchange.check_network()
         from hummingbot.core.network_iterator import NetworkStatus
         self.assertEqual(NetworkStatus.CONNECTED, network_status)
+
+    @aioresponses()
+    async def test_update_time_synchronizer_uses_server_timestamp(self, mock_api):
+        url = self.network_status_url
+        regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
+        server_ms = 1789209510125
+        mock_api.get(
+            regex_url,
+            body=json.dumps({"diff": 50, "serverTimestamp": server_ms}),
+            repeat=True,
+        )
+        await self.exchange._update_time_synchronizer()
+        # Offset samples registered ⇒ synchronizer time is finite (not NaN).
+        self.assertTrue(len(self.exchange._time_synchronizer._time_offset_ms) > 0)
+        synced = self.exchange._time_synchronizer.time()
+        self.assertEqual(synced, synced)
 
     @aioresponses()
     async def test_check_network_failure(self, mock_api):

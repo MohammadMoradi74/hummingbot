@@ -1,6 +1,5 @@
 import asyncio
 import json
-import time
 from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
@@ -177,6 +176,27 @@ class MofidExchange(ExchangePyBase):
     def _commission_for_isin(self, isin: str) -> Decimal:
         return self._symbol_commissions.get(isin, Decimal("0.0012"))
 
+    @staticmethod
+    def _format_oms_rejection(action: str, result: Dict[str, Any]) -> str:
+        """Build a clear error from place/cancel OMS body.
+
+        Live failed place (price band): isSuccessful=False but still returns an orphan id —
+        do not treat that id as an accepted exchange order. Prefer omsError code/name/error
+        (e.g. 7003 PriceIsNotInRangeError), else message.
+        """
+        parts: List[str] = []
+        for err in result.get("omsError") or []:
+            if not isinstance(err, dict):
+                continue
+            code = err.get("code")
+            name = err.get("name") or ""
+            text = err.get("error") or ""
+            chunk = " ".join(str(x) for x in (code, name, text) if x not in (None, ""))
+            if chunk:
+                parts.append(chunk)
+        detail = "; ".join(parts) if parts else (result.get("message") or str(result))
+        return f"Mofid {action} rejected: {detail}"
+
     async def _place_order(
             self,
             order_id: str,
@@ -221,8 +241,9 @@ class MofidExchange(ExchangePyBase):
             limit_id=CONSTANTS.ORDER_PATH_URL,
         )
 
-        if not order_result.get("isSuccessful"):
-            raise IOError(f"Mofid place order rejected: {order_result}")
+        # Strict True: failed responses may still include a disposable "id".
+        if order_result.get("isSuccessful") is not True:
+            raise IOError(self._format_oms_rejection("place order", order_result))
 
         exchange_order_id = str(order_result["id"])
         # Live: buyPower drops / block rises as soon as order is OnBoard; don't wait only on money WS.
@@ -237,20 +258,42 @@ class MofidExchange(ExchangePyBase):
             is_auth_required=True,
             limit_id=CONSTANTS.CANCEL_ORDER_PATH_URL,
         )
-        if cancel_result.get("isSuccessful"):
+        if cancel_result.get("isSuccessful") is True:
             # Live: cancel clears block and restores buyPowerT0 promptly.
             self._schedule_balance_refresh()
             return True
-        raise IOError(f"Mofid cancel rejected: {cancel_result}")
+        raise IOError(self._format_oms_rejection("cancel order", cancel_result))
 
     async def _make_network_check_request(self):
-        client_ms = int(time.time() * 1e3)
-        path_url = f"{CONSTANTS.SERVER_TIME_PATH_URL}/{client_ms}"
+        # Same authenticated server-time endpoint used for TimeSynchronizer.
+        path_url = web_utils.server_time_path()
         await self._api_get(
             path_url=path_url,
             is_auth_required=True,
             limit_id=CONSTANTS.SERVER_TIME_PATH_URL,
         )
+
+    async def _update_time_synchronizer(self, pass_on_non_cancelled_error: bool = False):
+        # Prefer connector auth path: standalone web_utils call without Bearer returns 401.
+        try:
+            await self._time_synchronizer.update_server_time_offset_with_time_provider(
+                time_provider=self._get_current_server_time_ms()
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            if not pass_on_non_cancelled_error:
+                self.logger().exception(f"Error requesting time from {self.name_cap} server")
+                raise
+
+    async def _get_current_server_time_ms(self) -> float:
+        """Return Mofid serverTimestamp (epoch ms) for TimeSynchronizer."""
+        response = await self._api_get(
+            path_url=web_utils.server_time_path(),
+            is_auth_required=True,
+            limit_id=CONSTANTS.SERVER_TIME_PATH_URL,
+        )
+        return web_utils.parse_server_timestamp_ms(response)
 
     async def _make_trading_rules_request(self) -> Any:
         return await self._api_post(
@@ -302,10 +345,6 @@ class MofidExchange(ExchangePyBase):
 
     async def _update_trading_fees(self):
         pass
-
-    async def _update_time_synchronizer(self, pass_on_non_cancelled_error: bool = False):
-        # Bearer JWT auth; server-time sync not required for signing.
-        return
 
     def _initialize_trading_pair_symbols_from_exchange_info(self, exchange_info: Dict[str, Any]):
         mapping = bidict()
