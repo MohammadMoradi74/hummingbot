@@ -70,19 +70,23 @@ USER_LOGIN_EVENT_TYPE = "login"
 LS_ORDER_SCHEMA = ["timestamp", "meta"]
 LS_META_ONLY_SCHEMA = ["meta"]
 
-# REST orderState ints (from open orders / orderReport / WS orderStateStr)
+# REST orderState ints (live GET /core/api/order + orderReport).
+# Live 2026-09-12: 7=OnSending (in-flight to exchange), 6=OnBoard, 20=OrderExecuted
+# still listed briefly on the open-orders endpoint after fill.
 ORDER_STATE = {
     2: OrderState.FAILED,
+    7: OrderState.PENDING_CREATE,  # OnSending — not yet OnBoard
     6: OrderState.OPEN,  # OnBoard
     8: OrderState.PARTIALLY_FILLED,  # PartiallyExecution
     15: OrderState.PARTIALLY_FILLED,  # modified / residual open with fills
     18: OrderState.CANCELED,
-    20: OrderState.FILLED,  # OrderExecuted
+    20: OrderState.FILLED,  # OrderExecuted (may still appear on open list)
     36: OrderState.CANCELED,  # PartiallyExecutedAndCanceled
 }
 
-# Lightstreamer private order channel string states
+# Lightstreamer private order channel string states (meta.state / orderStateStr)
 WS_ORDER_STATE = {
+    "OnSending": OrderState.PENDING_CREATE,
     "OnBoard": OrderState.OPEN,
     "PartiallyExecution": OrderState.PARTIALLY_FILLED,
     "OrderExecuted": OrderState.FILLED,

@@ -363,22 +363,29 @@ class MofidExchange(ExchangePyBase):
 
     @staticmethod
     def _map_rest_order_to_state(row: Dict[str, Any]) -> OrderState:
+        """Map GET /core/api/order row → HB OrderState.
+
+        Live: filled orders stay on this list briefly with orderState=20 / OrderExecuted
+        and executedQuantity; treat that as FILLED (not OPEN).
+        """
         executed = Decimal(str(row.get("executedQuantity", 0) or 0))
         quantity = Decimal(str(row.get("quantity", 0) or 0))
         order_state = row.get("orderState")
 
-        if order_state == 2:
-            return OrderState.FAILED
-        if order_state == 20 or (quantity > 0 and executed >= quantity):
+        # Prefer quantity evidence when present (open list can lag on state int).
+        if quantity > 0 and executed >= quantity:
             return OrderState.FILLED
-        if order_state == 18:
-            return OrderState.CANCELED
-        if order_state == 36:
-            return OrderState.CANCELED
-        if order_state == 8 or (executed > 0 and executed < quantity):
+        if executed > 0 and executed < quantity:
             return OrderState.PARTIALLY_FILLED
+
         if order_state in CONSTANTS.ORDER_STATE:
             return CONSTANTS.ORDER_STATE[order_state]
+
+        # Fallback: orderStateStr from same payload (e.g. "OnSending").
+        state_str = row.get("orderStateStr")
+        if state_str in CONSTANTS.WS_ORDER_STATE:
+            return CONSTANTS.WS_ORDER_STATE[state_str]
+
         return OrderState.OPEN
 
     def _parse_mofid_timestamp(self, ts_str: Optional[str]) -> float:

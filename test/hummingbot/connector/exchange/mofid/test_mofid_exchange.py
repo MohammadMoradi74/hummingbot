@@ -459,6 +459,36 @@ class MofidExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
     def expected_fill_trade_id(self) -> str:
         return "30000"
 
+    def test_map_rest_order_states_onsending_and_filled_on_open_list(self):
+        from hummingbot.core.data_type.in_flight_order import OrderState
+
+        map_state = self.exchange._map_rest_order_to_state
+        self.assertEqual(
+            OrderState.PENDING_CREATE,
+            map_state({"orderState": 7, "orderStateStr": "OnSending", "quantity": 100, "executedQuantity": 0}),
+        )
+        self.assertEqual(
+            OrderState.PENDING_CREATE,
+            map_state({"orderStateStr": "OnSending", "quantity": 100, "executedQuantity": 0}),
+        )
+        self.assertEqual(
+            OrderState.OPEN,
+            map_state({"orderState": 6, "orderStateStr": "OnBoard", "quantity": 100, "executedQuantity": 0}),
+        )
+        # Live: OrderExecuted still on GET /core/api/order briefly
+        self.assertEqual(
+            OrderState.FILLED,
+            map_state({"orderState": 20, "orderStateStr": "OrderExecuted", "quantity": 100, "executedQuantity": 100}),
+        )
+        self.assertEqual(
+            OrderState.FILLED,
+            map_state({"orderState": 6, "quantity": 100, "executedQuantity": 100}),
+        )
+        self.assertEqual(OrderState.FILLED, CONSTANTS.WS_ORDER_STATE["OrderExecuted"])
+        self.assertEqual(OrderState.PENDING_CREATE, CONSTANTS.WS_ORDER_STATE["OnSending"])
+        self.assertEqual(OrderState.PENDING_CREATE, CONSTANTS.ORDER_STATE[7])
+        self.assertEqual(OrderState.FILLED, CONSTANTS.ORDER_STATE[20])
+
     def exchange_symbol_for_tokens(self, base_token: str, quote_token: str) -> str:
         return base_token
 
