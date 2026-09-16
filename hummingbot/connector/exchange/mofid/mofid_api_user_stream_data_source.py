@@ -53,7 +53,7 @@ class MofidAPIUserStreamDataSource(UserStreamTrackerDataSource):
             "LS_idle_millis": "0",
             "LS_cid": CONSTANTS.LS_CID,
             "LS_adapter_set": CONSTANTS.LS_ADAPTER_SET,
-            "LS_user": MofidAuth.ls_user,
+            "LS_user": self._auth.ls_user,
         })
         rest_assistant = await self._api_factory.get_rest_assistant()
         request = RESTRequest(

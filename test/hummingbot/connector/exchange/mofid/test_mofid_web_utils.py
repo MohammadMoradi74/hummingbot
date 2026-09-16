@@ -48,7 +48,7 @@ class MofidServerTimeRequestTests(IsolatedAsyncioWrapperTestCase):
 
     @aioresponses()
     async def test_get_current_server_time_parses_server_timestamp(self, mock_api):
-        auth = MofidAuth(api_key="", secret_key="", time_provider=TimeSynchronizer())
+        auth = MofidAuth(api_key="testAPIKey", secret_key="testLsUser", time_provider=TimeSynchronizer())
         url_prefix = web_utils.private_rest_url(CONSTANTS.SERVER_TIME_PATH_URL)
         mock_api.get(
             re.compile(f"^{re.escape(url_prefix)}"),

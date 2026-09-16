@@ -520,8 +520,7 @@ class MofidExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
 
     def validate_auth_credentials_present(self, request_call: RequestCall):
         headers = request_call.kwargs.get("headers") or {}
-        self.assertIn("Authorization", headers)
-        self.assertTrue(str(headers["Authorization"]).startswith("Bearer "))
+        self.assertEqual(headers.get("Authorization"), "Bearer testAPIKey")
 
     def _request_json(self, request_call: RequestCall) -> Dict[str, Any]:
         data = request_call.kwargs.get("data")

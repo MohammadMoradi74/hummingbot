@@ -41,7 +41,7 @@ class MofidAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
         self.mocking_assistant = NetworkMockingAssistant(self.local_event_loop)
         api_factory = WebAssistantsFactory(
             throttler=web_utils.create_throttler(),
-            auth=MofidAuth("", "", TimeSynchronizer()),
+            auth=MofidAuth("testAPIKey", "testLsUser", TimeSynchronizer()),
         )
         self.connector = MagicMock()
         self.connector._web_assistants_factory = api_factory

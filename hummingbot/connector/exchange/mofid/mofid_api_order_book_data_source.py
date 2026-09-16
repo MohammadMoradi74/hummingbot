@@ -77,6 +77,8 @@ class MofidAPIOrderBookDataSource(OrderBookTrackerDataSource):
         )
 
     async def _create_lightstreamer_session(self) -> str:
+        auth = self._api_factory._auth
+        ls_user = auth.ls_user if isinstance(auth, MofidAuth) else ""
         body = urllib.parse.urlencode({
             "LS_phase": "1",
             "LS_cause": "new.api",
@@ -85,7 +87,7 @@ class MofidAPIOrderBookDataSource(OrderBookTrackerDataSource):
             "LS_idle_millis": "0",
             "LS_cid": CONSTANTS.LS_CID,
             "LS_adapter_set": CONSTANTS.LS_ADAPTER_SET,
-            "LS_user": MofidAuth.ls_user,
+            "LS_user": ls_user,
         })
         rest_assistant = await self._api_factory.get_rest_assistant()
         request = RESTRequest(

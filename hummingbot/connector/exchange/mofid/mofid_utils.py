@@ -34,11 +34,11 @@ def is_exchange_information_valid(exchange_info: Dict[str, Any]) -> bool:
 
 class MofidConfigMap(BaseConnectorConfigMap):
     connector: str = "mofid"
-    # Placeholder until auth is reverse-engineered (likely session/cookie, not HMAC).
+    # Field names keep *_api_key / *_api_secret so `connect` / Security.api_keys work.
     mofid_api_key: SecretStr = Field(
         default=...,
         json_schema_extra={
-            "prompt": lambda cm: "Enter your Mofid API key",
+            "prompt": lambda cm: "Enter your Mofid Bearer JWT",
             "is_secure": True,
             "is_connect_key": True,
             "prompt_on_new": True,
@@ -47,7 +47,7 @@ class MofidConfigMap(BaseConnectorConfigMap):
     mofid_api_secret: SecretStr = Field(
         default=...,
         json_schema_extra={
-            "prompt": lambda cm: "Enter your Mofid API secret",
+            "prompt": lambda cm: "Enter your Mofid LS_user (customer_isin)",
             "is_secure": True,
             "is_connect_key": True,
             "prompt_on_new": True,

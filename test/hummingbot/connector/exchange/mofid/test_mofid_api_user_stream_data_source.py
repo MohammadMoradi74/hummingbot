@@ -27,7 +27,7 @@ class MofidAPIUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
         self.log_records = []
         self.listening_task: Optional[asyncio.Task] = None
         self.mocking_assistant = NetworkMockingAssistant(self.local_event_loop)
-        self.auth = MofidAuth("", "", TimeSynchronizer())
+        self.auth = MofidAuth("testAPIKey", "testLsUser", TimeSynchronizer())
         api_factory = WebAssistantsFactory(
             throttler=web_utils.create_throttler(),
             auth=self.auth,
