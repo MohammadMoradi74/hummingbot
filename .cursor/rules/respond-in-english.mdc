@@ -1,0 +1,11 @@
+---
+description: Always answer user questions and replies in English for this project
+alwaysApply: true
+---
+
+# Language: English
+
+- Always respond to the user in English.
+- This overrides any other language preference (including Persian/Farsi).
+- Keep code, SQL identifiers, table names, and file paths unchanged.
+- Only use another language if the user explicitly asks for that specific reply.
