@@ -36,7 +36,7 @@ def _build_gold_etf_config():
 
 
 _GOLD_SYMBOLS, _DEFAULT_TRADING_PAIRS, _HB_TO_STRAT_MAP = _build_gold_etf_config()
-MOBIN_MIN_NOTIONAL = Decimal("1000000")  # real exchange floor; connector keeps 1 for dust sells
+MOFID_MIN_NOTIONAL = Decimal("5000000")  # real exchange floor; connector keeps 1 for dust sells
 
 
 class GoldEtfStatisticalArbitrageConfig(StrategyV2ConfigBase):
@@ -591,12 +591,12 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
         notional = amount * price
 
         if side == "buy":
-            return notional >= MOBIN_MIN_NOTIONAL
+            return notional >= MOFID_MIN_NOTIONAL
 
         if side != "sell":
             return False
 
-        if notional >= MOBIN_MIN_NOTIONAL:
+        if notional >= MOFID_MIN_NOTIONAL:
             return True
 
         base, _ = trading_pair.split("-")
@@ -609,7 +609,7 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
         is_sell_all = amount >= (available - epsilon)
         available_notional = available * price
 
-        return is_sell_all and available_notional < MOBIN_MIN_NOTIONAL
+        return is_sell_all and available_notional < MOFID_MIN_NOTIONAL
 
     def buy(
         self,
