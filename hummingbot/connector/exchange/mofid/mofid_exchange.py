@@ -54,8 +54,8 @@ class MofidExchange(ExchangePyBase):
         self._balance_refresh_task: Optional[asyncio.Task] = None
         self._balance_refresh_debounce_s = 0.5
         super().__init__(balance_asset_limit, rate_limits_share_pct)
-        # Money WS meta is opaque; balances refresh via REST debounce, not inline WS fields.
-        self.real_time_balance_update = False
+        # Portfolio REST reports total asset only; free base is derived from open sell orders.
+        self.real_time_balance_update = True
 
     @property
     def authenticator(self):
@@ -404,6 +404,25 @@ class MofidExchange(ExchangePyBase):
                 return row
         return None
 
+    def _sell_locked_by_isin(self, orders: List[Dict[str, Any]]) -> Dict[str, Decimal]:
+        """Sum remaining sell qty per ISIN from open orders (/performance has no hold field)."""
+        locked: Dict[str, Decimal] = {}
+        open_states = {OrderState.OPEN, OrderState.PARTIALLY_FILLED, OrderState.PENDING_CREATE}
+        for row in orders:
+            if row.get("side") != CONSTANTS.SIDE_SELL:
+                continue
+            if self._map_rest_order_to_state(row) not in open_states:
+                continue
+            isin = row.get("symbolIsin")
+            if not isin:
+                continue
+            quantity = Decimal(str(row.get("quantity", 0) or 0))
+            executed = Decimal(str(row.get("executedQuantity", 0) or 0))
+            remaining = quantity - executed
+            if remaining > 0:
+                locked[isin] = locked.get(isin, Decimal("0")) + remaining
+        return locked
+
     @staticmethod
     def _map_rest_order_to_state(row: Dict[str, Any]) -> OrderState:
         """Map GET /core/api/order row → HB OrderState.
@@ -595,6 +614,9 @@ class MofidExchange(ExchangePyBase):
         self._account_balances[quote] = total
         remote_asset_names.add(quote)
 
+        open_orders = await self._get_open_orders(force_refresh=True)
+        sell_locked = self._sell_locked_by_isin(open_orders)
+
         portfolio = await self._api_get(
             path_url=CONSTANTS.PORTFOLIO_PATH_URL,
             is_auth_required=True,
@@ -604,9 +626,12 @@ class MofidExchange(ExchangePyBase):
             isin = item.get("symbolIsin")
             if not isin:
                 continue
-            asset_qty = Decimal(str(item.get("asset", 0)))
-            self._account_available_balances[isin] = asset_qty
-            self._account_balances[isin] = asset_qty
+            total = Decimal(str(item.get("asset", 0)))
+            available = total - sell_locked.get(isin, Decimal("0"))
+            if available < Decimal("0"):
+                available = Decimal("0")
+            self._account_available_balances[isin] = available
+            self._account_balances[isin] = total
             remote_asset_names.add(isin)
 
         for asset_name in local_asset_names.difference(remote_asset_names):

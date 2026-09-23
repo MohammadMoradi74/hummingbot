@@ -897,10 +897,16 @@ class MofidExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
             callback: Optional[Callable] = lambda *args, **kwargs: None,
     ) -> str:
         money_url = web_utils.private_rest_url(CONSTANTS.MONEY_PATH_URL)
+        open_orders_url = web_utils.private_rest_url(CONSTANTS.OPEN_ORDERS_PATH_URL)
         portfolio_url = web_utils.private_rest_url(CONSTANTS.PORTFOLIO_PATH_URL)
         mock_api.get(
             re.compile(f"^{money_url}".replace(".", r"\.").replace("?", r"\?")),
             body=json.dumps(response),
+            callback=callback,
+        )
+        mock_api.get(
+            re.compile(f"^{open_orders_url}".replace(".", r"\.").replace("?", r"\?")),
+            body=json.dumps({"orders": []}),
             callback=callback,
         )
         if response.get("buyPowerT0", 0) == 0 and response.get("t2", 0) == 0:
@@ -945,10 +951,15 @@ class MofidExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
     async def test_update_balances(self, mock_api):
         money = self.balance_request_mock_response_for_base_and_quote
         money_url = web_utils.private_rest_url(CONSTANTS.MONEY_PATH_URL)
+        open_orders_url = web_utils.private_rest_url(CONSTANTS.OPEN_ORDERS_PATH_URL)
         portfolio_url = web_utils.private_rest_url(CONSTANTS.PORTFOLIO_PATH_URL)
         mock_api.get(
             re.compile(f"^{money_url}".replace(".", r"\.").replace("?", r"\?")),
             body=json.dumps(money),
+        )
+        mock_api.get(
+            re.compile(f"^{open_orders_url}".replace(".", r"\.").replace("?", r"\?")),
+            body=json.dumps({"orders": []}),
         )
         mock_api.get(
             re.compile(f"^{portfolio_url}".replace(".", r"\.").replace("?", r"\?")),
@@ -965,6 +976,10 @@ class MofidExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
         mock_api.get(
             re.compile(f"^{money_url}".replace(".", r"\.").replace("?", r"\?")),
             body=json.dumps(self.balance_request_mock_response_only_base),
+        )
+        mock_api.get(
+            re.compile(f"^{open_orders_url}".replace(".", r"\.").replace("?", r"\?")),
+            body=json.dumps({"orders": []}),
         )
         mock_api.get(
             re.compile(f"^{portfolio_url}".replace(".", r"\.").replace("?", r"\?")),
@@ -987,6 +1002,10 @@ class MofidExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
             }),
         )
         mock_api.get(
+            re.compile(f"^{open_orders_url}".replace(".", r"\.").replace("?", r"\?")),
+            body=json.dumps({"orders": []}),
+        )
+        mock_api.get(
             re.compile(f"^{portfolio_url}".replace(".", r"\.").replace("?", r"\?")),
             body=json.dumps({"items": []}),
         )
@@ -994,6 +1013,36 @@ class MofidExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
         self.assertEqual(Decimal("40497717"), self.exchange.available_balances[self.quote_asset])
         self.assertEqual(Decimal("51513077"), self.exchange.get_all_balances()[self.quote_asset])
         self.assertNotIn(self.base_asset, self.exchange.available_balances)
+
+        # Open sell lock: portfolio still reports full asset; available must subtract resting sell qty.
+        mock_api.get(
+            re.compile(f"^{money_url}".replace(".", r"\.").replace("?", r"\?")),
+            body=json.dumps(money),
+        )
+        mock_api.get(
+            re.compile(f"^{open_orders_url}".replace(".", r"\.").replace("?", r"\?")),
+            body=json.dumps(
+                {
+                    "orders": [
+                        {
+                            "id": "sell-lock-1",
+                            "symbolIsin": self.base_asset,
+                            "side": CONSTANTS.SIDE_SELL,
+                            "quantity": 20,
+                            "executedQuantity": 0,
+                            "orderState": 6,
+                        }
+                    ]
+                }
+            ),
+        )
+        mock_api.get(
+            re.compile(f"^{portfolio_url}".replace(".", r"\.").replace("?", r"\?")),
+            body=json.dumps({"items": [{"symbolIsin": self.base_asset, "asset": 20}]}),
+        )
+        await self.exchange._update_balances()
+        self.assertEqual(Decimal("20"), self.exchange.get_all_balances()[self.base_asset])
+        self.assertEqual(Decimal("0"), self.exchange.available_balances[self.base_asset])
 
     @aioresponses()
     async def test_check_network_success(self, mock_api):
