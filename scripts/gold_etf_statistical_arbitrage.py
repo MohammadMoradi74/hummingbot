@@ -728,13 +728,13 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
     def _maybe_cash_collect(self):
         if len(self.pending_order_ids) != 0:
             return
-        if not self.all_rotations_sent:
-            return
         min_quote = Decimal(str(self.config.min_quote_to_spend))
+        max_retries = int(self.config.max_buy_retries)
         for rot in self._rotations_by_sell_id.values():
             if rot.get("active_buy_id") is not None:
                 return
-            if self._rotation_remaining_quote(rot) > min_quote:
+            remaining = self._rotation_remaining_quote(rot)
+            if remaining > min_quote and int(rot.get("buy_attempts", 0)) < max_retries:
                 return
         self.all_rotations_sent = False
         self.cash_collector()
@@ -996,6 +996,7 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
             return
 
         self.all_rotations_sent = True
+        self._maybe_cash_collect()
 
     def _rotation_execution_metrics(self, rotation: Dict) -> Dict:
         """VWAP / slippage / realized_edge(+net) / latency once both legs have size."""
