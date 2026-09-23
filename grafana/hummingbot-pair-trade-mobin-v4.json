@@ -1,0 +1,3620 @@
+{
+  "apiVersion": "dashboard.grafana.app/v2",
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "hummingbot-pair-trade-mobin-v4",
+    "namespace": "default",
+    "uid": "hb-pair-trade-mobin-v4"
+  },
+  "spec": {
+    "title": "Hummingbot Pair Trade (Mobin Gold) v4",
+    "description": "v4: multi-session select, shared cumulative baseline across sessions, gapless trading-time axis on time-series panels (overnight/weekend removed). Gold ETF basket: mark-to-mid P&L, equal-weight mid indexes (All / Top5), excess vs benchmarks, weights, signals, rotation quality.",
+    "tags": [
+      "hummingbot",
+      "pair-trade",
+      "mobin",
+      "gold-etf",
+      "v4"
+    ],
+    "editable": true,
+    "cursorSync": "Crosshair",
+    "liveNow": false,
+    "preload": false,
+    "links": [],
+    "annotations": [
+      {
+        "kind": "AnnotationQuery",
+        "spec": {
+          "name": "Annotations & Alerts",
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "builtIn": true,
+          "query": {
+            "kind": "DataQuery",
+            "group": "grafana",
+            "version": "v0",
+            "datasource": {
+              "name": "-- Grafana --"
+            },
+            "spec": {}
+          }
+        }
+      }
+    ],
+    "timeSettings": {
+      "timezone": "browser",
+      "from": "now-2d",
+      "to": "now",
+      "autoRefresh": "30s",
+      "autoRefreshIntervals": [
+        "5s",
+        "10s",
+        "30s",
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h",
+        "2h",
+        "1d"
+      ],
+      "hideTimepicker": false,
+      "fiscalYearStartMonth": 0
+    },
+    "variables": [
+      {
+        "kind": "QueryVariable",
+        "spec": {
+          "name": "strategy",
+          "label": "Strategy",
+          "hide": "dontHide",
+          "refresh": "onDashboardLoad",
+          "skipUrlSync": false,
+          "multi": false,
+          "includeAll": false,
+          "allowCustomValue": true,
+          "sort": "alphabeticalAsc",
+          "regex": "",
+          "regexApplyTo": "value",
+          "options": [],
+          "current": {
+            "text": "",
+            "value": ""
+          },
+          "query": {
+            "kind": "DataQuery",
+            "group": "grafana-postgresql-datasource",
+            "version": "v0",
+            "datasource": {
+              "name": "cfs3bqgnrvawwa"
+            },
+            "spec": {
+              "__legacyStringValue": "SELECT name AS __text, name AS __value FROM pair_trade.strategy ORDER BY name;"
+            }
+          }
+        }
+      },
+      {
+        "kind": "QueryVariable",
+        "spec": {
+          "name": "session",
+          "label": "Session",
+          "hide": "dontHide",
+          "refresh": "onDashboardLoad",
+          "skipUrlSync": false,
+          "multi": true,
+          "includeAll": true,
+          "allowCustomValue": true,
+          "sort": "disabled",
+          "regex": "",
+          "regexApplyTo": "value",
+          "options": [],
+          "current": {
+            "text": "",
+            "value": ""
+          },
+          "query": {
+            "kind": "DataQuery",
+            "group": "grafana-postgresql-datasource",
+            "version": "v0",
+            "datasource": {
+              "name": "cfs3bqgnrvawwa"
+            },
+            "spec": {
+              "__legacyStringValue": "SELECT s.id::text || ' @ ' || to_char(s.started_at, 'YYYY-MM-DD HH24:MI') AS __text, s.id AS __value FROM pair_trade.session s JOIN pair_trade.strategy st ON st.id = s.strategy_id WHERE st.name = '$strategy' ORDER BY s.started_at DESC;"
+            }
+          }
+        }
+      }
+    ],
+    "elements": {
+      "panel-1": {
+        "kind": "Panel",
+        "spec": {
+          "id": 1,
+          "title": "P&L (M IRT)",
+          "description": "Mark-to-mid P&L vs first portfolio_value across selected sessions (M IRT = IRR/1e7). Green if \u2265 0.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "WITH start_nav AS (SELECT portfolio_value AS v FROM pair_trade.portfolio_snapshot WHERE session_id IN ($session) ORDER BY ts ASC LIMIT 1), latest AS (SELECT portfolio_value FROM pair_trade.portfolio_snapshot WHERE session_id IN ($session) ORDER BY ts DESC LIMIT 1) SELECT (latest.portfolio_value - start_nav.v) / 1e7 AS pnl_m_irt FROM latest, start_nav;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "percentChangeColorMode": "standard",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "showPercentChange": false,
+                "textMode": "auto",
+                "wideLayout": true
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 2,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "red"
+                      },
+                      {
+                        "value": 0,
+                        "color": "green"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-1b": {
+        "kind": "Panel",
+        "spec": {
+          "id": 101,
+          "title": "P&L (%)",
+          "description": "100 * (latest_NAV / first_NAV \u2212 1) across selected sessions (shared baseline).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "WITH start_nav AS (SELECT portfolio_value AS v FROM pair_trade.portfolio_snapshot WHERE session_id IN ($session) ORDER BY ts ASC LIMIT 1), latest AS (SELECT portfolio_value FROM pair_trade.portfolio_snapshot WHERE session_id IN ($session) ORDER BY ts DESC LIMIT 1) SELECT 100.0 * (latest.portfolio_value / NULLIF(start_nav.v, 0) - 1) AS pnl_pct FROM latest, start_nav;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "percentChangeColorMode": "standard",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "showPercentChange": false,
+                "textMode": "auto",
+                "wideLayout": true
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 3,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "red"
+                      },
+                      {
+                        "value": 0,
+                        "color": "green"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "unit": "percent"
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-2": {
+        "kind": "Panel",
+        "spec": {
+          "id": 2,
+          "title": "Portfolio value (M IRT)",
+          "description": "Latest mark-to-mid NAV from portfolio_snapshot across selected sessions (IRR / 1e7).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "SELECT portfolio_value / 1e7 AS portfolio_m_irt FROM pair_trade.portfolio_snapshot WHERE session_id IN ($session) ORDER BY ts DESC LIMIT 1;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "percentChangeColorMode": "standard",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "showPercentChange": false,
+                "textMode": "auto",
+                "wideLayout": true
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 2,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "blue"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-3": {
+        "kind": "Panel",
+        "spec": {
+          "id": 3,
+          "title": "Incomplete rotations",
+          "description": "Count of rotation rows with status \u2260 buy_complete across selected sessions.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "SELECT COUNT(*) AS incomplete FROM pair_trade.rotation WHERE session_id IN ($session) AND status <> 'buy_complete';"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "colorMode": "value",
+                "graphMode": "none",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "percentChangeColorMode": "standard",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "showPercentChange": false,
+                "textMode": "auto",
+                "wideLayout": true
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "green"
+                      },
+                      {
+                        "value": 1,
+                        "color": "yellow"
+                      },
+                      {
+                        "value": 3,
+                        "color": "red"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-4": {
+        "kind": "Panel",
+        "spec": {
+          "id": 4,
+          "title": "Rotation complete %",
+          "description": "Among sell\u2192buy rotations (excludes cash_collector): 100 \u00d7 buy_complete / count(*).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "SELECT CASE WHEN COUNT(*) = 0 THEN 0 ELSE 100.0 * SUM(CASE WHEN status = 'buy_complete' THEN 1 ELSE 0 END) / COUNT(*) END AS complete_rate FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH';"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "colorMode": "value",
+                "graphMode": "none",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "percentChangeColorMode": "standard",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "showPercentChange": false,
+                "textMode": "auto",
+                "wideLayout": true
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 1,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "red"
+                      },
+                      {
+                        "value": 50,
+                        "color": "yellow"
+                      },
+                      {
+                        "value": 80,
+                        "color": "green"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "unit": "percent",
+                  "min": 0,
+                  "max": 100
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-5": {
+        "kind": "Panel",
+        "spec": {
+          "id": 5,
+          "title": "Net rotation cash (M IRT)",
+          "description": "Sum(quote_earned \u2212 quote_spent) for sell\u2192buy across selected sessions.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "SELECT COALESCE(SUM(quote_earned - quote_spent), 0) / 1e7 AS net_cash_m_irt FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH';"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "colorMode": "value",
+                "graphMode": "none",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "percentChangeColorMode": "standard",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "showPercentChange": false,
+                "textMode": "auto",
+                "wideLayout": true
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 2,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "red"
+                      },
+                      {
+                        "value": 0,
+                        "color": "green"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-6": {
+        "kind": "Panel",
+        "spec": {
+          "id": 6,
+          "title": "Fills",
+          "description": "Total fill events across selected sessions.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "SELECT COUNT(*) AS fills FROM pair_trade.fills WHERE session_id IN ($session);"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "colorMode": "value",
+                "graphMode": "none",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "percentChangeColorMode": "standard",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "showPercentChange": false,
+                "textMode": "auto",
+                "wideLayout": true
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "purple"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-10": {
+        "kind": "Panel",
+        "spec": {
+          "id": 10,
+          "title": "Portfolio P&L vs shared start (M IRT)",
+          "description": "Mark-to-mid P&L vs first NAV of selected sessions (M IRT). X-axis is trading-time (overnight/weekend/between-session gaps removed); filter via Session multi-select. Hover clock is compressed, not wall-clock.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH start_nav AS (SELECT portfolio_value AS v FROM pair_trade.portfolio_snapshot WHERE session_id IN ($session) ORDER BY ts ASC LIMIT 1), src AS (SELECT p.ts AS real_ts, (p.portfolio_value - sn.v) / 1e7 AS pnl_m FROM pair_trade.portfolio_snapshot p CROSS JOIN start_nav sn WHERE p.session_id IN ($session)), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n) SELECT m.time, s.pnl_m AS \"P&L M IRT\" FROM src s JOIN tmap m ON m.real_ts = s.real_ts ORDER BY m.time;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "single",
+                  "sort": "none"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 2,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 15,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-10b": {
+        "kind": "Panel",
+        "spec": {
+          "id": 110,
+          "title": "Portfolio P&L vs shared start (%)",
+          "description": "100 * (NAV / first_NAV \u2212 1) across selected sessions. X-axis is trading-time (overnight/weekend/between-session gaps removed); filter via Session multi-select. Hover clock is compressed, not wall-clock.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH start_nav AS (SELECT portfolio_value AS v FROM pair_trade.portfolio_snapshot WHERE session_id IN ($session) ORDER BY ts ASC LIMIT 1), src AS (SELECT p.ts AS real_ts, 100.0 * (p.portfolio_value / NULLIF(sn.v, 0) - 1) AS pnl_pct FROM pair_trade.portfolio_snapshot p CROSS JOIN start_nav sn WHERE p.session_id IN ($session)), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n) SELECT m.time, s.pnl_pct AS \"P&L %\" FROM src s JOIN tmap m ON m.real_ts = s.real_ts ORDER BY m.time;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "single",
+                  "sort": "none"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 3,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 15,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  },
+                  "unit": "percent"
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-11": {
+        "kind": "Panel",
+        "spec": {
+          "id": 11,
+          "title": "Portfolio value (M IRT)",
+          "description": "Mark-to-mid NAV over trading-time from portfolio_snapshot. X-axis is trading-time (overnight/weekend/between-session gaps removed); filter via Session multi-select. Hover clock is compressed, not wall-clock.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH src AS (SELECT ts AS real_ts, portfolio_value / 1e7 AS v FROM pair_trade.portfolio_snapshot WHERE session_id IN ($session)), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n) SELECT m.time, s.v AS \"Portfolio M IRT\" FROM src s JOIN tmap m ON m.real_ts = s.real_ts ORDER BY m.time;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "single",
+                  "sort": "none"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 2,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-10c": {
+        "kind": "Panel",
+        "spec": {
+          "id": 111,
+          "title": "Portfolio return vs benchmark indexes (%)",
+          "description": "Portfolio % (shared first-NAV baseline) vs equal-weight mid indexes. All = every symbol; Top5 = \u0639\u06cc\u0627\u0631\u060c \u0637\u0644\u0627\u060c \u06a9\u0647\u0631\u0628\u0627\u060c \u06af\u0646\u062c\u060c \u0645\u062b\u0642\u0627\u0644. Index: 100*(mid_ffill / first_mid \u2212 1). Portfolio aligned via last snapshot \u2264 bin. X-axis is trading-time (overnight/weekend/between-session gaps removed); filter via Session multi-select. Hover clock is compressed, not wall-clock.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH \nraw AS (\n  SELECT bin_ts, symbol, mid_price\n  FROM pair_trade.signal_snapshot\n  WHERE session_id IN ($session)\n),\nall_bins AS (SELECT DISTINCT bin_ts FROM raw),\nall_syms AS (SELECT DISTINCT symbol FROM raw),\ngrid AS (\n  SELECT b.bin_ts, s.symbol FROM all_bins b CROSS JOIN all_syms s\n),\njoined AS (\n  SELECT g.bin_ts, g.symbol, r.mid_price\n  FROM grid g\n  LEFT JOIN raw r ON r.bin_ts = g.bin_ts AND r.symbol = g.symbol\n),\ngrp AS (\n  SELECT bin_ts, symbol, mid_price,\n         COUNT(mid_price) OVER (PARTITION BY symbol ORDER BY bin_ts) AS grp\n  FROM joined\n),\nfilled AS (\n  SELECT bin_ts, symbol,\n         first_value(mid_price) OVER (\n           PARTITION BY symbol, grp ORDER BY bin_ts\n         ) AS mid_price\n  FROM grp\n  WHERE grp > 0\n),\nsym_start AS (\n  SELECT DISTINCT ON (symbol) symbol, mid_price AS m0\n  FROM filled\n  WHERE mid_price IS NOT NULL\n  ORDER BY symbol, bin_ts\n), idx AS (SELECT f.bin_ts AS real_ts, AVG(100.0 * (f.mid_price / NULLIF(ss.m0, 0) - 1)) AS index_pct FROM filled f JOIN sym_start ss ON ss.symbol = f.symbol WHERE f.mid_price IS NOT NULL  GROUP BY f.bin_ts), start_nav AS (SELECT portfolio_value AS v FROM pair_trade.portfolio_snapshot WHERE session_id IN ($session) ORDER BY ts ASC LIMIT 1), port AS (SELECT p.ts AS real_ts, 100.0 * (p.portfolio_value / NULLIF(sn.v, 0) - 1) AS port_pct FROM pair_trade.portfolio_snapshot p CROSS JOIN start_nav sn WHERE p.session_id IN ($session)), src AS (SELECT DISTINCT bin_ts AS real_ts FROM filled), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n) SELECT m.time, lat.port_pct AS \"Portfolio %\" FROM tmap m JOIN LATERAL (SELECT p.port_pct FROM port p WHERE p.real_ts <= m.real_ts ORDER BY p.real_ts DESC LIMIT 1) lat ON TRUE ORDER BY m.time;"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "B",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH \nraw AS (\n  SELECT bin_ts, symbol, mid_price\n  FROM pair_trade.signal_snapshot\n  WHERE session_id IN ($session)\n),\nall_bins AS (SELECT DISTINCT bin_ts FROM raw),\nall_syms AS (SELECT DISTINCT symbol FROM raw),\ngrid AS (\n  SELECT b.bin_ts, s.symbol FROM all_bins b CROSS JOIN all_syms s\n),\njoined AS (\n  SELECT g.bin_ts, g.symbol, r.mid_price\n  FROM grid g\n  LEFT JOIN raw r ON r.bin_ts = g.bin_ts AND r.symbol = g.symbol\n),\ngrp AS (\n  SELECT bin_ts, symbol, mid_price,\n         COUNT(mid_price) OVER (PARTITION BY symbol ORDER BY bin_ts) AS grp\n  FROM joined\n),\nfilled AS (\n  SELECT bin_ts, symbol,\n         first_value(mid_price) OVER (\n           PARTITION BY symbol, grp ORDER BY bin_ts\n         ) AS mid_price\n  FROM grp\n  WHERE grp > 0\n),\nsym_start AS (\n  SELECT DISTINCT ON (symbol) symbol, mid_price AS m0\n  FROM filled\n  WHERE mid_price IS NOT NULL\n  ORDER BY symbol, bin_ts\n), idx AS (SELECT f.bin_ts AS real_ts, AVG(100.0 * (f.mid_price / NULLIF(ss.m0, 0) - 1)) AS index_pct FROM filled f JOIN sym_start ss ON ss.symbol = f.symbol WHERE f.mid_price IS NOT NULL  GROUP BY f.bin_ts), src AS (SELECT DISTINCT bin_ts AS real_ts FROM filled), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n) SELECT m.time, i.index_pct AS \"All index %\" FROM tmap m LEFT JOIN idx i ON i.real_ts = m.real_ts ORDER BY m.time;"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "C",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH \nraw AS (\n  SELECT bin_ts, symbol, mid_price\n  FROM pair_trade.signal_snapshot\n  WHERE session_id IN ($session)\n),\nall_bins AS (SELECT DISTINCT bin_ts FROM raw),\nall_syms AS (SELECT DISTINCT symbol FROM raw),\ngrid AS (\n  SELECT b.bin_ts, s.symbol FROM all_bins b CROSS JOIN all_syms s\n),\njoined AS (\n  SELECT g.bin_ts, g.symbol, r.mid_price\n  FROM grid g\n  LEFT JOIN raw r ON r.bin_ts = g.bin_ts AND r.symbol = g.symbol\n),\ngrp AS (\n  SELECT bin_ts, symbol, mid_price,\n         COUNT(mid_price) OVER (PARTITION BY symbol ORDER BY bin_ts) AS grp\n  FROM joined\n),\nfilled AS (\n  SELECT bin_ts, symbol,\n         first_value(mid_price) OVER (\n           PARTITION BY symbol, grp ORDER BY bin_ts\n         ) AS mid_price\n  FROM grp\n  WHERE grp > 0\n),\nsym_start AS (\n  SELECT DISTINCT ON (symbol) symbol, mid_price AS m0\n  FROM filled\n  WHERE mid_price IS NOT NULL\n  ORDER BY symbol, bin_ts\n), idx AS (SELECT f.bin_ts AS real_ts, AVG(100.0 * (f.mid_price / NULLIF(ss.m0, 0) - 1)) AS index_pct FROM filled f JOIN sym_start ss ON ss.symbol = f.symbol WHERE f.mid_price IS NOT NULL AND f.symbol IN ('\u0639\u06cc\u0627\u0631', '\u0637\u0644\u0627', '\u06a9\u0647\u0631\u0628\u0627', '\u06af\u0646\u062c', '\u0645\u062b\u0642\u0627\u0644') GROUP BY f.bin_ts), src AS (SELECT DISTINCT bin_ts AS real_ts FROM filled), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n) SELECT m.time, i.index_pct AS \"Top5 index %\" FROM tmap m LEFT JOIN idx i ON i.real_ts = m.real_ts ORDER BY m.time;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 3,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  },
+                  "unit": "percent"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Portfolio %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "green"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "All index %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "yellow"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Top5 index %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "blue"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-10d": {
+        "kind": "Panel",
+        "spec": {
+          "id": 113,
+          "title": "Portfolio excess return vs indexes (%)",
+          "description": "Portfolio % minus each equal-weight mid index % (shared baselines). Positive = outperforming that benchmark. X-axis is trading-time (overnight/weekend/between-session gaps removed); filter via Session multi-select. Hover clock is compressed, not wall-clock.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH \nraw AS (\n  SELECT bin_ts, symbol, mid_price\n  FROM pair_trade.signal_snapshot\n  WHERE session_id IN ($session)\n),\nall_bins AS (SELECT DISTINCT bin_ts FROM raw),\nall_syms AS (SELECT DISTINCT symbol FROM raw),\ngrid AS (\n  SELECT b.bin_ts, s.symbol FROM all_bins b CROSS JOIN all_syms s\n),\njoined AS (\n  SELECT g.bin_ts, g.symbol, r.mid_price\n  FROM grid g\n  LEFT JOIN raw r ON r.bin_ts = g.bin_ts AND r.symbol = g.symbol\n),\ngrp AS (\n  SELECT bin_ts, symbol, mid_price,\n         COUNT(mid_price) OVER (PARTITION BY symbol ORDER BY bin_ts) AS grp\n  FROM joined\n),\nfilled AS (\n  SELECT bin_ts, symbol,\n         first_value(mid_price) OVER (\n           PARTITION BY symbol, grp ORDER BY bin_ts\n         ) AS mid_price\n  FROM grp\n  WHERE grp > 0\n),\nsym_start AS (\n  SELECT DISTINCT ON (symbol) symbol, mid_price AS m0\n  FROM filled\n  WHERE mid_price IS NOT NULL\n  ORDER BY symbol, bin_ts\n), idx AS (SELECT f.bin_ts AS real_ts, AVG(100.0 * (f.mid_price / NULLIF(ss.m0, 0) - 1)) AS index_pct FROM filled f JOIN sym_start ss ON ss.symbol = f.symbol WHERE f.mid_price IS NOT NULL  GROUP BY f.bin_ts), start_nav AS (SELECT portfolio_value AS v FROM pair_trade.portfolio_snapshot WHERE session_id IN ($session) ORDER BY ts ASC LIMIT 1), port AS (SELECT p.ts AS real_ts, 100.0 * (p.portfolio_value / NULLIF(sn.v, 0) - 1) AS port_pct FROM pair_trade.portfolio_snapshot p CROSS JOIN start_nav sn WHERE p.session_id IN ($session)), src AS (SELECT DISTINCT bin_ts AS real_ts FROM filled), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n) SELECT m.time, lat.port_pct - i.index_pct AS \"Excess vs All %\" FROM tmap m LEFT JOIN idx i ON i.real_ts = m.real_ts JOIN LATERAL (SELECT p.port_pct FROM port p WHERE p.real_ts <= m.real_ts ORDER BY p.real_ts DESC LIMIT 1) lat ON TRUE ORDER BY m.time;"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "B",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH \nraw AS (\n  SELECT bin_ts, symbol, mid_price\n  FROM pair_trade.signal_snapshot\n  WHERE session_id IN ($session)\n),\nall_bins AS (SELECT DISTINCT bin_ts FROM raw),\nall_syms AS (SELECT DISTINCT symbol FROM raw),\ngrid AS (\n  SELECT b.bin_ts, s.symbol FROM all_bins b CROSS JOIN all_syms s\n),\njoined AS (\n  SELECT g.bin_ts, g.symbol, r.mid_price\n  FROM grid g\n  LEFT JOIN raw r ON r.bin_ts = g.bin_ts AND r.symbol = g.symbol\n),\ngrp AS (\n  SELECT bin_ts, symbol, mid_price,\n         COUNT(mid_price) OVER (PARTITION BY symbol ORDER BY bin_ts) AS grp\n  FROM joined\n),\nfilled AS (\n  SELECT bin_ts, symbol,\n         first_value(mid_price) OVER (\n           PARTITION BY symbol, grp ORDER BY bin_ts\n         ) AS mid_price\n  FROM grp\n  WHERE grp > 0\n),\nsym_start AS (\n  SELECT DISTINCT ON (symbol) symbol, mid_price AS m0\n  FROM filled\n  WHERE mid_price IS NOT NULL\n  ORDER BY symbol, bin_ts\n), idx AS (SELECT f.bin_ts AS real_ts, AVG(100.0 * (f.mid_price / NULLIF(ss.m0, 0) - 1)) AS index_pct FROM filled f JOIN sym_start ss ON ss.symbol = f.symbol WHERE f.mid_price IS NOT NULL AND f.symbol IN ('\u0639\u06cc\u0627\u0631', '\u0637\u0644\u0627', '\u06a9\u0647\u0631\u0628\u0627', '\u06af\u0646\u062c', '\u0645\u062b\u0642\u0627\u0644') GROUP BY f.bin_ts), start_nav AS (SELECT portfolio_value AS v FROM pair_trade.portfolio_snapshot WHERE session_id IN ($session) ORDER BY ts ASC LIMIT 1), port AS (SELECT p.ts AS real_ts, 100.0 * (p.portfolio_value / NULLIF(sn.v, 0) - 1) AS port_pct FROM pair_trade.portfolio_snapshot p CROSS JOIN start_nav sn WHERE p.session_id IN ($session)), src AS (SELECT DISTINCT bin_ts AS real_ts FROM filled), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n) SELECT m.time, lat.port_pct - i.index_pct AS \"Excess vs Top5 %\" FROM tmap m LEFT JOIN idx i ON i.real_ts = m.real_ts JOIN LATERAL (SELECT p.port_pct FROM port p WHERE p.real_ts <= m.real_ts ORDER BY p.real_ts DESC LIMIT 1) lat ON TRUE ORDER BY m.time;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 3,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 15,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  },
+                  "unit": "percent"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Excess vs All %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "yellow"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Excess vs Top5 %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "blue"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-12": {
+        "kind": "Panel",
+        "spec": {
+          "id": 12,
+          "title": "Portfolio weights by asset (%)",
+          "description": "Share of mark-to-mid NAV per asset. Stacked area \u2248 100%. X-axis is trading-time (overnight/weekend/between-session gaps removed); filter via Session multi-select. Hover clock is compressed, not wall-clock.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH src AS (SELECT b.ts AS real_ts, 100.0 * CASE WHEN b.asset = 'IRR' THEN b.total ELSE b.total * COALESCE((SELECT kv.value::numeric FROM jsonb_each_text(p.marks) AS kv(key, value) WHERE kv.key LIKE b.asset || '-%' LIMIT 1), 0) END / NULLIF(p.portfolio_value, 0) AS value, b.asset AS metric FROM pair_trade.balance_snapshot b JOIN pair_trade.portfolio_snapshot p ON p.session_id = b.session_id AND p.ts = b.ts WHERE b.session_id IN ($session)), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n) SELECT m.time, s.value, s.metric FROM src s JOIN tmap m ON m.real_ts = s.real_ts ORDER BY m.time;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 2,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 40,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    }
+                  },
+                  "unit": "percent",
+                  "min": 0,
+                  "max": 100
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-12b": {
+        "kind": "Panel",
+        "spec": {
+          "id": 112,
+          "title": "Latest portfolio composition (%)",
+          "description": "Pie of latest asset weights by mark-to-mid value across selected sessions. Cash = IRR.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH latest AS (SELECT MAX(ts) AS ts FROM pair_trade.portfolio_snapshot WHERE session_id IN ($session)), p AS (SELECT ts, portfolio_value, marks FROM pair_trade.portfolio_snapshot WHERE session_id IN ($session) AND ts = (SELECT ts FROM latest)), b AS (SELECT asset, SUM(total) AS total FROM pair_trade.balance_snapshot WHERE session_id IN ($session) AND ts = (SELECT ts FROM latest) GROUP BY asset), valued AS (SELECT p.ts AS time, b.asset AS metric, 100.0 * CASE WHEN b.asset = 'IRR' THEN b.total ELSE b.total * COALESCE((SELECT kv.value::numeric FROM jsonb_each_text(p.marks) AS kv(key, value) WHERE kv.key = b.asset || '-IRR' OR kv.key LIKE b.asset || '-%' LIMIT 1), 0) END / NULLIF(p.portfolio_value, 0) AS value FROM b CROSS JOIN p) SELECT time, value, metric FROM valued WHERE value > 0 ORDER BY value DESC;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "piechart",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "displayMode": "table",
+                  "placement": "right",
+                  "showLegend": true,
+                  "values": [
+                    "value",
+                    "percent"
+                  ]
+                },
+                "pieType": "pie",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "sort": "desc",
+                "tooltip": {
+                  "mode": "single",
+                  "sort": "none"
+                },
+                "displayLabels": [
+                  "name",
+                  "percent"
+                ]
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    }
+                  },
+                  "unit": "percent",
+                  "decimals": 2
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-13": {
+        "kind": "Panel",
+        "spec": {
+          "id": 13,
+          "title": "Quote balance & pending orders",
+          "description": "Free IRR cash (M IRT) and open strategy order count. X-axis is trading-time (overnight/weekend/between-session gaps removed); filter via Session multi-select. Hover clock is compressed, not wall-clock.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH src AS (SELECT ts AS real_ts FROM pair_trade.basket_snapshot WHERE session_id IN ($session)), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n), cash AS (SELECT ts AS real_ts, quote_balance / 1e7 AS v FROM pair_trade.basket_snapshot WHERE session_id IN ($session)) SELECT m.time, c.v AS \"Cash M IRT\" FROM tmap m JOIN cash c ON c.real_ts = m.real_ts ORDER BY m.time;"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "B",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH src AS (SELECT ts AS real_ts FROM pair_trade.basket_snapshot WHERE session_id IN ($session)), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n), pend AS (SELECT ts AS real_ts, pending_order_count AS v FROM pair_trade.basket_snapshot WHERE session_id IN ($session)) SELECT m.time, p.v AS \"Pending orders\" FROM tmap m JOIN pend p ON p.real_ts = m.real_ts ORDER BY m.time;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "single",
+                  "sort": "none"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 2,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Pending orders"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Cash M IRT"
+                    },
+                    "properties": [
+                      {
+                        "id": "decimals",
+                        "value": 2
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-14": {
+        "kind": "Panel",
+        "spec": {
+          "id": 14,
+          "title": "Held ETF count",
+          "description": "jsonb_array_length(basket_snapshot.symbols). X-axis is trading-time (overnight/weekend/between-session gaps removed); filter via Session multi-select. Hover clock is compressed, not wall-clock.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH src AS (SELECT ts AS real_ts, jsonb_array_length(symbols) AS v FROM pair_trade.basket_snapshot WHERE session_id IN ($session)), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n) SELECT m.time, s.v AS \"Held ETFs\" FROM src s JOIN tmap m ON m.real_ts = s.real_ts ORDER BY m.time;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "single",
+                  "sort": "none"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-15": {
+        "kind": "Panel",
+        "spec": {
+          "id": 15,
+          "title": "Lowest-ret symbol (cash target)",
+          "description": "Cash-collector target across selected sessions (wall-clock ts).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "SELECT ts, session_id, lowest_ret_symbol FROM pair_trade.basket_snapshot WHERE session_id IN ($session) AND lowest_ret_symbol IS NOT NULL ORDER BY ts DESC LIMIT 100;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "showHeader": true
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "inspect": false
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-20": {
+        "kind": "Panel",
+        "spec": {
+          "id": 20,
+          "title": "Return signal by symbol",
+          "description": "EWM log-mid residual (signal_snapshot.ret). X-axis is trading-time (overnight/weekend/between-session gaps removed); filter via Session multi-select. Hover clock is compressed, not wall-clock.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH src AS (SELECT bin_ts AS real_ts, ret AS value, symbol AS metric FROM pair_trade.signal_snapshot WHERE session_id IN ($session) AND ret IS NOT NULL), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n) SELECT m.time, s.value AS value, s.metric AS metric FROM src s JOIN tmap m ON m.real_ts = s.real_ts ORDER BY m.time;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "single",
+                  "sort": "none"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 4,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-20b": {
+        "kind": "Panel",
+        "spec": {
+          "id": 120,
+          "title": "Return signal demeaned (cross-section)",
+          "description": "ret \u2212 mean(ret) per bin_ts across symbols. X-axis is trading-time (overnight/weekend/between-session gaps removed); filter via Session multi-select. Hover clock is compressed, not wall-clock.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH src AS (SELECT bin_ts AS real_ts, ret - AVG(ret) OVER (PARTITION BY bin_ts) AS value, symbol AS metric FROM pair_trade.signal_snapshot WHERE session_id IN ($session) AND ret IS NOT NULL), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n) SELECT m.time, s.value AS value, s.metric AS metric FROM src s JOIN tmap m ON m.real_ts = s.real_ts ORDER BY m.time;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "single",
+                  "sort": "none"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 4,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-21": {
+        "kind": "Panel",
+        "spec": {
+          "id": 21,
+          "title": "Bid-ask spread % by symbol",
+          "description": "BA cost as percent (\u00d7100). X-axis is trading-time (overnight/weekend/between-session gaps removed); filter via Session multi-select. Hover clock is compressed, not wall-clock.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH src AS (SELECT bin_ts AS real_ts, ba_spread * 100 AS value, symbol AS metric FROM pair_trade.signal_snapshot WHERE session_id IN ($session) AND ba_spread IS NOT NULL), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n) SELECT m.time, s.value AS value, s.metric AS metric FROM src s JOIN tmap m ON m.real_ts = s.real_ts ORDER BY m.time;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "single",
+                  "sort": "none"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 3,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  },
+                  "unit": "percent"
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-22": {
+        "kind": "Panel",
+        "spec": {
+          "id": 22,
+          "title": "Latest signals (all symbols)",
+          "description": "Latest freq bin across selected sessions. Ordered by ret+ba_spread ASC.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "SELECT s.symbol, s.ret, s.ba_spread, s.mid_price / 1e7 AS mid_m_irt, s.ret_ask, s.ret_bid, s.ask_price / 1e7 AS ask_m_irt, s.bid_price / 1e7 AS bid_m_irt, (s.ret + s.ba_spread) AS ret_plus_spread, s.bin_ts, s.session_id FROM pair_trade.signal_snapshot s WHERE s.session_id IN ($session) AND s.bin_ts = (SELECT MAX(bin_ts) FROM pair_trade.signal_snapshot WHERE session_id IN ($session)) ORDER BY s.ret + s.ba_spread ASC NULLS LAST;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "showHeader": true,
+                "sortBy": [
+                  {
+                    "desc": false,
+                    "displayName": "ret_plus_spread"
+                  }
+                ]
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "inspect": false
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-41": {
+        "kind": "Panel",
+        "spec": {
+          "id": 41,
+          "title": "Rotation edges (bps)",
+          "description": "Sell\u2192buy only. expected/last/realized/realized_net \u00d710000 \u2248 bps. X-axis is trading-time (overnight/weekend/between-session gaps removed); filter via Session multi-select. Hover clock is compressed, not wall-clock.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH src AS (SELECT ts AS real_ts, transition_score * 10000 AS value, 'expected' AS metric FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND transition_score IS NOT NULL UNION ALL SELECT ts, last_edge * 10000, 'last' FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND last_edge IS NOT NULL UNION ALL SELECT ts, realized_edge * 10000, 'realized' FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND realized_edge IS NOT NULL UNION ALL SELECT ts, realized_edge_net * 10000, 'realized_net' FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND realized_edge_net IS NOT NULL), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n) SELECT m.time, s.value, s.metric FROM src s JOIN tmap m ON m.real_ts = s.real_ts ORDER BY m.time;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 1,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "bars",
+                    "fillOpacity": 70,
+                    "lineWidth": 1,
+                    "showPoints": "auto",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-42": {
+        "kind": "Panel",
+        "spec": {
+          "id": 42,
+          "title": "Buy / sell slippage (bps)",
+          "description": "Sell\u2192buy slippage \u00d710000 \u2248 bps. X-axis is trading-time (overnight/weekend/between-session gaps removed); filter via Session multi-select. Hover clock is compressed, not wall-clock.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH src AS (SELECT ts AS real_ts, sell_slippage * 10000 AS value, 'sell_slippage_bps' AS metric FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND sell_slippage IS NOT NULL UNION ALL SELECT ts, buy_slippage * 10000, 'buy_slippage_bps' FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND buy_slippage IS NOT NULL), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n) SELECT m.time, s.value, s.metric FROM src s JOIN tmap m ON m.real_ts = s.real_ts ORDER BY m.time;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 1,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "bars",
+                    "fillOpacity": 70,
+                    "lineWidth": 1,
+                    "showPoints": "auto",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-43": {
+        "kind": "Panel",
+        "spec": {
+          "id": 43,
+          "title": "Rotation latency (sec)",
+          "description": "Seconds from sell placed to buy_complete. X-axis is trading-time (overnight/weekend/between-session gaps removed); filter via Session multi-select. Hover clock is compressed, not wall-clock.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH src AS (SELECT ts AS real_ts, latency_sec AS value, prev_symbol || '\u2192' || new_symbol AS metric FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND latency_sec IS NOT NULL), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n) SELECT m.time, s.value AS value, s.metric AS metric FROM src s JOIN tmap m ON m.real_ts = s.real_ts ORDER BY m.time;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "single",
+                  "sort": "none"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 1,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "bars",
+                    "fillOpacity": 70,
+                    "lineWidth": 1,
+                    "showPoints": "auto",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  },
+                  "unit": "s"
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-44": {
+        "kind": "Panel",
+        "spec": {
+          "id": 44,
+          "title": "Cumulative realized edge (bps)",
+          "description": "Running sum of realized_edge / realized_edge_net (\u00d710000). X-axis is trading-time (overnight/weekend/between-session gaps removed); filter via Session multi-select. Hover clock is compressed, not wall-clock.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH base AS (SELECT ts AS real_ts, realized_edge, realized_edge_net FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND (realized_edge IS NOT NULL OR realized_edge_net IS NOT NULL)), src AS (SELECT real_ts FROM base), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n), cum AS (SELECT real_ts, SUM(realized_edge) OVER (ORDER BY real_ts) * 10000 AS v FROM base WHERE realized_edge IS NOT NULL) SELECT m.time, c.v AS \"cum realized bps\" FROM tmap m LEFT JOIN cum c ON c.real_ts = m.real_ts ORDER BY m.time;"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "B",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH base AS (SELECT ts AS real_ts, realized_edge, realized_edge_net FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND (realized_edge IS NOT NULL OR realized_edge_net IS NOT NULL)), src AS (SELECT real_ts FROM base), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n), cum AS (SELECT real_ts, SUM(realized_edge_net) OVER (ORDER BY real_ts) * 10000 AS v FROM base WHERE realized_edge_net IS NOT NULL) SELECT m.time, c.v AS \"cum realized_net bps\" FROM tmap m LEFT JOIN cum c ON c.real_ts = m.real_ts ORDER BY m.time;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 1,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 15,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-30": {
+        "kind": "Panel",
+        "spec": {
+          "id": 30,
+          "title": "Rotation status",
+          "description": "Distribution of rotation.status across selected sessions.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "SELECT NOW() AS time, COUNT(*)::float AS value, status AS metric FROM pair_trade.rotation WHERE session_id IN ($session) GROUP BY status ORDER BY value DESC;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "piechart",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "displayMode": "table",
+                  "placement": "right",
+                  "showLegend": true,
+                  "values": [
+                    "value",
+                    "percent"
+                  ]
+                },
+                "pieType": "pie",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "sort": "desc",
+                "tooltip": {
+                  "mode": "single",
+                  "sort": "none"
+                },
+                "displayLabels": [
+                  "name",
+                  "percent"
+                ]
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-31": {
+        "kind": "Panel",
+        "spec": {
+          "id": 31,
+          "title": "Expected edge (transition_score) \u00d7100",
+          "description": "Sell\u2192buy expected_edge \u00d7100. X-axis is trading-time (overnight/weekend/between-session gaps removed); filter via Session multi-select. Hover clock is compressed, not wall-clock.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH src AS (SELECT ts AS real_ts, transition_score * 100 AS value, prev_symbol || '->' || new_symbol AS metric FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND transition_score IS NOT NULL), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n) SELECT m.time, s.value AS value, s.metric AS metric FROM src s JOIN tmap m ON m.real_ts = s.real_ts ORDER BY m.time;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "single",
+                  "sort": "none"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 2,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "bars",
+                    "fillOpacity": 80,
+                    "lineWidth": 1,
+                    "showPoints": "auto",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  },
+                  "unit": "percent"
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-32": {
+        "kind": "Panel",
+        "spec": {
+          "id": 32,
+          "title": "Cumulative rotation cash (M IRT)",
+          "description": "Cumulative quote_earned / quote_spent for sell\u2192buy. X-axis is trading-time (overnight/weekend/between-session gaps removed); filter via Session multi-select. Hover clock is compressed, not wall-clock.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH src AS (SELECT ts AS real_ts FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH'), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n), cum AS (SELECT ts AS real_ts, SUM(quote_earned) OVER (ORDER BY ts) / 1e7 AS v FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH') SELECT m.time, c.v AS \"Earned M IRT\" FROM tmap m JOIN cum c ON c.real_ts = m.real_ts ORDER BY m.time;"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "B",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH src AS (SELECT ts AS real_ts FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH'), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n), cum AS (SELECT ts AS real_ts, SUM(quote_spent) OVER (ORDER BY ts) / 1e7 AS v FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH') SELECT m.time, c.v AS \"Spent M IRT\" FROM tmap m JOIN cum c ON c.real_ts = m.real_ts ORDER BY m.time;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "single",
+                  "sort": "none"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 2,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-33": {
+        "kind": "Panel",
+        "spec": {
+          "id": 33,
+          "title": "Recent rotations",
+          "description": "Includes cash_collector. Wall-clock ts across selected sessions.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "SELECT ts, session_id, CASE WHEN prev_symbol = 'CASH' THEN 'cash_collector' ELSE 'rotation' END AS kind, prev_symbol, new_symbol, status, transition_score, last_edge, realized_edge, realized_edge_net, sell_slippage, buy_slippage, latency_sec, transition_value / 1e7 AS transition_value_m_irt, quote_earned / 1e7 AS earned_m_irt, quote_spent / 1e7 AS spent_m_irt, total_fee_quote / 1e7 AS fees_m_irt, sell_order_id FROM pair_trade.rotation WHERE session_id IN ($session) ORDER BY ts DESC LIMIT 50;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "showHeader": true,
+                "sortBy": [
+                  {
+                    "desc": true,
+                    "displayName": "ts"
+                  }
+                ]
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "inspect": false
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-34": {
+        "kind": "Panel",
+        "spec": {
+          "id": 34,
+          "title": "Fill volume by side",
+          "description": "Aggregated fills by side/pair across selected sessions.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "SELECT side, trading_pair, COUNT(*) AS fills, ROUND(SUM(amount)::numeric, 6) AS base_volume, ROUND((SUM(amount * price) / 1e7)::numeric, 2) AS notional_m_irt, ROUND((SUM(fee_quote) / 1e7)::numeric, 4) AS fees_m_irt, COUNT(*) FILTER (WHERE rotation_id IS NULL) AS unlinked_fills FROM pair_trade.fills WHERE session_id IN ($session) GROUP BY side, trading_pair ORDER BY notional_m_irt DESC;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "showHeader": true
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "inspect": false
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-35": {
+        "kind": "Panel",
+        "spec": {
+          "id": 35,
+          "title": "Cumulative fill notional (M IRT)",
+          "description": "Running sum of amount\u00d7price by side. X-axis is trading-time (overnight/weekend/between-session gaps removed); filter via Session multi-select. Hover clock is compressed, not wall-clock.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH src AS (SELECT ts AS real_ts, SUM(amount * price) OVER (PARTITION BY side ORDER BY ts) / 1e7 AS value, side || ' M IRT' AS metric FROM pair_trade.fills WHERE session_id IN ($session)), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n) SELECT m.time, s.value AS value, s.metric AS metric FROM src s JOIN tmap m ON m.real_ts = s.real_ts ORDER BY m.time;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "single",
+                  "sort": "none"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 2,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-36": {
+        "kind": "Panel",
+        "spec": {
+          "id": 36,
+          "title": "Event types (health)",
+          "description": "Counts of event_log types across selected sessions.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "SELECT NOW() AS time, COUNT(*)::float AS value, event_type AS metric FROM pair_trade.event_log WHERE session_id IN ($session) GROUP BY event_type ORDER BY value DESC;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "piechart",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "displayMode": "table",
+                  "placement": "right",
+                  "showLegend": true,
+                  "values": [
+                    "value",
+                    "percent"
+                  ]
+                },
+                "pieType": "pie",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "sort": "desc",
+                "tooltip": {
+                  "mode": "single",
+                  "sort": "none"
+                },
+                "displayLabels": [
+                  "name",
+                  "percent"
+                ]
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-37": {
+        "kind": "Panel",
+        "spec": {
+          "id": 37,
+          "title": "Recent events",
+          "description": "Latest event_log rows (wall-clock).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "SELECT ts, session_id, level, event_type, payload FROM pair_trade.event_log WHERE session_id IN ($session) ORDER BY ts DESC LIMIT 50;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "showHeader": true
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "inspect": false
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-38": {
+        "kind": "Panel",
+        "spec": {
+          "id": 38,
+          "title": "Latest balances",
+          "description": "Latest total/available per asset across selected sessions.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "SELECT DISTINCT ON (exchange, asset) exchange, asset, CASE WHEN asset = 'IRR' THEN total / 1e7 ELSE total END AS total, CASE WHEN asset = 'IRR' THEN available / 1e7 ELSE available END AS available, CASE WHEN asset = 'IRR' THEN 'M IRT' ELSE 'units' END AS unit, ts, session_id FROM pair_trade.balance_snapshot WHERE session_id IN ($session) ORDER BY exchange, asset, ts DESC;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "showHeader": true
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "inspect": false
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-39": {
+        "kind": "Panel",
+        "spec": {
+          "id": 39,
+          "title": "Cash-collector spend (M IRT)",
+          "description": "Cumulative quote_spent for cash_collector. X-axis is trading-time (overnight/weekend/between-session gaps removed); filter via Session multi-select. Hover clock is compressed, not wall-clock.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH src AS (SELECT ts AS real_ts, SUM(quote_spent) OVER (ORDER BY ts) / 1e7 AS v FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol = 'CASH'), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n) SELECT m.time, s.v AS \"CC spent M IRT\" FROM src s JOIN tmap m ON m.real_ts = s.real_ts ORDER BY m.time;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "single",
+                  "sort": "none"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 2,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-40": {
+        "kind": "Panel",
+        "spec": {
+          "id": 40,
+          "title": "Cumulative fees (M IRT)",
+          "description": "Running sum of fills.fee_quote across selected sessions. X-axis is trading-time (overnight/weekend/between-session gaps removed); filter via Session multi-select. Hover clock is compressed, not wall-clock.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfs3bqgnrvawwa"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH src AS (SELECT ts AS real_ts, SUM(fee_quote) OVER (ORDER BY ts) / 1e7 AS v FROM pair_trade.fills WHERE session_id IN ($session)), \ntmap AS (\n  SELECT real_ts,\n         now() - (\n           (COUNT(*) OVER () - ROW_NUMBER() OVER (ORDER BY real_ts))\n           * INTERVAL '1 second'\n         ) AS time\n  FROM (SELECT DISTINCT real_ts FROM src) _d\n) SELECT m.time, s.v AS \"Fees M IRT\" FROM src s JOIN tmap m ON m.real_ts = s.real_ts ORDER BY m.time;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "single",
+                  "sort": "none"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 4,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      }
+    },
+    "layout": {
+      "kind": "GridLayout",
+      "spec": {
+        "items": [
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 0,
+              "width": 3,
+              "height": 4,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-1"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 3,
+              "y": 0,
+              "width": 3,
+              "height": 4,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-1b"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 6,
+              "y": 0,
+              "width": 3,
+              "height": 4,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-2"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 9,
+              "y": 0,
+              "width": 3,
+              "height": 4,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-3"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 12,
+              "y": 0,
+              "width": 4,
+              "height": 4,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-4"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 16,
+              "y": 0,
+              "width": 4,
+              "height": 4,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-5"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 20,
+              "y": 0,
+              "width": 4,
+              "height": 4,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-6"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 4,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-10"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 8,
+              "y": 4,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-10b"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 16,
+              "y": 4,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-11"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 12,
+              "width": 12,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-10c"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 12,
+              "y": 12,
+              "width": 12,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-10d"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 20,
+              "width": 16,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-12"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 16,
+              "y": 20,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-12b"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 28,
+              "width": 12,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-13"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 12,
+              "y": 28,
+              "width": 12,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-14"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 36,
+              "width": 24,
+              "height": 6,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-15"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 42,
+              "width": 12,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-20"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 12,
+              "y": 42,
+              "width": 12,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-20b"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 50,
+              "width": 12,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-21"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 12,
+              "y": 50,
+              "width": 12,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-22"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 58,
+              "width": 12,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-41"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 12,
+              "y": 58,
+              "width": 12,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-42"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 66,
+              "width": 12,
+              "height": 7,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-43"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 12,
+              "y": 66,
+              "width": 12,
+              "height": 7,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-44"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 73,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-30"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 8,
+              "y": 73,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-31"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 16,
+              "y": 73,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-32"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 81,
+              "width": 12,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-33"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 12,
+              "y": 81,
+              "width": 12,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-34"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 89,
+              "width": 8,
+              "height": 7,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-35"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 8,
+              "y": 89,
+              "width": 8,
+              "height": 7,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-39"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 16,
+              "y": 89,
+              "width": 8,
+              "height": 7,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-40"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 96,
+              "width": 6,
+              "height": 7,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-36"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 6,
+              "y": 96,
+              "width": 6,
+              "height": 7,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-37"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 12,
+              "y": 96,
+              "width": 12,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-38"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
