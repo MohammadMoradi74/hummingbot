@@ -246,7 +246,7 @@ class MofidExchange(ExchangePyBase):
             raise IOError(self._format_oms_rejection("place order", order_result))
 
         exchange_order_id = str(order_result["id"])
-        # Live: buyPower drops / block rises as soon as order is OnBoard; don't wait only on money WS.
+        # Live: buyPowerT2 drops / blockT2 rises as soon as order is OnBoard; don't wait only on money WS.
         self._schedule_balance_refresh()
         return exchange_order_id, self.current_timestamp
 
@@ -259,7 +259,7 @@ class MofidExchange(ExchangePyBase):
             limit_id=CONSTANTS.CANCEL_ORDER_PATH_URL,
         )
         if cancel_result.get("isSuccessful") is True:
-            # Live: cancel clears block and restores buyPowerT0 promptly.
+            # Live: cancel clears blockT2 and restores buyPowerT2 promptly.
             self._schedule_balance_refresh()
             return True
         raise IOError(self._format_oms_rejection("cancel order", cancel_result))
@@ -604,11 +604,10 @@ class MofidExchange(ExchangePyBase):
             limit_id=CONSTANTS.MONEY_PATH_URL,
         )
         quote = CONSTANTS.QUOTE_ASSET
-        # Live GET /easy/api/money (tmp3): buyPowerT0 = spendable; block/blockT2 = open-order lock.
-        # While a buy rests: buyPower falls, block rises, t2 stays flat — so total ≠ t2 for HB.
-        # Use available=buyPowerT0, total=buyPowerT0+block (prefer block, else blockT2).
-        available = Decimal(str(money.get("buyPowerT0", 0) or 0))
-        blocked = Decimal(str(money.get("block", money.get("blockT2", 0)) or 0))
+        # Live GET /easy/api/money: t0 = withdrawable today; buyPowerT2 = T+2 buying power (also NAV cash).
+        # While a buy rests: buyPowerT2 falls, blockT2 rises; total = buyPowerT2 + blockT2 (= t2 when settled).
+        available = Decimal(str(money.get("buyPowerT2", 0) or 0))
+        blocked = Decimal(str(money.get("blockT2", money.get("block", 0)) or 0))
         total = available + blocked
         self._account_available_balances[quote] = available
         self._account_balances[quote] = total

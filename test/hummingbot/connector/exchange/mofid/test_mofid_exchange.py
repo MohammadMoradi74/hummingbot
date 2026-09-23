@@ -909,7 +909,7 @@ class MofidExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
             body=json.dumps({"orders": []}),
             callback=callback,
         )
-        if response.get("buyPowerT0", 0) == 0 and response.get("t2", 0) == 0:
+        if response.get("buyPowerT2", 0) == 0 and response.get("t2", 0) == 0:
             portfolio = {
                 "items": [
                     {"symbolIsin": self.base_asset, "asset": 10},
@@ -989,11 +989,11 @@ class MofidExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
         self.assertEqual(Decimal("10"), self.exchange.available_balances[self.base_asset])
         self.assertEqual(Decimal("0"), self.exchange.available_balances[self.quote_asset])
 
-        # Open buy lock: available=buyPowerT0, total=buyPowerT0+block (live resting-order shape).
+        # Open buy lock: available=buyPowerT2, total=buyPowerT2+blockT2 (T+0 buyPower ignored).
         mock_api.get(
             re.compile(f"^{money_url}".replace(".", r"\.").replace("?", r"\?")),
             body=json.dumps({
-                "buyPowerT0": 40497717,
+                "buyPowerT0": 10000000,
                 "buyPowerT1": 40497717,
                 "buyPowerT2": 40497717,
                 "t2": 51513077,
