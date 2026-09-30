@@ -1,4 +1,4 @@
-from hummingbot.core.api_throttler.data_types import RateLimit
+from hummingbot.core.api_throttler.data_types import LinkedLimitWeightPair, RateLimit
 from hummingbot.core.data_type.in_flight_order import OrderState
 
 DEFAULT_DOMAIN = "ir"
@@ -97,13 +97,32 @@ WS_ORDER_STATE = {
 ONE_MINUTE = 60
 MAX_REQUEST = 5000
 
+# Broker 13021 if orders are <300ms apart; enforce 500ms between place/cancel.
+MOFID_ORDER_MIN_GAP = "MOFID_ORDER_MIN_GAP"
+MOFID_ORDER_MIN_INTERVAL_SECONDS = 0.5
+
 # Placeholder until we know real limits from docs/traffic.
 RATE_LIMITS = [
     RateLimit(limit_id=SERVER_TIME_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE),
     RateLimit(limit_id=SNAPSHOT_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE),
     RateLimit(limit_id=EXCHANGE_INFO_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE),
-    RateLimit(limit_id=ORDER_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE),
-    RateLimit(limit_id=CANCEL_ORDER_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE),
+    RateLimit(
+        limit_id=MOFID_ORDER_MIN_GAP,
+        limit=1,
+        time_interval=MOFID_ORDER_MIN_INTERVAL_SECONDS,
+    ),
+    RateLimit(
+        limit_id=ORDER_PATH_URL,
+        limit=MAX_REQUEST,
+        time_interval=ONE_MINUTE,
+        linked_limits=[LinkedLimitWeightPair(MOFID_ORDER_MIN_GAP, 1)],
+    ),
+    RateLimit(
+        limit_id=CANCEL_ORDER_PATH_URL,
+        limit=MAX_REQUEST,
+        time_interval=ONE_MINUTE,
+        linked_limits=[LinkedLimitWeightPair(MOFID_ORDER_MIN_GAP, 1)],
+    ),
     RateLimit(limit_id=OPEN_ORDERS_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE),
     RateLimit(limit_id=ORDER_TRADES_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE),
     RateLimit(limit_id=ORDER_REPORT_PATH_URL, limit=MAX_REQUEST, time_interval=ONE_MINUTE),

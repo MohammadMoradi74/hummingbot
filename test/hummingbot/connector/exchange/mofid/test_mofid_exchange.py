@@ -506,6 +506,15 @@ class MofidExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
         self.assertIn("PriceIsNotInRangeError", msg)
         self.assertNotIn("1121DMbrkZJixnoY", msg)
 
+    def test_rate_limits_order_min_gap_linked_to_place_and_cancel(self):
+        rules = {r.limit_id: r for r in self.exchange.rate_limits_rules}
+        gap = rules[CONSTANTS.MOFID_ORDER_MIN_GAP]
+        self.assertEqual(1, gap.limit)
+        self.assertEqual(CONSTANTS.MOFID_ORDER_MIN_INTERVAL_SECONDS, gap.time_interval)
+        for path in (CONSTANTS.ORDER_PATH_URL, CONSTANTS.CANCEL_ORDER_PATH_URL):
+            linked = [p.limit_id for p in (rules[path].linked_limits or [])]
+            self.assertIn(CONSTANTS.MOFID_ORDER_MIN_GAP, linked)
+
     def exchange_symbol_for_tokens(self, base_token: str, quote_token: str) -> str:
         return base_token
 
