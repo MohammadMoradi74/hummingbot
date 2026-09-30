@@ -407,8 +407,6 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
         self.pending_order_ids = set()
         self.all_rotations_sent = False
 
-        self.lowest_ret_symbol = None
-
         self._order_meta: Dict[str, Dict] = {}
         # buy_order_id -> synthetic sell_order_id for cash-collector fill linkage
         self._metrics_cc_by_buy: Dict[str, str] = {}
@@ -478,31 +476,15 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
                 )
                 self._metrics_session_meta.pop("session_event", None)
 
-    def _refresh_lowest_ret_symbol(self) -> None:
-        """Recompute cash-collector target from latest processor state (not only on freq bins)."""
-        try:
-            ts = pd.Timestamp(self.processor_timestamp, unit="s")
-            rets = self.ret_processor.get_ret(ts)
-            ba_spread = self.ret_processor.get_ba_spread(ts)
-        except Exception:
-            return
-        if rets is None or ba_spread is None or len(rets) == 0:
-            return
-        cost = rets + ba_spread
-        if not cost.notna().any():
-            return
-        self.lowest_ret_symbol = cost.index[cost.argmin()]
-
     def _metrics_snapshot(self):
         if self._metrics is None:
             return
-        self._refresh_lowest_ret_symbol()
         positions = self.get_positions()
+        #TODO: lowest_ret_symbol is removed
         self._metrics.maybe_snapshot(
             self._now_s(),
             basket_symbols=self._basket_symbols(positions),
             quote_balance=self._metrics_quote_balance(),
-            lowest_ret_symbol=self.lowest_ret_symbol,
             pending_order_count=len(self.pending_order_ids),
         )
 
@@ -770,12 +752,12 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
             positions[symbol] = float(Decimal(str(connector.get_available_balance(base))))
         return positions
 
-    def get_mid_price(self):
+    def get_price(self, price_type: PriceType = PriceType.MidPrice):
         connector = self.connectors[self.config.exchange]
         mid_price = pd.Series(index=self.symbols, dtype=float)
         for pair in self.config.trading_pairs:
             symbol = self.hb_to_strat_map[pair]
-            mid_price[symbol] = float(connector.get_price_by_type(pair, PriceType.MidPrice))
+            mid_price[symbol] = float(connector.get_price_by_type(pair, price_type))
         return mid_price
 
     def on_tick(self):
@@ -809,12 +791,9 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
         freq_result = self.ret_processor.on_freq(current_ts)
         if freq_result is not None:
             timestamp, rets, ba_spread, mid_price = freq_result
-            self.lowest_ret_symbol = rets.index[(rets + ba_spread).argmin()]
             if self._metrics is not None:
                 self._metrics.on_signal_bin(timestamp, rets, ba_spread, mid_price, self.ret_processor)
             self.check_and_execute(current_ts, timestamp, rets, ba_spread, mid_price)
-        else:
-            self._refresh_lowest_ret_symbol()
 
     def get_bid_ask(self, pair: str):
         bids, asks = self.connectors[self.config.exchange].get_order_book(pair).snapshot
@@ -848,7 +827,7 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
             f"**returns** timestamp: {timestamp}, rets: {rets.to_dict()}, ba_spread: {ba_spread.to_dict()}"
         )
         signal_mid = mid_price  # freq-bin mid for realized_edge
-        live_mid = self.get_mid_price()
+        live_mid = self.get_price(PriceType.MidPrice)
         transition_df = self.transition_tracker.calculate_transitions(positions, live_mid, rets, ba_spread)
         self.execute_rotation(transition_df, rets=rets, ba_spread=ba_spread, signal_mid=signal_mid)
 
@@ -1249,27 +1228,27 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
                 self._maybe_cash_collect()
 
     def cash_collector(self):
-        self._refresh_lowest_ret_symbol()
-        if self.lowest_ret_symbol is None:
-            return None
-
         connector = self.connectors[self.config.exchange]
-        buy_pair = self.strat_to_hb_map[self.lowest_ret_symbol]
-
-        base, quote = buy_pair.split("-")
-        quote_balance = Decimal(str(connector.get_available_balance(quote)))
+        quote_balance = Decimal(str(connector.get_available_balance('IRR')))
 
         if quote_balance <= Decimal("0"):
-            self.logger().warning(f"No {quote} available to buy {buy_pair}")
+            self.logger().warning(f"No IRR available")
             return None
 
+        positions = self.get_positions()
+        best_ask = self.get_price(PriceType.BestAsk)
+        symbol, max_value = self.transition_tracker.get_cash_collector_max_transition_value(positions, best_ask, cash=quote_balance)
+        if max_value <= 0:
+            return None
+
+        buy_pair = self.strat_to_hb_map[symbol]
         buy_px = self._aggressive_limit_price(buy_pair, attempt=0)
         if buy_px <= Decimal("0"):
             self.logger().warning(f"Invalid buy price for {buy_pair}")
             return None
 
         quote_to_spend = quote_balance * Decimal(str(self.config.spend_factor))
-        buy_amount = quote_to_spend / buy_px
+        buy_amount = min(quote_to_spend, max_value * Decimal("1.02")) / buy_px
 
         if buy_amount <= Decimal("0"):
             self.logger().warning(f"Computed buy_amount<=0 for {buy_pair}")
@@ -1278,7 +1257,7 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
         if quote_to_spend < MOFID_MIN_NOTIONAL:
             if not self._cash_collector_dust_logged:
                 self.logger().info(
-                    f"CASH_COLLECTOR: skip idle {quote_to_spend} {quote} "
+                    f"CASH_COLLECTOR: skip idle {quote_to_spend} IRR "
                     f"(below min notional {MOFID_MIN_NOTIONAL})"
                 )
                 self._cash_collector_dust_logged = True
@@ -1290,7 +1269,7 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
 
         self.logger().info(
             f"CASH_COLLECTOR: Buying {buy_amount} {buy_pair} at {buy_px} (limit at best ask) "
-            f"using {quote_to_spend} {quote} (from {quote_balance} available)"
+            f"using {quote_to_spend} IRR (from {quote_balance} available)"
         )
 
         buy_order_id = self.buy(
@@ -1308,7 +1287,7 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
                     "cash_collector",
                     {
                         "pair": buy_pair,
-                        "symbol": self.lowest_ret_symbol,
+                        "symbol": symbol,
                         "buy_amount": str(buy_amount),
                         "buy_price": str(buy_px),
                         "quote_to_spend": str(quote_to_spend),
@@ -1319,7 +1298,7 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
                 self._metrics.on_rotation_started(
                     sell_order_id=cc_key,
                     prev_symbol="CASH",
-                    new_symbol=self.lowest_ret_symbol,
+                    new_symbol=symbol,
                     transition_score=0.0,
                     transition_value=float(quote_to_spend),
                     sell_pair="",
