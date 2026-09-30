@@ -9,6 +9,7 @@ v5 changes vs v4:
   3. Benchmark index panels read signal_snapshot directly (dense mids; no bin×symbol grid).
   4. Benchmark panels use one SQL query each (All+Top5 via FILTER aggregate).
   5. Portfolio-on-bin alignment uses O(n) fill_rn forward-fill (correct last snapshot, not MAX/LATERAL).
+  6. Benchmark/excess portfolio % uses bin_nav0 (NAV as-of first signal bin), aligned with index m0.
 """
 import json
 from pathlib import Path
@@ -69,27 +70,38 @@ def _benchmark_base_cte():
     """Shared CTEs for benchmark/excess panels: raw mids, index %, port as-of bins."""
     return (
         f"{_FILLED_MIDS_CTE}, "
-        f"{_port_cte()}, "
-        f"bins AS ("
-        f"SELECT DISTINCT session_id, bin_ts AS real_ts FROM raw"
-        f"), "
+        f"{_benchmark_port_cte()}, "
         f"{_port_ffill_on_bins_cte()}"
     )
 
 
-def _port_cte():
+def _benchmark_port_cte():
+    """Portfolio % baseline = NAV as-of first signal bin (matches index m0 at that bin)."""
     return (
-        f"start_nav AS ("
-        f"SELECT portfolio_value AS v FROM pair_trade.portfolio_snapshot "
-        f"WHERE {SESS} ORDER BY ts ASC LIMIT 1"
-        f"), "
-        f"port AS ("
-        f"SELECT p.session_id, p.ts AS real_ts, "
-        f"100.0 * (p.portfolio_value / NULLIF(sn.v, 0) - 1) AS port_pct "
-        f"FROM pair_trade.portfolio_snapshot p "
-        f"CROSS JOIN start_nav sn "
-        f"WHERE p.session_id IN ($session)"
-        f")"
+        "bins AS ("
+        "SELECT DISTINCT session_id, bin_ts AS real_ts FROM raw"
+        "), "
+        "first_bin AS ("
+        "SELECT b.session_id, b.real_ts "
+        "FROM bins b "
+        "JOIN pair_trade.session s ON s.id = b.session_id "
+        "ORDER BY s.started_at, b.real_ts "
+        "LIMIT 1"
+        "), "
+        "bin_nav0 AS ("
+        "SELECT p.portfolio_value AS v "
+        "FROM pair_trade.portfolio_snapshot p "
+        "INNER JOIN first_bin fb ON fb.session_id = p.session_id AND p.ts <= fb.real_ts "
+        "ORDER BY p.ts DESC "
+        "LIMIT 1"
+        "), "
+        "port AS ("
+        "SELECT p.session_id, p.ts AS real_ts, "
+        "100.0 * (p.portfolio_value / NULLIF(n0.v, 0) - 1) AS port_pct "
+        "FROM pair_trade.portfolio_snapshot p "
+        "CROSS JOIN bin_nav0 n0 "
+        "WHERE p.session_id IN ($session)"
+        ")"
     )
 
 
@@ -495,7 +507,7 @@ def main():
                 f"FROM latest, start_nav;",
                 "table",
             )]),
-            stat_viz(3, unit="percent", thresholds=red_green),
+            stat_viz(2, unit="percent", thresholds=red_green),
         ),
         "panel-2": panel(
             2,
