@@ -480,11 +480,11 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
         if self._metrics is None:
             return
         positions = self.get_positions()
-        #TODO: lowest_ret_symbol is removed
         self._metrics.maybe_snapshot(
             self._now_s(),
             basket_symbols=self._basket_symbols(positions),
             quote_balance=self._metrics_quote_balance(),
+            lowest_ret_symbol=None,
             pending_order_count=len(self.pending_order_ids),
         )
 
@@ -1232,13 +1232,15 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
         quote_balance = Decimal(str(connector.get_available_balance('IRR')))
 
         if quote_balance <= Decimal("0"):
-            self.logger().warning(f"No IRR available")
+            self.logger().warning("No IRR available")
             return None
 
         positions = self.get_positions()
         best_ask = self.get_price(PriceType.BestAsk)
-        symbol, max_value = self.transition_tracker.get_cash_collector_max_transition_value(positions, best_ask, cash=quote_balance)
+        symbol, max_value = self.transition_tracker.get_cash_collector_max_transition_value(positions, best_ask,
+                                                                                            cash=float(quote_balance))
         if max_value <= 0:
+            self.logger().warning(f"Invalid max_value for symbol {symbol}: max_value = {max_value} IRR")
             return None
 
         buy_pair = self.strat_to_hb_map[symbol]
