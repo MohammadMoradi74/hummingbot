@@ -1248,7 +1248,7 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
             return None
 
         quote_to_spend = quote_balance * Decimal(str(self.config.spend_factor))
-        buy_amount = min(quote_to_spend, max_value * Decimal("1.02")) / buy_px
+        buy_amount = min(quote_to_spend, max(Decimal(str(max_value)) * Decimal("1.02"), MOFID_MIN_NOTIONAL)) / buy_px
 
         if buy_amount <= Decimal("0"):
             self.logger().warning(f"Computed buy_amount<=0 for {buy_pair}")
