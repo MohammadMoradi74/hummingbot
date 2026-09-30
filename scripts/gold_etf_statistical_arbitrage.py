@@ -383,7 +383,9 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
                 current_date = date.today().strftime("%Y-%m-%d")
                 date_30_days_ago = (date.today() - timedelta(days=30)).strftime("%Y-%m-%d")
                 daily = download_daily(self.symbols, date_30_days_ago, current_date)
-                archive_orderbook = load_orderbook(self.symbols, date_30_days_ago, current_date)
+                archive_orderbook = load_orderbook(
+                    self.symbols, date_30_days_ago, current_date, utc=True
+                )
 
             self.ret_processor = MultiAssetMidRetProcessor(
                 self.symbols,
