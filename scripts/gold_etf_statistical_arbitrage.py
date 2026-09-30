@@ -669,6 +669,10 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
             remaining = Decimal("0")
         return remaining
 
+    def _min_quote_to_deploy(self) -> Decimal:
+        cfg = Decimal(str(self.config.min_quote_to_spend))
+        return cfg if cfg > MOFID_MIN_NOTIONAL else MOFID_MIN_NOTIONAL
+
     def _place_buy_retry_for_sell(self, sell_order_id: str) -> Optional[str]:
         rotation = self._rotations_by_sell_id.get(sell_order_id)
         if rotation is None:
@@ -678,8 +682,7 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
             return None
 
         remaining_quote = self._rotation_remaining_quote(rotation)
-        min_quote = Decimal(str(self.config.min_quote_to_spend))
-        if remaining_quote <= min_quote:
+        if remaining_quote < self._min_quote_to_deploy():
             return None
 
         attempt = int(rotation.get("buy_attempts", 0))
@@ -737,9 +740,7 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
                 return
             remaining = self._rotation_remaining_quote(rot)
             attempts = int(rot.get("buy_attempts", 0))
-            if remaining >= MOFID_MIN_NOTIONAL and attempts < max_retries:
-                return
-            if remaining > Decimal("0") and attempts < max_retries:
+            if remaining >= self._min_quote_to_deploy() and attempts < max_retries:
                 return
         self.all_rotations_sent = False
         self.cash_collector()
@@ -1103,7 +1104,11 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
         self.logger().info(
             f"BUY complete sell_id={sell_id} spent={rotation['quote_spent']} remaining={remaining}"
         )
-        done = remaining <= Decimal(str(self.config.min_quote_to_spend))
+        if Decimal("0") < remaining < MOFID_MIN_NOTIONAL:
+            self.logger().info(
+                f"Rotation buy leg settled: {remaining} IRR below min notional {MOFID_MIN_NOTIONAL}"
+            )
+        done = remaining < self._min_quote_to_deploy()
         if self._metrics is not None:
             update_kw = {
                 "status": "buy_complete" if done else "buy_partial",
@@ -1348,6 +1353,10 @@ def _cash_collector_p0_self_check() -> None:
     assert MOFID_MIN_NOTIONAL == Decimal("5000000")
     assert Decimal("521344") < MOFID_MIN_NOTIONAL
     assert Decimal("8791480") >= MOFID_MIN_NOTIONAL
+    assert Decimal("86055") < MOFID_MIN_NOTIONAL
+    deploy_floor = max(Decimal("0"), MOFID_MIN_NOTIONAL)
+    assert Decimal("86055") < deploy_floor
+    assert Decimal("6000000") >= deploy_floor
 
 
 if __name__ == "__main__":
