@@ -412,6 +412,7 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
         self._order_meta: Dict[str, Dict] = {}
         # buy_order_id -> synthetic sell_order_id for cash-collector fill linkage
         self._metrics_cc_by_buy: Dict[str, str] = {}
+        self._cash_collector_dust_logged = False
 
         self._metrics: Optional[PairTradeMetricsTracker] = None
         self._metrics_session_meta: Dict = {}
@@ -728,13 +729,17 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
     def _maybe_cash_collect(self):
         if len(self.pending_order_ids) != 0:
             return
-        min_quote = Decimal(str(self.config.min_quote_to_spend))
         max_retries = int(self.config.max_buy_retries)
         for rot in self._rotations_by_sell_id.values():
             if rot.get("active_buy_id") is not None:
                 return
+            if Decimal(str(rot.get("quote_earned", "0"))) <= 0:
+                return
             remaining = self._rotation_remaining_quote(rot)
-            if remaining > min_quote and int(rot.get("buy_attempts", 0)) < max_retries:
+            attempts = int(rot.get("buy_attempts", 0))
+            if remaining >= MOFID_MIN_NOTIONAL and attempts < max_retries:
+                return
+            if remaining > Decimal("0") and attempts < max_retries:
                 return
         self.all_rotations_sent = False
         self.cash_collector()
@@ -1265,21 +1270,23 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
             self.logger().warning(f"Computed buy_amount<=0 for {buy_pair}")
             return None
 
+        if quote_to_spend < MOFID_MIN_NOTIONAL:
+            if not self._cash_collector_dust_logged:
+                self.logger().info(
+                    f"CASH_COLLECTOR: skip idle {quote_to_spend} {quote} "
+                    f"(below min notional {MOFID_MIN_NOTIONAL})"
+                )
+                self._cash_collector_dust_logged = True
+            return None
+        self._cash_collector_dust_logged = False
+
+        if not self.meets_order_constraints(buy_pair, buy_amount, buy_px, side="buy"):
+            return None
+
         self.logger().info(
             f"CASH_COLLECTOR: Buying {buy_amount} {buy_pair} at {buy_px} (limit at best ask) "
             f"using {quote_to_spend} {quote} (from {quote_balance} available)"
         )
-        if self._metrics is not None:
-            self._metrics.log_event(
-                "cash_collector",
-                {
-                    "pair": buy_pair,
-                    "symbol": self.lowest_ret_symbol,
-                    "buy_amount": str(buy_amount),
-                    "buy_price": str(buy_px),
-                    "quote_to_spend": str(quote_to_spend),
-                },
-            )
 
         buy_order_id = self.buy(
             self.config.exchange,
@@ -1292,6 +1299,16 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
             self.pending_order_ids.add(buy_order_id)
             self._track_order(buy_order_id, buy_pair, "buy")
             if self._metrics is not None:
+                self._metrics.log_event(
+                    "cash_collector",
+                    {
+                        "pair": buy_pair,
+                        "symbol": self.lowest_ret_symbol,
+                        "buy_amount": str(buy_amount),
+                        "buy_price": str(buy_px),
+                        "quote_to_spend": str(quote_to_spend),
+                    },
+                )
                 cc_key = f"cash_collector:{buy_order_id}"
                 self._metrics_cc_by_buy[buy_order_id] = cc_key
                 self._metrics.on_rotation_started(
@@ -1325,3 +1342,13 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
             if self._metrics is not None:
                 self._metrics.log_event("checkpoint_failed", {"error": str(e)}, level="warning")
         await super().on_stop()
+
+
+def _cash_collector_p0_self_check() -> None:
+    assert MOFID_MIN_NOTIONAL == Decimal("5000000")
+    assert Decimal("521344") < MOFID_MIN_NOTIONAL
+    assert Decimal("8791480") >= MOFID_MIN_NOTIONAL
+
+
+if __name__ == "__main__":
+    _cash_collector_p0_self_check()
