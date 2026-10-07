@@ -36,7 +36,27 @@ def _build_gold_etf_config():
 
 
 _GOLD_SYMBOLS, _DEFAULT_TRADING_PAIRS, _HB_TO_STRAT_MAP = _build_gold_etf_config()
-MOFID_MIN_NOTIONAL = Decimal("5000000")  # real exchange floor; connector keeps 1 for dust sells
+MOFID_MIN_NOTIONAL = Decimal("5000000")  # IRR; connector rule is 1 — enforced here
+
+
+def mofid_sell_allowed(
+    amount: Decimal,
+    price: Decimal,
+    total_base: Decimal,
+    min_notional: Decimal,
+    lot_step: Decimal,
+) -> bool:
+    """Mofid: buys need min_notional; sub-min line must exit in one full sell."""
+    if amount <= 0 or price <= 0 or total_base <= 0:
+        return False
+    order_notional = amount * price
+    line_notional = total_base * price
+    if line_notional >= min_notional:
+        return order_notional >= min_notional
+    remainder = total_base - amount
+    if remainder <= 0:
+        return True
+    return lot_step > 0 and remainder < lot_step
 
 
 class GoldEtfStatisticalArbitrageConfig(StrategyV2ConfigBase):
@@ -581,20 +601,10 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
         if side != "sell":
             return False
 
-        if notional >= MOFID_MIN_NOTIONAL:
-            return True
-
         base, _ = trading_pair.split("-")
-        available = Decimal(str(connector.get_available_balance(base)))
-        if available <= 0:
-            return False
-
-        step = Decimal(str(rule.min_base_amount_increment or "0"))
-        epsilon = step if step > 0 else Decimal("0")
-        is_sell_all = amount >= (available - epsilon)
-        available_notional = available * price
-
-        return is_sell_all and available_notional < MOFID_MIN_NOTIONAL
+        total_base = Decimal(str(connector.get_balance(base)))
+        lot_step = Decimal(str(rule.min_base_amount_increment or "0"))
+        return mofid_sell_allowed(amount, price, total_base, MOFID_MIN_NOTIONAL, lot_step)
 
     def buy(
         self,
@@ -924,8 +934,25 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
             }
 
             sell_base, _ = sell_pair.split("-")
+            sell_rule = connector.trading_rules.get(sell_pair)
+            step_eps = (
+                Decimal(str(sell_rule.min_base_amount_increment or "0"))
+                if sell_rule is not None
+                else Decimal("0")
+            )
+            if step_eps <= 0:
+                step_eps = Decimal("0")
 
+            total_base = Decimal(str(connector.get_balance(sell_base)))
             available_sell_amount = Decimal(str(connector.get_available_balance(sell_base)))
+            sell_amt = Decimal(str(rotation_info["sell_amount"]))
+            line_notional = total_base * sell_px
+            if line_notional < MOFID_MIN_NOTIONAL and not mofid_sell_allowed(
+                sell_amt, sell_px, total_base, MOFID_MIN_NOTIONAL, step_eps
+            ):
+                sell_amt = connector.quantize_order_amount(sell_pair, available_sell_amount)
+                rotation_info["sell_amount"] = sell_amt
+
             if available_sell_amount < rotation_info["sell_amount"]:
                 self.logger().warning(f"Not enough {sell_base} available to sell for {sell_pair}; skip.")
                 if self._metrics is not None:
@@ -934,6 +961,19 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
                         {"symbol": pre_symbol, "pair": sell_pair, "needed": str(rotation_info["sell_amount"])},
                         level="warning",
                     )
+                continue
+
+            if not mofid_sell_allowed(
+                Decimal(str(rotation_info["sell_amount"])),
+                sell_px,
+                total_base,
+                MOFID_MIN_NOTIONAL,
+                step_eps,
+            ):
+                self.logger().info(
+                    f"Skip rotate sell {sell_pair}: amount={rotation_info['sell_amount']} "
+                    f"total={total_base} price={sell_px} (Mofid sell line rules)"
+                )
                 continue
 
             self.logger().info(
@@ -1330,17 +1370,3 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
             if self._metrics is not None:
                 self._metrics.log_event("checkpoint_failed", {"error": str(e)}, level="warning")
         await super().on_stop()
-
-
-def _cash_collector_p0_self_check() -> None:
-    assert MOFID_MIN_NOTIONAL == Decimal("5000000")
-    assert Decimal("521344") < MOFID_MIN_NOTIONAL
-    assert Decimal("8791480") >= MOFID_MIN_NOTIONAL
-    assert Decimal("86055") < MOFID_MIN_NOTIONAL
-    deploy_floor = max(Decimal("0"), MOFID_MIN_NOTIONAL)
-    assert Decimal("86055") < deploy_floor
-    assert Decimal("6000000") >= deploy_floor
-
-
-if __name__ == "__main__":
-    _cash_collector_p0_self_check()
