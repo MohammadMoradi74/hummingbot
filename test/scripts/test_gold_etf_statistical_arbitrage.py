@@ -95,5 +95,35 @@ class TestMeetsOrderConstraints(unittest.TestCase):
         self.assertTrue(strategy.meets_order_constraints("IRTKGANJ0001-IRR", Decimal("19"), px, side="sell"))
 
 
+class TestFailedSellRotationCleanup(unittest.TestCase):
+    def test_handle_order_end_drops_sell_with_no_fill(self):
+        strategy = GoldEtfStatisticalArbitrage.__new__(GoldEtfStatisticalArbitrage)
+        strategy._rotations_by_sell_id = {
+            "sell1": {"quote_earned": Decimal("0"), "sell_qty": Decimal("0")},
+        }
+        strategy._buy_to_sell = {}
+        strategy._metrics_cc_by_buy = {}
+        strategy.pending_order_ids = set()
+        strategy._order_meta = {}
+        strategy._metrics = None
+        strategy._place_buy_retry_for_sell = MagicMock()
+        strategy._maybe_cash_collect = MagicMock()
+        strategy._handle_order_end("sell1", reason="failed")
+        self.assertNotIn("sell1", strategy._rotations_by_sell_id)
+        strategy._place_buy_retry_for_sell.assert_not_called()
+
+    def test_maybe_cash_collect_ignores_zombie_rotation(self):
+        strategy = GoldEtfStatisticalArbitrage.__new__(GoldEtfStatisticalArbitrage)
+        strategy.pending_order_ids = set()
+        strategy.config = MagicMock(max_buy_retries=5)
+        strategy._rotations_by_sell_id = {"dead": {"quote_earned": Decimal("0"), "buy_attempts": 0}}
+        strategy._min_quote_to_deploy = lambda: Decimal("5000000")
+        strategy._rotation_remaining_quote = lambda _r: Decimal("0")
+        strategy.cash_collector = MagicMock()
+        strategy.all_rotations_sent = True
+        strategy._maybe_cash_collect()
+        strategy.cash_collector.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -731,7 +731,7 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
             if rot.get("active_buy_id") is not None:
                 return
             if Decimal(str(rot.get("quote_earned", "0"))) <= 0:
-                return
+                continue
             remaining = self._rotation_remaining_quote(rot)
             attempts = int(rot.get("buy_attempts", 0))
             if remaining >= self._min_quote_to_deploy() and attempts < max_retries:
@@ -1246,7 +1246,13 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
             )
 
         if order_id in self._rotations_by_sell_id:
-            self._place_buy_retry_for_sell(order_id)
+            rot = self._rotations_by_sell_id[order_id]
+            earned = Decimal(str(rot.get("quote_earned", "0")))
+            sold = Decimal(str(rot.get("sell_qty", "0")))
+            if earned <= 0 and sold <= 0:
+                self._rotations_by_sell_id.pop(order_id, None)
+            else:
+                self._place_buy_retry_for_sell(order_id)
             if self._metrics is not None:
                 self._metrics.on_rotation_update(order_id, status=f"sell_{reason}")
                 self._metrics.log_event(
