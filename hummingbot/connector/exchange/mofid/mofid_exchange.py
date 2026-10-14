@@ -450,6 +450,29 @@ class MofidExchange(ExchangePyBase):
 
         return OrderState.OPEN
 
+    def _should_apply_ws_order_state(
+        self,
+        tracked_order: InFlightOrder,
+        new_state: OrderState,
+        msg_type: Optional[str],
+    ) -> bool:
+        """Ignore out-of-order Lightstreamer lifecycle states (e.g. late OnSending after OnBoard)."""
+        current = tracked_order.current_state
+
+        if current in (OrderState.CANCELED, OrderState.FILLED, OrderState.FAILED):
+            return False
+
+        if new_state == OrderState.PENDING_CREATE and current != OrderState.PENDING_CREATE:
+            return False
+
+        if msg_type == "Trade":
+            return new_state in (OrderState.PARTIALLY_FILLED, OrderState.FILLED)
+
+        if tracked_order.is_filled and new_state == OrderState.OPEN:
+            return False
+
+        return True
+
     def _parse_mofid_timestamp(self, ts_str: Optional[str]) -> float:
         if not ts_str:
             return self.current_timestamp
@@ -725,7 +748,9 @@ class MofidExchange(ExchangePyBase):
                     )
                     self._schedule_balance_refresh()
 
-                if new_state is not None:
+                if new_state is not None and self._should_apply_ws_order_state(
+                    tracked_order, new_state, msg_type
+                ):
                     # Ensure fills land before FILLED terminal state.
                     if new_state in (OrderState.FILLED, OrderState.PARTIALLY_FILLED) and msg_type != "Trade":
                         await self._update_orders_fills(orders=[tracked_order])

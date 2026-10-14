@@ -15,7 +15,7 @@ from hummingbot.connector.exchange.mofid.mofid_exchange import MofidExchange
 from hummingbot.connector.test_support.exchange_connector_test import AbstractExchangeConnectorTests
 from hummingbot.connector.trading_rule import TradingRule
 from hummingbot.core.data_type.common import OrderType, TradeType
-from hummingbot.core.data_type.in_flight_order import InFlightOrder
+from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate
 from hummingbot.core.data_type.trade_fee import DeductedFromReturnsTradeFee, TradeFeeBase
 
 
@@ -1147,3 +1147,82 @@ class MofidExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
         buy_event: BuyOrderCompletedEvent = self.buy_order_completed_logger.event_log[0]
         self.assertEqual(order.client_order_id, buy_event.order_id)
         self.assertNotIn(order.client_order_id, self.exchange.in_flight_orders)
+
+    async def test_user_stream_ignores_late_on_sending_after_open_then_fills(self):
+        """Late OnSending/OnBoard after REST OPEN must not re-emit SellOrderCreated (live 2026-10-12)."""
+        import asyncio
+
+        from hummingbot.core.event.events import OrderFilledEvent, SellOrderCompletedEvent
+
+        self.exchange._set_current_timestamp(1640780000)
+        order_id = self.client_order_id_prefix + "dup-create"
+        self.exchange.start_tracking_order(
+            order_id=order_id,
+            exchange_order_id=str(self.expected_exchange_order_id),
+            trading_pair=self.trading_pair,
+            order_type=OrderType.LIMIT,
+            trade_type=TradeType.SELL,
+            price=Decimal("188000"),
+            amount=Decimal("31"),
+        )
+        order = self.exchange.in_flight_orders[order_id]
+        self.exchange._order_tracker.process_order_update(
+            OrderUpdate(
+                client_order_id=order_id,
+                exchange_order_id=str(self.expected_exchange_order_id),
+                trading_pair=self.trading_pair,
+                update_timestamp=self.exchange.current_timestamp,
+                new_state=OrderState.OPEN,
+            )
+        )
+        await asyncio.sleep(0.1)
+        self.assertEqual(1, len(self.sell_order_created_logger.event_log))
+
+        isin = self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset)
+        late_on_sending = {
+            "e": CONSTANTS.USER_ORDER_EVENT_TYPE,
+            "meta": {
+                "isr": str(self.expected_exchange_order_id),
+                "type": "OrderResult",
+                "state": "OnSending",
+                "quantity": 31,
+                "price": 188000,
+                "side": CONSTANTS.SIDE_SELL,
+                "symbolIsin": isin,
+                "date": "20260905175452",
+            },
+        }
+        late_on_board = {
+            "e": CONSTANTS.USER_ORDER_EVENT_TYPE,
+            "meta": {
+                "isr": str(self.expected_exchange_order_id),
+                "type": "OrderResult",
+                "state": "OnBoard",
+                "quantity": 31,
+                "price": 188000,
+                "side": CONSTANTS.SIDE_SELL,
+                "symbolIsin": isin,
+                "date": "20260905175453",
+            },
+        }
+        fill_event = self.order_event_for_full_fill_websocket_update(order=order)
+        fill_event["meta"]["side"] = CONSTANTS.SIDE_SELL
+
+        mock_queue = AsyncMock()
+        mock_queue.get.side_effect = [late_on_sending, late_on_board, fill_event, asyncio.CancelledError]
+        self.exchange._user_stream_tracker._user_stream = mock_queue
+
+        try:
+            await self.exchange._user_stream_event_listener()
+        except asyncio.CancelledError:
+            pass
+        await asyncio.sleep(0.1)
+
+        self.assertEqual(1, len(self.sell_order_created_logger.event_log))
+        self.assertEqual(1, len(self.order_filled_logger.event_log))
+        fill: OrderFilledEvent = self.order_filled_logger.event_log[0]
+        self.assertEqual(order_id, fill.order_id)
+        self.assertEqual(1, len(self.sell_order_completed_logger.event_log))
+        completed: SellOrderCompletedEvent = self.sell_order_completed_logger.event_log[0]
+        self.assertEqual(order_id, completed.order_id)
+        self.assertNotIn(order_id, self.exchange.in_flight_orders)
