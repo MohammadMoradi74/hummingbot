@@ -1149,7 +1149,7 @@ class MofidExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
         self.assertNotIn(order.client_order_id, self.exchange.in_flight_orders)
 
     async def test_user_stream_ignores_late_on_sending_after_open_then_fills(self):
-        """Late OnSending/OnBoard after REST OPEN must not re-emit SellOrderCreated (live 2026-10-12)."""
+        """Regression: late OnSending/OnBoard after OPEN must not re-emit SellOrderCreated (live 2026-10-12/13)."""
         import asyncio
 
         from hummingbot.core.event.events import OrderFilledEvent, SellOrderCompletedEvent
