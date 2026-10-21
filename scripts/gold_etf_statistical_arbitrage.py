@@ -400,11 +400,14 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
                 daily = pd.read_parquet(os.path.join(data_dir, "archive_daily.parquet"))
                 daily = daily.loc[daily.index.to_frame()["symbol"].isin(self.symbols)]
             else:
-                current_date = date.today().strftime("%Y-%m-%d")
-                date_30_days_ago = (date.today() - timedelta(days=30)).strftime("%Y-%m-%d")
-                daily = download_daily(self.symbols, date_30_days_ago, current_date)
+                # Match pair_trading_live: orderbook 30d, daily 100d, both end yesterday
+                today = date.today()
+                yesterday = (today - timedelta(days=1)).strftime("%Y-%m-%d")
+                ob_start = (today - timedelta(days=int(self.config.n))).strftime("%Y-%m-%d")
+                daily_start = (today - timedelta(days=100)).strftime("%Y-%m-%d")
+                daily = download_daily(self.symbols, daily_start, yesterday)
                 archive_orderbook = load_orderbook(
-                    self.symbols, date_30_days_ago, current_date, utc=True
+                    self.symbols, ob_start, yesterday, utc=True
                 )
 
             self.ret_processor = MultiAssetMidRetProcessor(
