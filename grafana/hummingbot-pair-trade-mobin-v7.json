@@ -1689,7 +1689,7 @@
         "spec": {
           "id": 41,
           "title": "Rotation edges (bps)",
-          "description": "Sell\u2192buy only. expected/last/realized/realized_net \u00d710000 \u2248 bps. X-axis is trading-time (overnight/weekend/between-session gaps removed); samples are spread across the dashboard time range. Hover clock is compressed, not wall-clock. Filter via Session multi-select.",
+          "description": "Sell\u2192buy only. expected/last/realized/realized_net \u00d710000 \u2248 bps. Wall-clock x-axis.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -1710,7 +1710,7 @@
                       "spec": {
                         "format": "time_series",
                         "rawQuery": true,
-                        "rawSql": "WITH src AS (SELECT session_id, ts AS real_ts, transition_score * 10000 AS value, 'expected' AS metric FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND transition_score IS NOT NULL UNION ALL SELECT session_id, ts, last_edge * 10000, 'last' FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND last_edge IS NOT NULL UNION ALL SELECT session_id, ts, realized_edge * 10000, 'realized' FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND realized_edge IS NOT NULL UNION ALL SELECT session_id, ts, realized_edge_net * 10000, 'realized_net' FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND realized_edge_net IS NOT NULL), \ntmap AS (\n  SELECT d.session_id,\n         d.real_ts,\n         to_timestamp($__unixEpochFrom())\n           + (ROW_NUMBER() OVER (ORDER BY s.started_at, d.real_ts) - 1)\n           * (($__unixEpochTo() - $__unixEpochFrom())\n              / GREATEST(COUNT(*) OVER (), 1))\n           * INTERVAL '1 second' AS time\n  FROM (SELECT DISTINCT session_id, real_ts FROM src) d\n  JOIN pair_trade.session s ON s.id = d.session_id\n) SELECT m.time, s.value, s.metric FROM src s JOIN tmap m ON m.session_id = s.session_id AND m.real_ts = s.real_ts ORDER BY m.time;"
+                        "rawSql": "SELECT ts AS time, transition_score * 10000 AS value, 'expected' AS metric FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND transition_score IS NOT NULL AND $__timeFilter(ts) UNION ALL SELECT ts, last_edge * 10000, 'last' FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND last_edge IS NOT NULL AND $__timeFilter(ts) UNION ALL SELECT ts, realized_edge * 10000, 'realized' FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND realized_edge IS NOT NULL AND $__timeFilter(ts) UNION ALL SELECT ts, realized_edge_net * 10000, 'realized_net' FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND realized_edge_net IS NOT NULL AND $__timeFilter(ts) ORDER BY 1;"
                       }
                     }
                   }
@@ -1766,7 +1766,7 @@
         "spec": {
           "id": 42,
           "title": "Buy / sell slippage (bps)",
-          "description": "Sell\u2192buy slippage \u00d710000 \u2248 bps. X-axis is trading-time (overnight/weekend/between-session gaps removed); samples are spread across the dashboard time range. Hover clock is compressed, not wall-clock. Filter via Session multi-select.",
+          "description": "Sell\u2192buy slippage \u00d710000 \u2248 bps. Wall-clock x-axis.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -1787,7 +1787,7 @@
                       "spec": {
                         "format": "time_series",
                         "rawQuery": true,
-                        "rawSql": "WITH src AS (SELECT session_id, ts AS real_ts, sell_slippage * 10000 AS value, 'sell_slippage_bps' AS metric FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND sell_slippage IS NOT NULL UNION ALL SELECT session_id, ts, buy_slippage * 10000, 'buy_slippage_bps' FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND buy_slippage IS NOT NULL), \ntmap AS (\n  SELECT d.session_id,\n         d.real_ts,\n         to_timestamp($__unixEpochFrom())\n           + (ROW_NUMBER() OVER (ORDER BY s.started_at, d.real_ts) - 1)\n           * (($__unixEpochTo() - $__unixEpochFrom())\n              / GREATEST(COUNT(*) OVER (), 1))\n           * INTERVAL '1 second' AS time\n  FROM (SELECT DISTINCT session_id, real_ts FROM src) d\n  JOIN pair_trade.session s ON s.id = d.session_id\n) SELECT m.time, s.value, s.metric FROM src s JOIN tmap m ON m.session_id = s.session_id AND m.real_ts = s.real_ts ORDER BY m.time;"
+                        "rawSql": "SELECT ts AS time, sell_slippage * 10000 AS value, 'sell_slippage_bps' AS metric FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND sell_slippage IS NOT NULL AND $__timeFilter(ts) UNION ALL SELECT ts, buy_slippage * 10000, 'buy_slippage_bps' FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND buy_slippage IS NOT NULL AND $__timeFilter(ts) ORDER BY 1;"
                       }
                     }
                   }
@@ -1843,7 +1843,7 @@
         "spec": {
           "id": 43,
           "title": "Rotation latency (sec)",
-          "description": "Seconds from sell placed to buy_complete. X-axis is trading-time (overnight/weekend/between-session gaps removed); samples are spread across the dashboard time range. Hover clock is compressed, not wall-clock. Filter via Session multi-select.",
+          "description": "Seconds from sell placed to buy_complete. Wall-clock x-axis.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -1864,7 +1864,7 @@
                       "spec": {
                         "format": "time_series",
                         "rawQuery": true,
-                        "rawSql": "WITH src AS (SELECT session_id, ts AS real_ts, latency_sec AS value, prev_symbol || '\u2192' || new_symbol AS metric FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND latency_sec IS NOT NULL), \ntmap AS (\n  SELECT d.session_id,\n         d.real_ts,\n         to_timestamp($__unixEpochFrom())\n           + (ROW_NUMBER() OVER (ORDER BY s.started_at, d.real_ts) - 1)\n           * (($__unixEpochTo() - $__unixEpochFrom())\n              / GREATEST(COUNT(*) OVER (), 1))\n           * INTERVAL '1 second' AS time\n  FROM (SELECT DISTINCT session_id, real_ts FROM src) d\n  JOIN pair_trade.session s ON s.id = d.session_id\n) SELECT m.time, s.value AS value, s.metric AS metric FROM src s JOIN tmap m ON m.session_id = s.session_id AND m.real_ts = s.real_ts ORDER BY m.time;"
+                        "rawSql": "SELECT ts AS time, latency_sec AS value, new_symbol || '\u2190' || prev_symbol AS metric FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND latency_sec IS NOT NULL AND $__timeFilter(ts) ORDER BY ts;"
                       }
                     }
                   }
@@ -1921,7 +1921,7 @@
         "spec": {
           "id": 44,
           "title": "Cumulative realized edge (bps)",
-          "description": "Running sum of realized_edge / realized_edge_net (\u00d710000). X-axis is trading-time (overnight/weekend/between-session gaps removed); samples are spread across the dashboard time range. Hover clock is compressed, not wall-clock. Filter via Session multi-select.",
+          "description": "Running sum of realized_edge / realized_edge_net (\u00d710000). Wall-clock x-axis.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -1942,7 +1942,7 @@
                       "spec": {
                         "format": "time_series",
                         "rawQuery": true,
-                        "rawSql": "WITH base AS (SELECT session_id, ts AS real_ts, realized_edge, realized_edge_net FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND (realized_edge IS NOT NULL OR realized_edge_net IS NOT NULL)), src AS (SELECT session_id, real_ts FROM base), \ntmap AS (\n  SELECT d.session_id,\n         d.real_ts,\n         to_timestamp($__unixEpochFrom())\n           + (ROW_NUMBER() OVER (ORDER BY s.started_at, d.real_ts) - 1)\n           * (($__unixEpochTo() - $__unixEpochFrom())\n              / GREATEST(COUNT(*) OVER (), 1))\n           * INTERVAL '1 second' AS time\n  FROM (SELECT DISTINCT session_id, real_ts FROM src) d\n  JOIN pair_trade.session s ON s.id = d.session_id\n), cum AS (SELECT session_id, real_ts, SUM(realized_edge) OVER (PARTITION BY session_id ORDER BY real_ts) * 10000 AS v FROM base) SELECT m.time, c.v AS \"cum realized bps\" FROM tmap m JOIN cum c ON c.session_id = m.session_id AND c.real_ts = m.real_ts ORDER BY m.time;"
+                        "rawSql": "SELECT ts AS time, SUM(realized_edge) OVER (PARTITION BY session_id ORDER BY ts) * 10000 AS \"cum realized bps\" FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND realized_edge IS NOT NULL AND $__timeFilter(ts) ORDER BY ts;"
                       }
                     }
                   }
@@ -1962,7 +1962,7 @@
                       "spec": {
                         "format": "time_series",
                         "rawQuery": true,
-                        "rawSql": "WITH base AS (SELECT session_id, ts AS real_ts, realized_edge, realized_edge_net FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND (realized_edge IS NOT NULL OR realized_edge_net IS NOT NULL)), src AS (SELECT session_id, real_ts FROM base), \ntmap AS (\n  SELECT d.session_id,\n         d.real_ts,\n         to_timestamp($__unixEpochFrom())\n           + (ROW_NUMBER() OVER (ORDER BY s.started_at, d.real_ts) - 1)\n           * (($__unixEpochTo() - $__unixEpochFrom())\n              / GREATEST(COUNT(*) OVER (), 1))\n           * INTERVAL '1 second' AS time\n  FROM (SELECT DISTINCT session_id, real_ts FROM src) d\n  JOIN pair_trade.session s ON s.id = d.session_id\n), cum AS (SELECT session_id, real_ts, SUM(realized_edge_net) OVER (PARTITION BY session_id ORDER BY real_ts) * 10000 AS v FROM base) SELECT m.time, c.v AS \"cum realized_net bps\" FROM tmap m JOIN cum c ON c.session_id = m.session_id AND c.real_ts = m.real_ts ORDER BY m.time;"
+                        "rawSql": "SELECT ts AS time, SUM(realized_edge_net) OVER (PARTITION BY session_id ORDER BY ts) * 10000 AS \"cum realized_net bps\" FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND realized_edge_net IS NOT NULL AND $__timeFilter(ts) ORDER BY ts;"
                       }
                     }
                   }

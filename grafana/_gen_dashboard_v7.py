@@ -674,33 +674,26 @@ ORDER BY m.time;
         f") "
         f"SELECT time, value, metric FROM valued WHERE value > 0 ORDER BY value DESC;"
     )
+    # Wall-clock time (not gapless) — sparse rotation events keep overnight/weekend gaps.
     edges_sql = (
-        f"WITH src AS ("
-        f"SELECT session_id, ts AS real_ts, transition_score * 10000 AS value, 'expected' AS metric "
-        f"FROM pair_trade.rotation WHERE {SESS} AND prev_symbol <> 'CASH' AND transition_score IS NOT NULL "
-        f"UNION ALL SELECT session_id, ts, last_edge * 10000, 'last' FROM pair_trade.rotation "
-        f"WHERE {SESS} AND prev_symbol <> 'CASH' AND last_edge IS NOT NULL "
-        f"UNION ALL SELECT session_id, ts, realized_edge * 10000, 'realized' FROM pair_trade.rotation "
-        f"WHERE {SESS} AND prev_symbol <> 'CASH' AND realized_edge IS NOT NULL "
-        f"UNION ALL SELECT session_id, ts, realized_edge_net * 10000, 'realized_net' FROM pair_trade.rotation "
-        f"WHERE {SESS} AND prev_symbol <> 'CASH' AND realized_edge_net IS NOT NULL"
-        f"), "
-        f"{_TMAP_CTE} "
-        f"SELECT m.time, s.value, s.metric FROM src s "
-        f"JOIN tmap m ON m.session_id = s.session_id AND m.real_ts = s.real_ts "
-        f"ORDER BY m.time;"
+        f"SELECT ts AS time, transition_score * 10000 AS value, 'expected' AS metric "
+        f"FROM pair_trade.rotation WHERE {SESS} AND prev_symbol <> 'CASH' "
+        f"AND transition_score IS NOT NULL AND $__timeFilter(ts) "
+        f"UNION ALL SELECT ts, last_edge * 10000, 'last' FROM pair_trade.rotation "
+        f"WHERE {SESS} AND prev_symbol <> 'CASH' AND last_edge IS NOT NULL AND $__timeFilter(ts) "
+        f"UNION ALL SELECT ts, realized_edge * 10000, 'realized' FROM pair_trade.rotation "
+        f"WHERE {SESS} AND prev_symbol <> 'CASH' AND realized_edge IS NOT NULL AND $__timeFilter(ts) "
+        f"UNION ALL SELECT ts, realized_edge_net * 10000, 'realized_net' FROM pair_trade.rotation "
+        f"WHERE {SESS} AND prev_symbol <> 'CASH' AND realized_edge_net IS NOT NULL AND $__timeFilter(ts) "
+        f"ORDER BY 1;"
     )
     slip_sql = (
-        f"WITH src AS ("
-        f"SELECT session_id, ts AS real_ts, sell_slippage * 10000 AS value, 'sell_slippage_bps' AS metric "
-        f"FROM pair_trade.rotation WHERE {SESS} AND prev_symbol <> 'CASH' AND sell_slippage IS NOT NULL "
-        f"UNION ALL SELECT session_id, ts, buy_slippage * 10000, 'buy_slippage_bps' FROM pair_trade.rotation "
-        f"WHERE {SESS} AND prev_symbol <> 'CASH' AND buy_slippage IS NOT NULL"
-        f"), "
-        f"{_TMAP_CTE} "
-        f"SELECT m.time, s.value, s.metric FROM src s "
-        f"JOIN tmap m ON m.session_id = s.session_id AND m.real_ts = s.real_ts "
-        f"ORDER BY m.time;"
+        f"SELECT ts AS time, sell_slippage * 10000 AS value, 'sell_slippage_bps' AS metric "
+        f"FROM pair_trade.rotation WHERE {SESS} AND prev_symbol <> 'CASH' "
+        f"AND sell_slippage IS NOT NULL AND $__timeFilter(ts) "
+        f"UNION ALL SELECT ts, buy_slippage * 10000, 'buy_slippage_bps' FROM pair_trade.rotation "
+        f"WHERE {SESS} AND prev_symbol <> 'CASH' AND buy_slippage IS NOT NULL AND $__timeFilter(ts) "
+        f"ORDER BY 1;"
     )
 
     elements = {
@@ -952,68 +945,52 @@ ORDER BY m.time;
         "panel-41": panel(
             41,
             "Rotation edges (bps)",
-            "Sell→buy only. expected/last/realized/realized_net ×10000 ≈ bps." + GAPLESS_NOTE,
+            "Sell→buy only. expected/last/realized/realized_net ×10000 ≈ bps. Wall-clock x-axis.",
             qg([pq(edges_sql)]),
             ts_viz(1, draw="bars", fill=70, tooltip_mode="multi"),
         ),
         "panel-42": panel(
             42,
             "Buy / sell slippage (bps)",
-            "Sell→buy slippage ×10000 ≈ bps." + GAPLESS_NOTE,
+            "Sell→buy slippage ×10000 ≈ bps. Wall-clock x-axis.",
             qg([pq(slip_sql)]),
             ts_viz(1, draw="bars", fill=70, tooltip_mode="multi"),
         ),
         "panel-43": panel(
             43,
             "Rotation latency (sec)",
-            "Seconds from sell placed to buy_complete." + GAPLESS_NOTE,
-            qg([pq(gapless_metric_sql(
-                f"SELECT session_id, ts AS real_ts, latency_sec AS value, "
-                f"prev_symbol || '→' || new_symbol AS metric "
+            "Seconds from sell placed to buy_complete. Wall-clock x-axis.",
+            qg([pq(
+                # Arrow reversed (new←prev): Grafana/Persian RTL renders 'prev→new' backwards.
+                f"SELECT ts AS time, latency_sec AS value, "
+                f"new_symbol || '←' || prev_symbol AS metric "
                 f"FROM pair_trade.rotation WHERE {SESS} AND prev_symbol <> 'CASH' "
-                f"AND latency_sec IS NOT NULL"
-            ))]),
+                f"AND latency_sec IS NOT NULL AND $__timeFilter(ts) "
+                f"ORDER BY ts;"
+            )]),
             ts_viz(1, unit="s", draw="bars", fill=70),
         ),
         "panel-44": panel(
             44,
             "Cumulative realized edge (bps)",
-            "Running sum of realized_edge / realized_edge_net (×10000)." + GAPLESS_NOTE,
+            "Running sum of realized_edge / realized_edge_net (×10000). Wall-clock x-axis.",
             qg([
                 pq(
-                    f"WITH base AS ("
-                    f"SELECT session_id, ts AS real_ts, realized_edge, realized_edge_net "
+                    f"SELECT ts AS time, "
+                    f"SUM(realized_edge) OVER (PARTITION BY session_id ORDER BY ts) * 10000 "
+                    f'AS "cum realized bps" '
                     f"FROM pair_trade.rotation WHERE {SESS} AND prev_symbol <> 'CASH' "
-                    f"AND (realized_edge IS NOT NULL OR realized_edge_net IS NOT NULL)"
-                    f"), "
-                    f"src AS (SELECT session_id, real_ts FROM base), "
-                    f"{_TMAP_CTE}, "
-                    f"cum AS ("
-                    f"SELECT session_id, real_ts, "
-                    f"SUM(realized_edge) OVER (PARTITION BY session_id ORDER BY real_ts) * 10000 AS v "
-                    f"FROM base"
-                    f") "
-                    f'SELECT m.time, c.v AS "cum realized bps" FROM tmap m '
-                    f"JOIN cum c ON c.session_id = m.session_id AND c.real_ts = m.real_ts "
-                    f"ORDER BY m.time;",
+                    f"AND realized_edge IS NOT NULL AND $__timeFilter(ts) "
+                    f"ORDER BY ts;",
                     ref="A",
                 ),
                 pq(
-                    f"WITH base AS ("
-                    f"SELECT session_id, ts AS real_ts, realized_edge, realized_edge_net "
+                    f"SELECT ts AS time, "
+                    f"SUM(realized_edge_net) OVER (PARTITION BY session_id ORDER BY ts) * 10000 "
+                    f'AS "cum realized_net bps" '
                     f"FROM pair_trade.rotation WHERE {SESS} AND prev_symbol <> 'CASH' "
-                    f"AND (realized_edge IS NOT NULL OR realized_edge_net IS NOT NULL)"
-                    f"), "
-                    f"src AS (SELECT session_id, real_ts FROM base), "
-                    f"{_TMAP_CTE}, "
-                    f"cum AS ("
-                    f"SELECT session_id, real_ts, "
-                    f"SUM(realized_edge_net) OVER (PARTITION BY session_id ORDER BY real_ts) * 10000 AS v "
-                    f"FROM base"
-                    f") "
-                    f'SELECT m.time, c.v AS "cum realized_net bps" FROM tmap m '
-                    f"JOIN cum c ON c.session_id = m.session_id AND c.real_ts = m.real_ts "
-                    f"ORDER BY m.time;",
+                    f"AND realized_edge_net IS NOT NULL AND $__timeFilter(ts) "
+                    f"ORDER BY ts;",
                     ref="B",
                 ),
             ]),
