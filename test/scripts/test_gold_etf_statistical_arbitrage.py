@@ -95,6 +95,45 @@ class TestMeetsOrderConstraints(unittest.TestCase):
         self.assertTrue(strategy.meets_order_constraints("IRTKGANJ0001-IRR", Decimal("19"), px, side="sell"))
 
 
+class TestPairTradableGate(unittest.TestCase):
+    def _strategy(self):
+        strategy = GoldEtfStatisticalArbitrage.__new__(GoldEtfStatisticalArbitrage)
+        rule = MagicMock(min_order_size=Decimal("1"), min_base_amount_increment=Decimal("1"))
+        connector = MagicMock()
+        connector.trading_rules = {"IRTKGANJ0001-IRR": rule}
+        strategy.connectors = {"mofid": connector}
+        strategy.config = MagicMock(
+            exchange="mofid",
+            trading_pairs=["IRTKGANJ0001-IRR", "IRTKLOTF0001-IRR"],
+            max_buy_retries=5,
+        )
+        return strategy
+
+    def test_active_pairs_drops_missing_trading_rule(self):
+        strategy = self._strategy()
+        self.assertTrue(strategy._pair_tradable("IRTKGANJ0001-IRR"))
+        self.assertFalse(strategy._pair_tradable("IRTKLOTF0001-IRR"))
+        self.assertEqual(strategy._active_pairs(), ["IRTKGANJ0001-IRR"])
+
+    def test_buy_after_sell_aborts_when_buy_pair_not_tradable(self):
+        strategy = self._strategy()
+        strategy._rotations_by_sell_id = {
+            "sell1": {
+                "buy_pair": "IRTKLOTF0001-IRR",
+                "active_buy_id": None,
+                "buy_attempts": 0,
+                "quote_earned": Decimal("10000000"),
+                "quote_spent": Decimal("0"),
+            }
+        }
+        strategy._rotation_remaining_quote = lambda rot: Decimal("10000000")
+        strategy._min_quote_to_deploy = lambda: Decimal("5000000")
+        strategy._aggressive_limit_price = MagicMock()
+        self.assertIsNone(strategy._place_buy_retry_for_sell("sell1"))
+        self.assertEqual(strategy._rotations_by_sell_id["sell1"]["buy_attempts"], 5)
+        strategy._aggressive_limit_price.assert_not_called()
+
+
 class TestFailedSellRotationCleanup(unittest.TestCase):
     def test_handle_order_end_drops_sell_with_no_fill(self):
         strategy = GoldEtfStatisticalArbitrage.__new__(GoldEtfStatisticalArbitrage)

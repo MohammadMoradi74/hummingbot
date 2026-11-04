@@ -587,6 +587,13 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
             if age >= timeout_s:
                 self._request_cancel(oid, reason=f"age={age:.1f}s>=timeout={timeout_s:.1f}s")
 
+    def _pair_tradable(self, trading_pair: str) -> bool:
+        # After Mofid 7004, connector drops the pair from trading_rules (_session_closed).
+        return trading_pair in self.connectors[self.config.exchange].trading_rules
+
+    def _active_pairs(self) -> List[str]:
+        return [p for p in self.config.trading_pairs if self._pair_tradable(p)]
+
     def meets_order_constraints(self, trading_pair: str, amount: Decimal, price: Decimal, side: str) -> bool:
         connector = self.connectors[self.config.exchange]
         rule = connector.trading_rules.get(trading_pair)
@@ -701,6 +708,11 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
             return None
 
         buy_pair = rotation["buy_pair"]
+        if not self._pair_tradable(buy_pair):
+            rotation["buy_attempts"] = int(self.config.max_buy_retries)
+            self.logger().warning(f"BUY_AFTER_SELL aborted; {buy_pair} not tradable")
+            return None
+
         px = self._aggressive_limit_price(buy_pair, attempt)
         if px <= Decimal("0"):
             self.logger().warning(f"Invalid buy price for {buy_pair}; cannot buy remaining={remaining_quote}")
@@ -746,7 +758,7 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
         current_ts = pd.Timestamp(self.processor_timestamp, unit="s")
         connector = self.connectors[self.config.exchange]
 
-        for pair in self.config.trading_pairs:
+        for pair in self._active_pairs():
             symbol = self.hb_to_strat_map[pair]
             mid_price = connector.get_price_by_type(pair, PriceType.MidPrice)
             best_ask_price = connector.get_price_by_type(pair, PriceType.BestAsk)
@@ -769,8 +781,9 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
 
     def get_price(self, price_type: PriceType = PriceType.MidPrice):
         connector = self.connectors[self.config.exchange]
+        # Full symbol index kept for TransitionTracker asserts; inactive stay NaN.
         mid_price = pd.Series(index=self.symbols, dtype=float)
-        for pair in self.config.trading_pairs:
+        for pair in self._active_pairs():
             symbol = self.hb_to_strat_map[pair]
             mid_price[symbol] = float(connector.get_price_by_type(pair, price_type))
         return mid_price
@@ -862,6 +875,12 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
 
             sell_pair = self.strat_to_hb_map[pre_symbol]
             buy_pair = self.strat_to_hb_map[new_symbol]
+
+            if not self._pair_tradable(buy_pair) or not self._pair_tradable(sell_pair):
+                self.logger().info(
+                    f"Skip rotate {pre_symbol}->{new_symbol}: pair not in trading_rules"
+                )
+                continue
 
             bid_ask_info = {
                 pre_symbol: self.get_bid_ask(sell_pair),
@@ -1295,6 +1314,10 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
             return None
 
         buy_pair = self.strat_to_hb_map[symbol]
+        if not self._pair_tradable(buy_pair):
+            self.logger().warning(f"CASH_COLLECTOR: skip {symbol}; not in trading_rules")
+            return None
+
         buy_px = self._aggressive_limit_price(buy_pair, attempt=0)
         if buy_px <= Decimal("0"):
             self.logger().warning(f"Invalid buy price for {buy_pair}")
