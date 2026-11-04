@@ -423,6 +423,7 @@ base AS (
   SELECT id, session_id, ts,
          transition_score, last_edge, realized_edge, realized_edge_net,
          sell_slippage, buy_slippage, latency_sec,
+         quote_earned, quote_spent,
          ts + ((ROW_NUMBER() OVER (PARTITION BY session_id, ts ORDER BY id) - 1)
                * INTERVAL '1 second') AS time,
          {_ROT_PAIR} AS pair
@@ -722,20 +723,53 @@ ORDER BY m.time;
         f"WHERE latency_sec IS NOT NULL "
         f"ORDER BY 1;"
     )
+    # NAV-weighted: contrib_bps = edge_bps * notional/NAV so small trades don't dominate.
+    # notional = quote_earned (fallback quote_spent); NAV = prior-session close (same as P&L %).
+    # Anchor 0 at $__timeFrom and hold last cum at min(now, $__timeTo) (use stepAfter on panel).
     cum_edge_sql = (
-        f"WITH {_base} "
-        f"SELECT time, "
-        f"SUM(realized_edge) OVER ("
+        f"WITH {_start_nav_cte('TRUE')}, "
+        f"{_base}, "
+        f"w AS ("
+        f"SELECT b.time, b.session_id, b.ts, b.id, "
+        f"b.realized_edge * 10000 "
+        f"* COALESCE(NULLIF(b.quote_earned, 0), b.quote_spent) / NULLIF(n.v, 0) AS contrib_bps, "
+        f"b.realized_edge_net * 10000 "
+        f"* COALESCE(NULLIF(b.quote_earned, 0), b.quote_spent) / NULLIF(n.v, 0) AS contrib_net_bps "
+        f"FROM base b CROSS JOIN start_nav n"
+        f"), "
+        f"cum AS ("
+        f"SELECT time, session_id, ts, id, "
+        f"SUM(contrib_bps) OVER ("
         f"PARTITION BY session_id ORDER BY ts, id "
-        f"ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) * 10000 AS value, "
-        f"'cum realized bps' AS metric "
-        f"FROM base WHERE realized_edge IS NOT NULL "
-        f"UNION ALL SELECT time, "
-        f"SUM(realized_edge_net) OVER ("
+        f"ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS realized, "
+        f"SUM(contrib_net_bps) OVER ("
         f"PARTITION BY session_id ORDER BY ts, id "
-        f"ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) * 10000, "
-        f"'cum realized_net bps' "
-        f"FROM base WHERE realized_edge_net IS NOT NULL "
+        f"ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS realized_net "
+        f"FROM w WHERE contrib_bps IS NOT NULL OR contrib_net_bps IS NOT NULL"
+        f"), "
+        f"bounds AS ("
+        f"SELECT to_timestamp($__unixEpochFrom()) AS t0, "
+        f"LEAST(NOW(), to_timestamp($__unixEpochTo())) AS t1"
+        f"), "
+        f"last AS ("
+        f"SELECT COALESCE(SUM(realized), 0) AS realized, "
+        f"COALESCE(SUM(realized_net), 0) AS realized_net "
+        f"FROM ("
+        f"SELECT DISTINCT ON (session_id) realized, realized_net "
+        f"FROM cum ORDER BY session_id, ts DESC, id DESC"
+        f") s"
+        f") "
+        f"SELECT b.t0 AS time, 0::float AS value, "
+        f"'cum realized (NAV-wtd bps)' AS metric FROM bounds b "
+        f"UNION ALL SELECT c.time, c.realized, 'cum realized (NAV-wtd bps)' "
+        f"FROM cum c WHERE c.realized IS NOT NULL "
+        f"UNION ALL SELECT b.t1, l.realized, 'cum realized (NAV-wtd bps)' "
+        f"FROM bounds b CROSS JOIN last l "
+        f"UNION ALL SELECT b.t0, 0::float, 'cum realized_net (NAV-wtd bps)' FROM bounds b "
+        f"UNION ALL SELECT c.time, c.realized_net, 'cum realized_net (NAV-wtd bps)' "
+        f"FROM cum c WHERE c.realized_net IS NOT NULL "
+        f"UNION ALL SELECT b.t1, l.realized_net, 'cum realized_net (NAV-wtd bps)' "
+        f"FROM bounds b CROSS JOIN last l "
         f"ORDER BY 1;"
     )
 
@@ -1010,11 +1044,12 @@ ORDER BY m.time;
         ),
         "panel-44": panel(
             44,
-            "Cumulative realized edge (bps)",
-            "Running sum of realized_edge / realized_edge_net (×10000), ORDER BY ts,id ROWS. "
-            "Co-timed rotations nudged +1s. Wall-clock x-axis.",
+            "Cumulative realized edge (NAV-weighted bps)",
+            "Running sum of contrib_bps = realized_edge×10000×notional/NAV "
+            "(notional=quote_earned, NAV=prior-session close). "
+            "Starts at 0 ($__timeFrom); last value held to now. stepAfter. Wall-clock x-axis.",
             qg([pq(cum_edge_sql)]),
-            ts_viz(1, fill=15, tooltip_mode="multi"),
+            ts_viz(1, fill=15, tooltip_mode="multi", line_interpolation="stepAfter"),
         ),
         "panel-30": panel(
             30,

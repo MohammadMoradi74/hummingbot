@@ -1710,7 +1710,7 @@
                       "spec": {
                         "format": "time_series",
                         "rawQuery": true,
-                        "rawSql": "WITH \nbase AS (\n  SELECT id, session_id, ts,\n         transition_score, last_edge, realized_edge, realized_edge_net,\n         sell_slippage, buy_slippage, latency_sec,\n         ts + ((ROW_NUMBER() OVER (PARTITION BY session_id, ts ORDER BY id) - 1)\n               * INTERVAL '1 second') AS time,\n         new_symbol || '\u2190' || prev_symbol AS pair\n  FROM pair_trade.rotation\n  WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND $__timeFilter(ts)\n) SELECT time, transition_score * 10000 AS value, 'expected' AS metric FROM base WHERE transition_score IS NOT NULL UNION ALL SELECT time, last_edge * 10000, 'last' FROM base WHERE last_edge IS NOT NULL UNION ALL SELECT time, realized_edge * 10000, 'realized' FROM base WHERE realized_edge IS NOT NULL UNION ALL SELECT time, realized_edge_net * 10000, 'realized_net' FROM base WHERE realized_edge_net IS NOT NULL ORDER BY 1;"
+                        "rawSql": "WITH \nbase AS (\n  SELECT id, session_id, ts,\n         transition_score, last_edge, realized_edge, realized_edge_net,\n         sell_slippage, buy_slippage, latency_sec,\n         quote_earned, quote_spent,\n         ts + ((ROW_NUMBER() OVER (PARTITION BY session_id, ts ORDER BY id) - 1)\n               * INTERVAL '1 second') AS time,\n         new_symbol || '\u2190' || prev_symbol AS pair\n  FROM pair_trade.rotation\n  WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND $__timeFilter(ts)\n) SELECT time, transition_score * 10000 AS value, 'expected' AS metric FROM base WHERE transition_score IS NOT NULL UNION ALL SELECT time, last_edge * 10000, 'last' FROM base WHERE last_edge IS NOT NULL UNION ALL SELECT time, realized_edge * 10000, 'realized' FROM base WHERE realized_edge IS NOT NULL UNION ALL SELECT time, realized_edge_net * 10000, 'realized_net' FROM base WHERE realized_edge_net IS NOT NULL ORDER BY 1;"
                       }
                     }
                   }
@@ -1787,7 +1787,7 @@
                       "spec": {
                         "format": "time_series",
                         "rawQuery": true,
-                        "rawSql": "WITH \nbase AS (\n  SELECT id, session_id, ts,\n         transition_score, last_edge, realized_edge, realized_edge_net,\n         sell_slippage, buy_slippage, latency_sec,\n         ts + ((ROW_NUMBER() OVER (PARTITION BY session_id, ts ORDER BY id) - 1)\n               * INTERVAL '1 second') AS time,\n         new_symbol || '\u2190' || prev_symbol AS pair\n  FROM pair_trade.rotation\n  WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND $__timeFilter(ts)\n) SELECT time, sell_slippage * 10000 AS value, 'sell_slippage_bps' AS metric FROM base WHERE sell_slippage IS NOT NULL UNION ALL SELECT time, buy_slippage * 10000, 'buy_slippage_bps' FROM base WHERE buy_slippage IS NOT NULL ORDER BY 1;"
+                        "rawSql": "WITH \nbase AS (\n  SELECT id, session_id, ts,\n         transition_score, last_edge, realized_edge, realized_edge_net,\n         sell_slippage, buy_slippage, latency_sec,\n         quote_earned, quote_spent,\n         ts + ((ROW_NUMBER() OVER (PARTITION BY session_id, ts ORDER BY id) - 1)\n               * INTERVAL '1 second') AS time,\n         new_symbol || '\u2190' || prev_symbol AS pair\n  FROM pair_trade.rotation\n  WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND $__timeFilter(ts)\n) SELECT time, sell_slippage * 10000 AS value, 'sell_slippage_bps' AS metric FROM base WHERE sell_slippage IS NOT NULL UNION ALL SELECT time, buy_slippage * 10000, 'buy_slippage_bps' FROM base WHERE buy_slippage IS NOT NULL ORDER BY 1;"
                       }
                     }
                   }
@@ -1864,7 +1864,7 @@
                       "spec": {
                         "format": "time_series",
                         "rawQuery": true,
-                        "rawSql": "WITH \nbase AS (\n  SELECT id, session_id, ts,\n         transition_score, last_edge, realized_edge, realized_edge_net,\n         sell_slippage, buy_slippage, latency_sec,\n         ts + ((ROW_NUMBER() OVER (PARTITION BY session_id, ts ORDER BY id) - 1)\n               * INTERVAL '1 second') AS time,\n         new_symbol || '\u2190' || prev_symbol AS pair\n  FROM pair_trade.rotation\n  WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND $__timeFilter(ts)\n) SELECT time, latency_sec AS value, pair AS metric FROM base WHERE latency_sec IS NOT NULL ORDER BY 1;"
+                        "rawSql": "WITH \nbase AS (\n  SELECT id, session_id, ts,\n         transition_score, last_edge, realized_edge, realized_edge_net,\n         sell_slippage, buy_slippage, latency_sec,\n         quote_earned, quote_spent,\n         ts + ((ROW_NUMBER() OVER (PARTITION BY session_id, ts ORDER BY id) - 1)\n               * INTERVAL '1 second') AS time,\n         new_symbol || '\u2190' || prev_symbol AS pair\n  FROM pair_trade.rotation\n  WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND $__timeFilter(ts)\n) SELECT time, latency_sec AS value, pair AS metric FROM base WHERE latency_sec IS NOT NULL ORDER BY 1;"
                       }
                     }
                   }
@@ -1920,8 +1920,8 @@
         "kind": "Panel",
         "spec": {
           "id": 44,
-          "title": "Cumulative realized edge (bps)",
-          "description": "Running sum of realized_edge / realized_edge_net (\u00d710000), ORDER BY ts,id ROWS. Co-timed rotations nudged +1s. Wall-clock x-axis.",
+          "title": "Cumulative realized edge (NAV-weighted bps)",
+          "description": "Running sum of contrib_bps = realized_edge\u00d710000\u00d7notional/NAV (notional=quote_earned, NAV=prior-session close). Starts at 0 ($__timeFrom); last value held to now. stepAfter. Wall-clock x-axis.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -1942,7 +1942,7 @@
                       "spec": {
                         "format": "time_series",
                         "rawQuery": true,
-                        "rawSql": "WITH \nbase AS (\n  SELECT id, session_id, ts,\n         transition_score, last_edge, realized_edge, realized_edge_net,\n         sell_slippage, buy_slippage, latency_sec,\n         ts + ((ROW_NUMBER() OVER (PARTITION BY session_id, ts ORDER BY id) - 1)\n               * INTERVAL '1 second') AS time,\n         new_symbol || '\u2190' || prev_symbol AS pair\n  FROM pair_trade.rotation\n  WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND $__timeFilter(ts)\n) SELECT time, SUM(realized_edge) OVER (PARTITION BY session_id ORDER BY ts, id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) * 10000 AS value, 'cum realized bps' AS metric FROM base WHERE realized_edge IS NOT NULL UNION ALL SELECT time, SUM(realized_edge_net) OVER (PARTITION BY session_id ORDER BY ts, id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) * 10000, 'cum realized_net bps' FROM base WHERE realized_edge_net IS NOT NULL ORDER BY 1;"
+                        "rawSql": "WITH \nanchor AS (\n  SELECT s.id AS session_id, s.started_at, s.strategy_id\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n  ORDER BY s.started_at\n  LIMIT 1\n),\nprev_session AS (\n  SELECT s.id AS session_id\n  FROM pair_trade.session s\n  JOIN anchor a ON s.strategy_id = a.strategy_id AND s.started_at < a.started_at\n  ORDER BY s.started_at DESC\n  LIMIT 1\n), start_nav AS (SELECT COALESCE((SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p WHERE p.session_id = (SELECT session_id FROM prev_session) ORDER BY p.ts DESC LIMIT 1), (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p WHERE p.session_id IN ($session) AND TRUE ORDER BY p.ts ASC LIMIT 1)) AS v), \nbase AS (\n  SELECT id, session_id, ts,\n         transition_score, last_edge, realized_edge, realized_edge_net,\n         sell_slippage, buy_slippage, latency_sec,\n         quote_earned, quote_spent,\n         ts + ((ROW_NUMBER() OVER (PARTITION BY session_id, ts ORDER BY id) - 1)\n               * INTERVAL '1 second') AS time,\n         new_symbol || '\u2190' || prev_symbol AS pair\n  FROM pair_trade.rotation\n  WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND $__timeFilter(ts)\n), w AS (SELECT b.time, b.session_id, b.ts, b.id, b.realized_edge * 10000 * COALESCE(NULLIF(b.quote_earned, 0), b.quote_spent) / NULLIF(n.v, 0) AS contrib_bps, b.realized_edge_net * 10000 * COALESCE(NULLIF(b.quote_earned, 0), b.quote_spent) / NULLIF(n.v, 0) AS contrib_net_bps FROM base b CROSS JOIN start_nav n), cum AS (SELECT time, session_id, ts, id, SUM(contrib_bps) OVER (PARTITION BY session_id ORDER BY ts, id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS realized, SUM(contrib_net_bps) OVER (PARTITION BY session_id ORDER BY ts, id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS realized_net FROM w WHERE contrib_bps IS NOT NULL OR contrib_net_bps IS NOT NULL), bounds AS (SELECT to_timestamp($__unixEpochFrom()) AS t0, LEAST(NOW(), to_timestamp($__unixEpochTo())) AS t1), last AS (SELECT COALESCE(SUM(realized), 0) AS realized, COALESCE(SUM(realized_net), 0) AS realized_net FROM (SELECT DISTINCT ON (session_id) realized, realized_net FROM cum ORDER BY session_id, ts DESC, id DESC) s) SELECT b.t0 AS time, 0::float AS value, 'cum realized (NAV-wtd bps)' AS metric FROM bounds b UNION ALL SELECT c.time, c.realized, 'cum realized (NAV-wtd bps)' FROM cum c WHERE c.realized IS NOT NULL UNION ALL SELECT b.t1, l.realized, 'cum realized (NAV-wtd bps)' FROM bounds b CROSS JOIN last l UNION ALL SELECT b.t0, 0::float, 'cum realized_net (NAV-wtd bps)' FROM bounds b UNION ALL SELECT c.time, c.realized_net, 'cum realized_net (NAV-wtd bps)' FROM cum c WHERE c.realized_net IS NOT NULL UNION ALL SELECT b.t1, l.realized_net, 'cum realized_net (NAV-wtd bps)' FROM bounds b CROSS JOIN last l ORDER BY 1;"
                       }
                     }
                   }
@@ -1984,7 +1984,8 @@
                     "stacking": {
                       "group": "A",
                       "mode": "none"
-                    }
+                    },
+                    "lineInterpolation": "stepAfter"
                   }
                 },
                 "overrides": []
