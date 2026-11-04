@@ -506,6 +506,51 @@ class MofidExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
         self.assertIn("PriceIsNotInRangeError", msg)
         self.assertNotIn("1121DMbrkZJixnoY", msg)
 
+    def test_symbol_closed_rejection_is_cached_and_skips_place(self):
+        # Live 2026-11-01: 7004 SymbolIsCloseError on طلا — cache so retries don't hammer OMS.
+        closed = {
+            "isSuccessful": False,
+            "id": "orphan",
+            "message": "نماد بسته است",
+            "omsError": [{
+                "name": "SymbolIsCloseError",
+                "error": "نماد بسته است",
+                "code": 7004,
+            }],
+        }
+        self.assertTrue(self.exchange._is_symbol_closed_rejection(closed))
+        self.assertFalse(self.exchange._is_symbol_closed_rejection({
+            "isSuccessful": False,
+            "omsError": [{"name": "PriceIsNotInRangeError", "code": 7003}],
+        }))
+
+        isin = self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset)
+        pair = self.trading_pair
+        self.exchange._trading_rules[pair] = TradingRule(trading_pair=pair)
+
+        self.exchange._mark_session_closed(isin, pair)
+        self.assertIn(isin, self.exchange._session_closed)
+        self.assertNotIn(pair, self.exchange._trading_rules)
+
+        with self.assertRaises(IOError) as cm:
+            self.async_run_with_timeout(self.exchange._place_order(
+                order_id="mofidBI1test",
+                trading_pair=pair,
+                amount=Decimal("10"),
+                trade_type=TradeType.BUY,
+                order_type=OrderType.LIMIT,
+                price=Decimal("1000"),
+            ))
+        self.assertIn("SymbolIsCloseError (cached)", str(cm.exception))
+
+    def test_format_trading_rules_skips_session_closed_isin(self):
+        isin = self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset)
+        self.exchange._session_closed.add(isin)
+        rules = self.async_run_with_timeout(
+            self.exchange._format_trading_rules(self.all_symbols_request_mock_response)
+        )
+        self.assertEqual([], rules)
+
     def test_rate_limits_order_min_gap_linked_to_place_and_cancel(self):
         rules = {r.limit_id: r for r in self.exchange.rate_limits_rules}
         gap = rules[CONSTANTS.MOFID_ORDER_MIN_GAP]

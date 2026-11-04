@@ -49,6 +49,8 @@ class MofidExchange(ExchangePyBase):
         self._trading_pairs = trading_pairs
         self._symbol_names: Dict[str, str] = {}  # isin -> display name for place body
         self._symbol_commissions: Dict[str, Decimal] = {}  # isin -> commission rate
+        # ponytail: OMS 7004 session-closed until process restart; upgrade = clear when symbols/all exposes open state
+        self._session_closed: set[str] = set()
         self._open_orders_cache: List[Dict[str, Any]] = []
         self._open_orders_cache_ts: float = 0.0
         self._balance_refresh_task: Optional[asyncio.Task] = None
@@ -197,6 +199,20 @@ class MofidExchange(ExchangePyBase):
         detail = "; ".join(parts) if parts else (result.get("message") or str(result))
         return f"Mofid {action} rejected: {detail}"
 
+    @staticmethod
+    def _is_symbol_closed_rejection(result: Dict[str, Any]) -> bool:
+        for err in result.get("omsError") or []:
+            if not isinstance(err, dict):
+                continue
+            if err.get("code") == 7004 or err.get("name") == "SymbolIsCloseError":
+                return True
+        return "SymbolIsCloseError" in str(result)
+
+    def _mark_session_closed(self, isin: str, trading_pair: str) -> None:
+        self._session_closed.add(isin)
+        self._trading_rules.pop(trading_pair, None)
+        self.logger().warning(f"Mofid symbol session-closed: {isin}; dropped trading rule")
+
     async def _place_order(
             self,
             order_id: str,
@@ -208,6 +224,8 @@ class MofidExchange(ExchangePyBase):
             **kwargs,
     ) -> Tuple[str, float]:
         isin = await self.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
+        if isin in self._session_closed:
+            raise IOError(f"Mofid place order rejected: 7004 SymbolIsCloseError (cached) {isin}")
         side = CONSTANTS.SIDE_BUY if trade_type is TradeType.BUY else CONSTANTS.SIDE_SELL
         commission = self._commission_for_isin(isin)
         price_i = int(price)
@@ -243,6 +261,8 @@ class MofidExchange(ExchangePyBase):
 
         # Strict True: failed responses may still include a disposable "id".
         if order_result.get("isSuccessful") is not True:
+            if self._is_symbol_closed_rejection(order_result):
+                self._mark_session_closed(isin, trading_pair)
             raise IOError(self._format_oms_rejection("place order", order_result))
 
         exchange_order_id = str(order_result["id"])
@@ -312,7 +332,7 @@ class MofidExchange(ExchangePyBase):
         for rule in filter(mofid_utils.is_exchange_information_valid, symbols):
             try:
                 isin = rule.get("symbolIsin")
-                if not isin:
+                if not isin or isin in self._session_closed:
                     continue
                 trading_pair = combine_to_hb_trading_pair(base=isin, quote=CONSTANTS.QUOTE_ASSET)
                 min_buy = Decimal(str(rule.get("minValidBuyVolume", 1)))
