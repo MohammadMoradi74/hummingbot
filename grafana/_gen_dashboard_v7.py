@@ -251,108 +251,60 @@ BENCHMARK_CUM_SOURCE_PANEL_ID = 114
 
 
 def benchmark_cumulative_sql():
-    """Multi-session additive cumulative on real wall-clock (style 6).
+    """Cumulative vs first selected session open; path only inside dashboard time range.
 
-    Each session’s path is vs its own prior-session close, then shifted by the sum
-    of earlier selected sessions’ end port/index/excess %. Overnight gaps remain.
+    Baseline NAV/marks = first market-hours snapshot of the earliest selected session
+    (one cheap lookup — no per-minute scan of older sessions). Plotted points are only
+    selected sessions that fall in $__timeFilter (visible range). Wall-clock axis.
     """
     mh = _in_market_hours("p.ts")
     return f"""
-WITH sess_ord AS (
-  SELECT s.id AS session_id, s.started_at, s.strategy_id,
-         ROW_NUMBER() OVER (ORDER BY s.started_at) - 1 AS sess_ord
+WITH first_sess AS (
+  SELECT s.id AS session_id
   FROM pair_trade.session s
   WHERE s.id IN ($session)
+  ORDER BY s.started_at
+  LIMIT 1
 ),
-sess_prev AS (
-  SELECT so.session_id, so.sess_ord,
-         (
-           SELECT s2.id FROM pair_trade.session s2
-           WHERE s2.strategy_id = so.strategy_id AND s2.started_at < so.started_at
-           ORDER BY s2.started_at DESC LIMIT 1
-         ) AS prev_id
-  FROM sess_ord so
+nav0 AS (
+  SELECT p.portfolio_value AS v
+  FROM pair_trade.portfolio_snapshot p
+  WHERE p.session_id = (SELECT session_id FROM first_sess) AND {mh}
+  ORDER BY p.ts ASC
+  LIMIT 1
 ),
-sess_nav0 AS (
-  SELECT sp.session_id,
-         COALESCE(
-           (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p
-            WHERE p.session_id = sp.prev_id ORDER BY p.ts DESC LIMIT 1),
-           (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p
-            WHERE p.session_id = sp.session_id AND {mh}
-            ORDER BY p.ts ASC LIMIT 1)
-         ) AS v
-  FROM sess_prev sp
-),
-sess_marks0 AS (
-  SELECT sp.session_id,
-         COALESCE(
-           (SELECT p.marks FROM pair_trade.portfolio_snapshot p
-            WHERE p.session_id = sp.prev_id ORDER BY p.ts DESC LIMIT 1),
-           (SELECT p.marks FROM pair_trade.portfolio_snapshot p
-            WHERE p.session_id = sp.session_id AND {mh}
-            ORDER BY p.ts ASC LIMIT 1)
-         ) AS marks
-  FROM sess_prev sp
+base_marks AS (
+  SELECT p.marks
+  FROM pair_trade.portfolio_snapshot p
+  WHERE p.session_id = (SELECT session_id FROM first_sess) AND {mh}
+  ORDER BY p.ts ASC
+  LIMIT 1
 ),
 m0 AS (
-  SELECT sm.session_id, split_part(kv.key, '-', 1) AS asset, kv.value::numeric AS m0
-  FROM sess_marks0 sm
-  CROSS JOIN LATERAL jsonb_each_text(sm.marks) AS kv(key, value)
+  SELECT split_part(kv.key, '-', 1) AS asset, kv.value::numeric AS m0
+  FROM base_marks b
+  CROSS JOIN LATERAL jsonb_each_text(b.marks) AS kv(key, value)
   WHERE kv.value::numeric > 0
-),
-raw AS (
-  SELECT p.session_id,
-         p.ts AS real_ts,
-         100.0 * (p.portfolio_value / NULLIF(n.v, 0) - 1) AS port_pct,
-         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1)) AS all_pct,
-         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1))
-           FILTER (WHERE split_part(kv.key, '-', 1) IN ({TOP5_CODES_IN})) AS top5_pct
-  FROM pair_trade.portfolio_snapshot p
-  JOIN sess_nav0 n ON n.session_id = p.session_id
-  CROSS JOIN LATERAL jsonb_each_text(p.marks) AS kv(key, value)
-  JOIN m0 m ON m.session_id = p.session_id AND m.asset = split_part(kv.key, '-', 1)
-  WHERE p.session_id IN ($session)
-    AND {mh}
-    AND kv.value::numeric > 0
-  GROUP BY p.session_id, p.ts, p.portfolio_value, n.v
-),
-sess_end AS (
-  SELECT DISTINCT ON (r.session_id)
-         r.session_id, r.port_pct, r.all_pct, r.top5_pct,
-         r.port_pct - r.all_pct AS xs_all,
-         r.port_pct - r.top5_pct AS xs_top5
-  FROM raw r
-  ORDER BY r.session_id, r.real_ts DESC
-),
-sess_off AS (
-  SELECT so.session_id,
-         COALESCE(SUM(e.port_pct) OVER (
-           ORDER BY so.sess_ord ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-         ), 0) AS port_off,
-         COALESCE(SUM(e.all_pct) OVER (
-           ORDER BY so.sess_ord ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-         ), 0) AS all_off,
-         COALESCE(SUM(e.top5_pct) OVER (
-           ORDER BY so.sess_ord ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-         ), 0) AS top5_off,
-         COALESCE(SUM(e.xs_all) OVER (
-           ORDER BY so.sess_ord ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-         ), 0) AS xs_all_off,
-         COALESCE(SUM(e.xs_top5) OVER (
-           ORDER BY so.sess_ord ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-         ), 0) AS xs_top5_off
-  FROM sess_ord so
-  JOIN sess_end e ON e.session_id = so.session_id
 )
-SELECT r.real_ts AS time,
-       r.port_pct + o.port_off AS "{SERIES_PORTFOLIO}",
-       r.all_pct + o.all_off AS "{SERIES_ALL_INDEX}",
-       r.top5_pct + o.top5_off AS "{SERIES_TOP5_INDEX}",
-       (r.port_pct - r.all_pct) + o.xs_all_off AS "{SERIES_EXCESS_ALL}",
-       (r.port_pct - r.top5_pct) + o.xs_top5_off AS "{SERIES_EXCESS_TOP5}"
-FROM raw r
-JOIN sess_off o ON o.session_id = r.session_id
+SELECT p.ts AS time,
+       100.0 * (p.portfolio_value / NULLIF(n.v, 0) - 1) AS "{SERIES_PORTFOLIO}",
+       AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1)) AS "{SERIES_ALL_INDEX}",
+       AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1))
+         FILTER (WHERE split_part(kv.key, '-', 1) IN ({TOP5_CODES_IN})) AS "{SERIES_TOP5_INDEX}",
+       100.0 * (p.portfolio_value / NULLIF(n.v, 0) - 1)
+         - AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1)) AS "{SERIES_EXCESS_ALL}",
+       100.0 * (p.portfolio_value / NULLIF(n.v, 0) - 1)
+         - AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1))
+             FILTER (WHERE split_part(kv.key, '-', 1) IN ({TOP5_CODES_IN})) AS "{SERIES_EXCESS_TOP5}"
+FROM pair_trade.portfolio_snapshot p
+CROSS JOIN nav0 n
+CROSS JOIN LATERAL jsonb_each_text(p.marks) AS kv(key, value)
+JOIN m0 m ON m.asset = split_part(kv.key, '-', 1)
+WHERE p.session_id IN ($session)
+  AND {mh}
+  AND $__timeFilter(p.ts)
+  AND kv.value::numeric > 0
+GROUP BY p.ts, p.portfolio_value, n.v
 ORDER BY 1;
 """.strip()
 
@@ -908,9 +860,11 @@ ORDER BY m.time;
         "panel-10c-cum": panel(
             BENCHMARK_CUM_SOURCE_PANEL_ID,
             "Portfolio return vs benchmark indexes (%) — cumulative",
-            "Style 6: all selected sessions on real wall-clock. Each day is shifted by the sum of "
-            "earlier sessions’ end port/index % (vs that session’s prior close). Additive cumulative "
-            "from the first selected session. Line interpolation = stepAfter (holds across gaps)."
+            "100×(NAV/marks ÷ first selected session open − 1) on wall-clock. "
+            "Baseline = one snapshot from the earliest selected session; plotted path is only "
+            "points inside the dashboard time range (no per-minute scan of older sessions). "
+            "stepAfter across gaps. "
+            "Source query for the cumulative excess panel."
             + MARKET_SESSION_NOTE,
             qg([pq(benchmark_cumulative_sql())]),
             ts_viz(
@@ -932,9 +886,8 @@ ORDER BY m.time;
         "panel-10d-cum": panel(
             115,
             "Portfolio excess return vs indexes (%) — cumulative",
-            "Style 6: cumulative excess = port − index with per-session baselines + sum of earlier "
-            "sessions’ end excess. stepAfter line (continuous across session gaps). "
-            "Reuses the cumulative return panel query."
+            "Cumulative excess = port − index vs the same first-session open baseline. "
+            "Only time-range points are scanned. Reuses the cumulative return panel query."
             + MARKET_SESSION_NOTE,
             qg([pq_dashboard(BENCHMARK_CUM_SOURCE_PANEL_ID)]),
             ts_viz(
