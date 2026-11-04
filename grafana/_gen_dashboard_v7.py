@@ -412,6 +412,25 @@ def hide_override(name):
     }
 
 
+# Arrow reversed (new←prev): Grafana/Persian RTL renders 'prev→new' backwards.
+_ROT_PAIR = "new_symbol || '←' || prev_symbol"
+
+
+def _rot_base_cte() -> str:
+    """One row per rotation with stable +1s nudge for co-timed ts (shared across metric UNIONs)."""
+    return f"""
+base AS (
+  SELECT id, session_id, ts,
+         transition_score, last_edge, realized_edge, realized_edge_net,
+         sell_slippage, buy_slippage, latency_sec,
+         ts + ((ROW_NUMBER() OVER (PARTITION BY session_id, ts ORDER BY id) - 1)
+               * INTERVAL '1 second') AS time,
+         {_ROT_PAIR} AS pair
+  FROM pair_trade.rotation
+  WHERE {SESS} AND prev_symbol <> 'CASH' AND $__timeFilter(ts)
+)"""
+
+
 def pq(raw_sql, fmt="time_series", ref="A"):
     return {
         "kind": "PanelQuery",
@@ -674,25 +693,49 @@ ORDER BY m.time;
         f") "
         f"SELECT time, value, metric FROM valued WHERE value > 0 ORDER BY value DESC;"
     )
-    # Wall-clock time (not gapless) — sparse rotation events keep overnight/weekend gaps.
+    # Wall-clock +1s nudge for co-timed rotations. Identify pairs via latency legend/hover.
+    _base = _rot_base_cte()
     edges_sql = (
-        f"SELECT ts AS time, transition_score * 10000 AS value, 'expected' AS metric "
-        f"FROM pair_trade.rotation WHERE {SESS} AND prev_symbol <> 'CASH' "
-        f"AND transition_score IS NOT NULL AND $__timeFilter(ts) "
-        f"UNION ALL SELECT ts, last_edge * 10000, 'last' FROM pair_trade.rotation "
-        f"WHERE {SESS} AND prev_symbol <> 'CASH' AND last_edge IS NOT NULL AND $__timeFilter(ts) "
-        f"UNION ALL SELECT ts, realized_edge * 10000, 'realized' FROM pair_trade.rotation "
-        f"WHERE {SESS} AND prev_symbol <> 'CASH' AND realized_edge IS NOT NULL AND $__timeFilter(ts) "
-        f"UNION ALL SELECT ts, realized_edge_net * 10000, 'realized_net' FROM pair_trade.rotation "
-        f"WHERE {SESS} AND prev_symbol <> 'CASH' AND realized_edge_net IS NOT NULL AND $__timeFilter(ts) "
+        f"WITH {_base} "
+        f"SELECT time, transition_score * 10000 AS value, 'expected' AS metric FROM base "
+        f"WHERE transition_score IS NOT NULL "
+        f"UNION ALL SELECT time, last_edge * 10000, 'last' FROM base "
+        f"WHERE last_edge IS NOT NULL "
+        f"UNION ALL SELECT time, realized_edge * 10000, 'realized' FROM base "
+        f"WHERE realized_edge IS NOT NULL "
+        f"UNION ALL SELECT time, realized_edge_net * 10000, 'realized_net' FROM base "
+        f"WHERE realized_edge_net IS NOT NULL "
         f"ORDER BY 1;"
     )
     slip_sql = (
-        f"SELECT ts AS time, sell_slippage * 10000 AS value, 'sell_slippage_bps' AS metric "
-        f"FROM pair_trade.rotation WHERE {SESS} AND prev_symbol <> 'CASH' "
-        f"AND sell_slippage IS NOT NULL AND $__timeFilter(ts) "
-        f"UNION ALL SELECT ts, buy_slippage * 10000, 'buy_slippage_bps' FROM pair_trade.rotation "
-        f"WHERE {SESS} AND prev_symbol <> 'CASH' AND buy_slippage IS NOT NULL AND $__timeFilter(ts) "
+        f"WITH {_base} "
+        f"SELECT time, sell_slippage * 10000 AS value, 'sell_slippage_bps' AS metric FROM base "
+        f"WHERE sell_slippage IS NOT NULL "
+        f"UNION ALL SELECT time, buy_slippage * 10000, 'buy_slippage_bps' FROM base "
+        f"WHERE buy_slippage IS NOT NULL "
+        f"ORDER BY 1;"
+    )
+    # Latency: pair is the series name so legend/hover identify the trade.
+    latency_sql = (
+        f"WITH {_base} "
+        f"SELECT time, latency_sec AS value, pair AS metric FROM base "
+        f"WHERE latency_sec IS NOT NULL "
+        f"ORDER BY 1;"
+    )
+    cum_edge_sql = (
+        f"WITH {_base} "
+        f"SELECT time, "
+        f"SUM(realized_edge) OVER ("
+        f"PARTITION BY session_id ORDER BY ts, id "
+        f"ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) * 10000 AS value, "
+        f"'cum realized bps' AS metric "
+        f"FROM base WHERE realized_edge IS NOT NULL "
+        f"UNION ALL SELECT time, "
+        f"SUM(realized_edge_net) OVER ("
+        f"PARTITION BY session_id ORDER BY ts, id "
+        f"ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) * 10000, "
+        f"'cum realized_net bps' "
+        f"FROM base WHERE realized_edge_net IS NOT NULL "
         f"ORDER BY 1;"
     )
 
@@ -945,55 +988,32 @@ ORDER BY m.time;
         "panel-41": panel(
             41,
             "Rotation edges (bps)",
-            "Sell→buy only. expected/last/realized/realized_net ×10000 ≈ bps. Wall-clock x-axis.",
+            "Sell→buy only. expected/last/realized/realized_net ×10000 ≈ bps. "
+            "Co-timed rotations nudged +1s. Wall-clock x-axis.",
             qg([pq(edges_sql)]),
             ts_viz(1, draw="bars", fill=70, tooltip_mode="multi"),
         ),
         "panel-42": panel(
             42,
             "Buy / sell slippage (bps)",
-            "Sell→buy slippage ×10000 ≈ bps. Wall-clock x-axis.",
+            "Sell→buy slippage ×10000 ≈ bps. Co-timed rotations nudged +1s. Wall-clock x-axis.",
             qg([pq(slip_sql)]),
             ts_viz(1, draw="bars", fill=70, tooltip_mode="multi"),
         ),
         "panel-43": panel(
             43,
             "Rotation latency (sec)",
-            "Seconds from sell placed to buy_complete. Wall-clock x-axis.",
-            qg([pq(
-                # Arrow reversed (new←prev): Grafana/Persian RTL renders 'prev→new' backwards.
-                f"SELECT ts AS time, latency_sec AS value, "
-                f"new_symbol || '←' || prev_symbol AS metric "
-                f"FROM pair_trade.rotation WHERE {SESS} AND prev_symbol <> 'CASH' "
-                f"AND latency_sec IS NOT NULL AND $__timeFilter(ts) "
-                f"ORDER BY ts;"
-            )]),
-            ts_viz(1, unit="s", draw="bars", fill=70),
+            "Seconds from sell placed to buy_complete. "
+            "Series name = pair (new←prev); co-timed rotations nudged +1s. Wall-clock x-axis.",
+            qg([pq(latency_sql)]),
+            ts_viz(1, unit="s", draw="bars", fill=70, tooltip_mode="multi"),
         ),
         "panel-44": panel(
             44,
             "Cumulative realized edge (bps)",
-            "Running sum of realized_edge / realized_edge_net (×10000). Wall-clock x-axis.",
-            qg([
-                pq(
-                    f"SELECT ts AS time, "
-                    f"SUM(realized_edge) OVER (PARTITION BY session_id ORDER BY ts) * 10000 "
-                    f'AS "cum realized bps" '
-                    f"FROM pair_trade.rotation WHERE {SESS} AND prev_symbol <> 'CASH' "
-                    f"AND realized_edge IS NOT NULL AND $__timeFilter(ts) "
-                    f"ORDER BY ts;",
-                    ref="A",
-                ),
-                pq(
-                    f"SELECT ts AS time, "
-                    f"SUM(realized_edge_net) OVER (PARTITION BY session_id ORDER BY ts) * 10000 "
-                    f'AS "cum realized_net bps" '
-                    f"FROM pair_trade.rotation WHERE {SESS} AND prev_symbol <> 'CASH' "
-                    f"AND realized_edge_net IS NOT NULL AND $__timeFilter(ts) "
-                    f"ORDER BY ts;",
-                    ref="B",
-                ),
-            ]),
+            "Running sum of realized_edge / realized_edge_net (×10000), ORDER BY ts,id ROWS. "
+            "Co-timed rotations nudged +1s. Wall-clock x-axis.",
+            qg([pq(cum_edge_sql)]),
             ts_viz(1, fill=15, tooltip_mode="multi"),
         ),
         "panel-30": panel(

@@ -1689,7 +1689,7 @@
         "spec": {
           "id": 41,
           "title": "Rotation edges (bps)",
-          "description": "Sell\u2192buy only. expected/last/realized/realized_net \u00d710000 \u2248 bps. Wall-clock x-axis.",
+          "description": "Sell\u2192buy only. expected/last/realized/realized_net \u00d710000 \u2248 bps. Co-timed rotations nudged +1s. Wall-clock x-axis.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -1710,7 +1710,7 @@
                       "spec": {
                         "format": "time_series",
                         "rawQuery": true,
-                        "rawSql": "SELECT ts AS time, transition_score * 10000 AS value, 'expected' AS metric FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND transition_score IS NOT NULL AND $__timeFilter(ts) UNION ALL SELECT ts, last_edge * 10000, 'last' FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND last_edge IS NOT NULL AND $__timeFilter(ts) UNION ALL SELECT ts, realized_edge * 10000, 'realized' FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND realized_edge IS NOT NULL AND $__timeFilter(ts) UNION ALL SELECT ts, realized_edge_net * 10000, 'realized_net' FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND realized_edge_net IS NOT NULL AND $__timeFilter(ts) ORDER BY 1;"
+                        "rawSql": "WITH \nbase AS (\n  SELECT id, session_id, ts,\n         transition_score, last_edge, realized_edge, realized_edge_net,\n         sell_slippage, buy_slippage, latency_sec,\n         ts + ((ROW_NUMBER() OVER (PARTITION BY session_id, ts ORDER BY id) - 1)\n               * INTERVAL '1 second') AS time,\n         new_symbol || '\u2190' || prev_symbol AS pair\n  FROM pair_trade.rotation\n  WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND $__timeFilter(ts)\n) SELECT time, transition_score * 10000 AS value, 'expected' AS metric FROM base WHERE transition_score IS NOT NULL UNION ALL SELECT time, last_edge * 10000, 'last' FROM base WHERE last_edge IS NOT NULL UNION ALL SELECT time, realized_edge * 10000, 'realized' FROM base WHERE realized_edge IS NOT NULL UNION ALL SELECT time, realized_edge_net * 10000, 'realized_net' FROM base WHERE realized_edge_net IS NOT NULL ORDER BY 1;"
                       }
                     }
                   }
@@ -1766,7 +1766,7 @@
         "spec": {
           "id": 42,
           "title": "Buy / sell slippage (bps)",
-          "description": "Sell\u2192buy slippage \u00d710000 \u2248 bps. Wall-clock x-axis.",
+          "description": "Sell\u2192buy slippage \u00d710000 \u2248 bps. Co-timed rotations nudged +1s. Wall-clock x-axis.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -1787,7 +1787,7 @@
                       "spec": {
                         "format": "time_series",
                         "rawQuery": true,
-                        "rawSql": "SELECT ts AS time, sell_slippage * 10000 AS value, 'sell_slippage_bps' AS metric FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND sell_slippage IS NOT NULL AND $__timeFilter(ts) UNION ALL SELECT ts, buy_slippage * 10000, 'buy_slippage_bps' FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND buy_slippage IS NOT NULL AND $__timeFilter(ts) ORDER BY 1;"
+                        "rawSql": "WITH \nbase AS (\n  SELECT id, session_id, ts,\n         transition_score, last_edge, realized_edge, realized_edge_net,\n         sell_slippage, buy_slippage, latency_sec,\n         ts + ((ROW_NUMBER() OVER (PARTITION BY session_id, ts ORDER BY id) - 1)\n               * INTERVAL '1 second') AS time,\n         new_symbol || '\u2190' || prev_symbol AS pair\n  FROM pair_trade.rotation\n  WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND $__timeFilter(ts)\n) SELECT time, sell_slippage * 10000 AS value, 'sell_slippage_bps' AS metric FROM base WHERE sell_slippage IS NOT NULL UNION ALL SELECT time, buy_slippage * 10000, 'buy_slippage_bps' FROM base WHERE buy_slippage IS NOT NULL ORDER BY 1;"
                       }
                     }
                   }
@@ -1843,7 +1843,7 @@
         "spec": {
           "id": 43,
           "title": "Rotation latency (sec)",
-          "description": "Seconds from sell placed to buy_complete. Wall-clock x-axis.",
+          "description": "Seconds from sell placed to buy_complete. Series name = pair (new\u2190prev); co-timed rotations nudged +1s. Wall-clock x-axis.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -1864,7 +1864,7 @@
                       "spec": {
                         "format": "time_series",
                         "rawQuery": true,
-                        "rawSql": "SELECT ts AS time, latency_sec AS value, new_symbol || '\u2190' || prev_symbol AS metric FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND latency_sec IS NOT NULL AND $__timeFilter(ts) ORDER BY ts;"
+                        "rawSql": "WITH \nbase AS (\n  SELECT id, session_id, ts,\n         transition_score, last_edge, realized_edge, realized_edge_net,\n         sell_slippage, buy_slippage, latency_sec,\n         ts + ((ROW_NUMBER() OVER (PARTITION BY session_id, ts ORDER BY id) - 1)\n               * INTERVAL '1 second') AS time,\n         new_symbol || '\u2190' || prev_symbol AS pair\n  FROM pair_trade.rotation\n  WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND $__timeFilter(ts)\n) SELECT time, latency_sec AS value, pair AS metric FROM base WHERE latency_sec IS NOT NULL ORDER BY 1;"
                       }
                     }
                   }
@@ -1887,8 +1887,8 @@
                   "showLegend": true
                 },
                 "tooltip": {
-                  "mode": "single",
-                  "sort": "none"
+                  "mode": "multi",
+                  "sort": "desc"
                 }
               },
               "fieldConfig": {
@@ -1921,7 +1921,7 @@
         "spec": {
           "id": 44,
           "title": "Cumulative realized edge (bps)",
-          "description": "Running sum of realized_edge / realized_edge_net (\u00d710000). Wall-clock x-axis.",
+          "description": "Running sum of realized_edge / realized_edge_net (\u00d710000), ORDER BY ts,id ROWS. Co-timed rotations nudged +1s. Wall-clock x-axis.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -1942,27 +1942,7 @@
                       "spec": {
                         "format": "time_series",
                         "rawQuery": true,
-                        "rawSql": "SELECT ts AS time, SUM(realized_edge) OVER (PARTITION BY session_id ORDER BY ts) * 10000 AS \"cum realized bps\" FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND realized_edge IS NOT NULL AND $__timeFilter(ts) ORDER BY ts;"
-                      }
-                    }
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "refId": "B",
-                    "hidden": false,
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "grafana-postgresql-datasource",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "afz4am1a4lywwf"
-                      },
-                      "spec": {
-                        "format": "time_series",
-                        "rawQuery": true,
-                        "rawSql": "SELECT ts AS time, SUM(realized_edge_net) OVER (PARTITION BY session_id ORDER BY ts) * 10000 AS \"cum realized_net bps\" FROM pair_trade.rotation WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND realized_edge_net IS NOT NULL AND $__timeFilter(ts) ORDER BY ts;"
+                        "rawSql": "WITH \nbase AS (\n  SELECT id, session_id, ts,\n         transition_score, last_edge, realized_edge, realized_edge_net,\n         sell_slippage, buy_slippage, latency_sec,\n         ts + ((ROW_NUMBER() OVER (PARTITION BY session_id, ts ORDER BY id) - 1)\n               * INTERVAL '1 second') AS time,\n         new_symbol || '\u2190' || prev_symbol AS pair\n  FROM pair_trade.rotation\n  WHERE session_id IN ($session) AND prev_symbol <> 'CASH' AND $__timeFilter(ts)\n) SELECT time, SUM(realized_edge) OVER (PARTITION BY session_id ORDER BY ts, id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) * 10000 AS value, 'cum realized bps' AS metric FROM base WHERE realized_edge IS NOT NULL UNION ALL SELECT time, SUM(realized_edge_net) OVER (PARTITION BY session_id ORDER BY ts, id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) * 10000, 'cum realized_net bps' FROM base WHERE realized_edge_net IS NOT NULL ORDER BY 1;"
                       }
                     }
                   }
