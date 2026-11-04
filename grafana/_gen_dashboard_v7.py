@@ -412,12 +412,20 @@ def hide_override(name):
     }
 
 
-# Arrow reversed (new←prev): Grafana/Persian RTL renders 'prev→new' backwards.
-_ROT_PAIR = "new_symbol || '←' || prev_symbol"
+# Sell→buy is logically prev→new. Grafana + Persian RTL reorders the glyph run,
+# so we store new→prev (and use → not ←) — that is what makes the legend read
+# correctly as prev→new. CASH is shown as نقد (same word as portfolio cash).
+_ROT_PAIR = (
+    "new_symbol || '→' || CASE WHEN prev_symbol = 'CASH' THEN 'نقد' ELSE prev_symbol END"
+)
 
 
-def _rot_base_cte() -> str:
-    """One row per rotation with stable +1s nudge for co-timed ts (shared across metric UNIONs)."""
+def _rot_base_cte(*, include_cash: bool = False) -> str:
+    """One row per rotation with +1s nudge for co-timed ts.
+
+    include_cash=True keeps cash_collector (for latency); edges/slip/cum exclude them.
+    """
+    cash_filter = "" if include_cash else " AND prev_symbol <> 'CASH'"
     return f"""
 base AS (
   SELECT id, session_id, ts,
@@ -428,7 +436,7 @@ base AS (
                * INTERVAL '1 second') AS time,
          {_ROT_PAIR} AS pair
   FROM pair_trade.rotation
-  WHERE {SESS} AND prev_symbol <> 'CASH' AND $__timeFilter(ts)
+  WHERE {SESS}{cash_filter} AND $__timeFilter(ts)
 )"""
 
 
@@ -695,7 +703,8 @@ ORDER BY m.time;
         f"SELECT time, value, metric FROM valued WHERE value > 0 ORDER BY value DESC;"
     )
     # Wall-clock +1s nudge for co-timed rotations. Identify pairs via latency legend/hover.
-    _base = _rot_base_cte()
+    _base = _rot_base_cte()  # sell→buy only
+    _base_lat = _rot_base_cte(include_cash=True)  # + cash_collector
     edges_sql = (
         f"WITH {_base} "
         f"SELECT time, transition_score * 10000 AS value, 'expected' AS metric FROM base "
@@ -716,11 +725,14 @@ ORDER BY m.time;
         f"WHERE buy_slippage IS NOT NULL "
         f"ORDER BY 1;"
     )
-    # Latency: pair is the series name so legend/hover identify the trade.
+    # Latency: pair is the series name; cash_collector (null latency) plotted as 1s markers.
     latency_sql = (
-        f"WITH {_base} "
-        f"SELECT time, latency_sec AS value, pair AS metric FROM base "
-        f"WHERE latency_sec IS NOT NULL "
+        f"WITH {_base_lat} "
+        f"SELECT time, "
+        # pair ends with →نقد when prev was CASH (see _ROT_PAIR RTL note).
+        f"COALESCE(latency_sec, CASE WHEN pair LIKE '%→نقد' THEN 1.0 END) AS value, "
+        f"pair AS metric FROM base "
+        f"WHERE latency_sec IS NOT NULL OR pair LIKE '%→نقد' "
         f"ORDER BY 1;"
     )
     # NAV-weighted: contrib_bps = edge_bps * notional/NAV so small trades don't dominate.
@@ -1022,7 +1034,8 @@ ORDER BY m.time;
         "panel-41": panel(
             41,
             "Rotation edges (bps)",
-            "Sell→buy only. expected/last/realized/realized_net ×10000 ≈ bps. "
+            "Sell→buy only (cash_collector excluded). "
+            "expected/last/realized/realized_net ×10000 ≈ bps. "
             "Co-timed rotations nudged +1s. Wall-clock x-axis.",
             qg([pq(edges_sql)]),
             ts_viz(1, draw="bars", fill=70, tooltip_mode="multi"),
@@ -1037,8 +1050,9 @@ ORDER BY m.time;
         "panel-43": panel(
             43,
             "Rotation latency (sec)",
-            "Seconds from sell placed to buy_complete. "
-            "Series name = pair (new←prev); co-timed rotations nudged +1s. Wall-clock x-axis.",
+            "Seconds from sell placed to buy_complete. Includes cash_collector. "
+            "Null cash latency shown as 1s so trades are visible. "
+            "Series = new→prev (RTL so legend reads prev→new); CASH as نقد. Co-timed +1s.",
             qg([pq(latency_sql)]),
             ts_viz(1, unit="s", draw="bars", fill=70, tooltip_mode="multi"),
         ),
@@ -1087,6 +1101,24 @@ ORDER BY m.time;
             )]),
             table_viz([{"desc": False, "displayName": "ret_plus_spread"}]),
         ),
+        "panel-33": panel(
+            33,
+            "Recent rotations",
+            "Raw rotation rows including cash_collector. Wall-clock ts, last 50.",
+            qg([pq(
+                f"SELECT ts, session_id, "
+                f"CASE WHEN prev_symbol = 'CASH' THEN 'cash_collector' ELSE 'rotation' END AS kind, "
+                f"prev_symbol, new_symbol, status, transition_score, last_edge, "
+                f"realized_edge, realized_edge_net, sell_slippage, buy_slippage, latency_sec, "
+                f"transition_value / 1e7 AS transition_value_m_irt, "
+                f"quote_earned / 1e7 AS earned_m_irt, "
+                f"quote_spent / 1e7 AS spent_m_irt, "
+                f"total_fee_quote / 1e7 AS fees_m_irt, sell_order_id "
+                f"FROM pair_trade.rotation WHERE {SESS} ORDER BY ts DESC LIMIT 50;",
+                "table",
+            )]),
+            table_viz([{"desc": True, "displayName": "ts"}]),
+        ),
     }
 
     # Portfolio value TS + 2×2 KPIs; per-session benchmarks; then style-6 cumulative pair.
@@ -1111,8 +1143,9 @@ ORDER BY m.time;
         gird(0, 56, 12, 7, "panel-43"),
         gird(12, 56, 12, 7, "panel-44"),
         gird(0, 63, 12, 8, "panel-30"),
+        gird(12, 63, 12, 8, "panel-33"),  # Recent rotations
         gird(0, 71, 12, 8, "panel-21"),
-        gird(12, 71, 12, 8, "panel-22"),
+        gird(12, 71, 12, 8, "panel-22"),  # Latest signals
     ]
 
     dashboard = {
