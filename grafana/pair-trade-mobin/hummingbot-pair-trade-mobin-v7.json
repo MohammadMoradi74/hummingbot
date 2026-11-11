@@ -299,7 +299,7 @@
         "spec": {
           "id": 7,
           "title": "Turnover (\u00d7)",
-          "description": "Sum(fill notional) / latest NAV. Both buy+sell legs count: \u22482 \u2248 one full book renew (sold once + bought once). From pair_trade.fill.",
+          "description": "0.5 \u00d7 sum(fill notional) / latest NAV \u2014 buy+sell averaged so \u22481 \u2248 one full book renew. From pair_trade.fill.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -320,7 +320,7 @@
                       "spec": {
                         "format": "table",
                         "rawQuery": true,
-                        "rawSql": "WITH latest AS (SELECT portfolio_value AS v FROM pair_trade.portfolio_snapshot WHERE session_id IN ($session) ORDER BY ts DESC LIMIT 1) SELECT COALESCE((SELECT SUM(f.amount * f.price) FROM pair_trade.fill f WHERE f.session_id IN ($session)), 0) / NULLIF(latest.v, 0) AS turnover FROM latest;"
+                        "rawSql": "WITH latest AS (SELECT portfolio_value AS v FROM pair_trade.portfolio_snapshot WHERE session_id IN ($session) ORDER BY ts DESC LIMIT 1) SELECT 0.5 * COALESCE((SELECT SUM(f.amount * f.price) FROM pair_trade.fill f WHERE f.session_id IN ($session)), 0) / NULLIF(latest.v, 0) AS turnover FROM latest;"
                       }
                     }
                   }

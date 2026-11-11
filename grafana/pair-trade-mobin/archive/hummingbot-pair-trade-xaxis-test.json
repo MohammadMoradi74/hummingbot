@@ -1,0 +1,2632 @@
+{
+  "apiVersion": "dashboard.grafana.app/v2",
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "hummingbot-pair-trade-xaxis-test",
+    "namespace": "default",
+    "uid": "hb-pair-trade-xaxis-test"
+  },
+  "spec": {
+    "title": "X-axis strategies test (Mobin Gold)",
+    "description": "Compare five x-axis strategies for multi-session charts. Only return-vs-index, excess, and portfolio value. Select multiple sessions to see differences.",
+    "tags": [
+      "hummingbot",
+      "pair-trade",
+      "mobin",
+      "xaxis-test"
+    ],
+    "editable": true,
+    "cursorSync": "Crosshair",
+    "liveNow": false,
+    "preload": false,
+    "links": [],
+    "annotations": [
+      {
+        "kind": "AnnotationQuery",
+        "spec": {
+          "name": "Annotations & Alerts",
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "builtIn": true,
+          "query": {
+            "kind": "DataQuery",
+            "group": "grafana",
+            "version": "v0",
+            "datasource": {
+              "name": "-- Grafana --"
+            },
+            "spec": {}
+          }
+        }
+      }
+    ],
+    "timeSettings": {
+      "timezone": "Asia/Tehran",
+      "from": "now/d+12h+2m",
+      "to": "now",
+      "autoRefresh": "1m",
+      "autoRefreshIntervals": [
+        "5s",
+        "10s",
+        "30s",
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h",
+        "2h",
+        "1d"
+      ],
+      "hideTimepicker": false,
+      "fiscalYearStartMonth": 0
+    },
+    "variables": [
+      {
+        "kind": "QueryVariable",
+        "spec": {
+          "name": "strategy",
+          "label": "Strategy",
+          "hide": "dontHide",
+          "refresh": "onDashboardLoad",
+          "skipUrlSync": false,
+          "multi": false,
+          "includeAll": false,
+          "allowCustomValue": true,
+          "sort": "alphabeticalAsc",
+          "regex": "",
+          "regexApplyTo": "value",
+          "options": [],
+          "current": {
+            "text": "",
+            "value": ""
+          },
+          "query": {
+            "kind": "DataQuery",
+            "group": "grafana-postgresql-datasource",
+            "version": "v0",
+            "datasource": {
+              "name": "afz4am1a4lywwf"
+            },
+            "spec": {
+              "__legacyStringValue": "SELECT name AS __text, name AS __value FROM pair_trade.strategy ORDER BY name;"
+            }
+          }
+        }
+      },
+      {
+        "kind": "QueryVariable",
+        "spec": {
+          "name": "session",
+          "label": "Session",
+          "hide": "dontHide",
+          "refresh": "onDashboardLoad",
+          "skipUrlSync": false,
+          "multi": true,
+          "includeAll": false,
+          "allowCustomValue": true,
+          "sort": "disabled",
+          "regex": "",
+          "regexApplyTo": "value",
+          "options": [],
+          "current": {
+            "text": "",
+            "value": ""
+          },
+          "query": {
+            "kind": "DataQuery",
+            "group": "grafana-postgresql-datasource",
+            "version": "v0",
+            "datasource": {
+              "name": "afz4am1a4lywwf"
+            },
+            "spec": {
+              "__legacyStringValue": "SELECT s.id::text || ' @ ' || to_char(s.started_at, 'YYYY-MM-DD HH24:MI') AS __text, s.id AS __value FROM pair_trade.session s JOIN pair_trade.strategy st ON st.id = s.strategy_id WHERE st.name = '$strategy' ORDER BY s.started_at DESC;"
+            }
+          }
+        }
+      }
+    ],
+    "elements": {
+      "m1-ret": {
+        "kind": "Panel",
+        "spec": {
+          "id": 110,
+          "title": "1. Real time \u2014 Portfolio return vs benchmark indexes (%)",
+          "description": "Wall-clock ts. Honest labels; overnight/weekend gaps visible.  Only rows with local clock time 12:00\u201318:00 (Asia/Tehran) are included (pre-open snapshots excluded).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH \n\nanchor AS (\n  SELECT s.id AS session_id, s.started_at, s.strategy_id\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n  ORDER BY s.started_at\n  LIMIT 1\n),\nprev_session AS (\n  SELECT s.id AS session_id\n  FROM pair_trade.session s\n  JOIN anchor a ON s.strategy_id = a.strategy_id AND s.started_at < a.started_at\n  ORDER BY s.started_at DESC\n  LIMIT 1\n),\nnav0 AS (\n  SELECT COALESCE(\n    (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id = (SELECT session_id FROM prev_session)\n     ORDER BY p.ts DESC LIMIT 1),\n    (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n     ORDER BY p.ts ASC LIMIT 1)\n  ) AS v\n),\nbase_marks AS (\n  SELECT COALESCE(\n    (SELECT p.marks FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id = (SELECT session_id FROM prev_session)\n     ORDER BY p.ts DESC LIMIT 1),\n    (SELECT p.marks FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n     ORDER BY p.ts ASC LIMIT 1)\n  ) AS marks\n),\nm0 AS (\n  SELECT split_part(kv.key, '-', 1) AS asset, kv.value::numeric AS m0\n  FROM base_marks b\n  CROSS JOIN LATERAL jsonb_each_text(b.marks) AS kv(key, value)\n  WHERE kv.value::numeric > 0\n),\nsess_ord AS (\n  SELECT s.id AS session_id,\n         ROW_NUMBER() OVER (ORDER BY s.started_at) - 1 AS sess_ord\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n),\nraw AS (\n  SELECT p.session_id,\n         p.ts AS real_ts,\n         100.0 * (p.portfolio_value / NULLIF(n.v, 0) - 1) AS port_pct,\n         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1)) AS all_pct,\n         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1))\n           FILTER (WHERE split_part(kv.key, '-', 1) IN ('IRTKMOFD0001', 'IRTKLOTF0001', 'IRTKROBA0001', 'IRTKGANJ0001', 'IRTKZARA0001')) AS top5_pct\n  FROM pair_trade.portfolio_snapshot p\n  CROSS JOIN nav0 n\n  CROSS JOIN LATERAL jsonb_each_text(p.marks) AS kv(key, value)\n  JOIN m0 m ON m.asset = split_part(kv.key, '-', 1)\n  WHERE p.session_id IN ($session)\n    AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n    AND kv.value::numeric > 0\n  GROUP BY p.session_id, p.ts, p.portfolio_value, n.v\n)\nSELECT raw.real_ts AS time,\n       raw.port_pct AS \"Portfolio %\",\n       raw.all_pct AS \"All index %\",\n       raw.top5_pct AS \"Top5 index %\",\n       raw.port_pct - raw.all_pct AS \"Excess vs All %\",\n       raw.port_pct - raw.top5_pct AS \"Excess vs Top5 %\"\nFROM raw\nJOIN sess_ord so ON so.session_id = raw.session_id\nORDER BY 1;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 3,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  },
+                  "unit": "percent"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Portfolio %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "green"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "All index %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "yellow"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Top5 index %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "blue"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Excess vs All %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Excess vs Top5 %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "m1-xs": {
+        "kind": "Panel",
+        "spec": {
+          "id": 111,
+          "title": "1. Real time \u2014 Portfolio excess return vs indexes (%)",
+          "description": "Wall-clock ts. Honest labels; overnight/weekend gaps visible. Excess = port \u2212 index (same baseline as return panel). Only rows with local clock time 12:00\u201318:00 (Asia/Tehran) are included (pre-open snapshots excluded).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH \n\nanchor AS (\n  SELECT s.id AS session_id, s.started_at, s.strategy_id\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n  ORDER BY s.started_at\n  LIMIT 1\n),\nprev_session AS (\n  SELECT s.id AS session_id\n  FROM pair_trade.session s\n  JOIN anchor a ON s.strategy_id = a.strategy_id AND s.started_at < a.started_at\n  ORDER BY s.started_at DESC\n  LIMIT 1\n),\nnav0 AS (\n  SELECT COALESCE(\n    (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id = (SELECT session_id FROM prev_session)\n     ORDER BY p.ts DESC LIMIT 1),\n    (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n     ORDER BY p.ts ASC LIMIT 1)\n  ) AS v\n),\nbase_marks AS (\n  SELECT COALESCE(\n    (SELECT p.marks FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id = (SELECT session_id FROM prev_session)\n     ORDER BY p.ts DESC LIMIT 1),\n    (SELECT p.marks FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n     ORDER BY p.ts ASC LIMIT 1)\n  ) AS marks\n),\nm0 AS (\n  SELECT split_part(kv.key, '-', 1) AS asset, kv.value::numeric AS m0\n  FROM base_marks b\n  CROSS JOIN LATERAL jsonb_each_text(b.marks) AS kv(key, value)\n  WHERE kv.value::numeric > 0\n),\nsess_ord AS (\n  SELECT s.id AS session_id,\n         ROW_NUMBER() OVER (ORDER BY s.started_at) - 1 AS sess_ord\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n),\nraw AS (\n  SELECT p.session_id,\n         p.ts AS real_ts,\n         100.0 * (p.portfolio_value / NULLIF(n.v, 0) - 1) AS port_pct,\n         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1)) AS all_pct,\n         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1))\n           FILTER (WHERE split_part(kv.key, '-', 1) IN ('IRTKMOFD0001', 'IRTKLOTF0001', 'IRTKROBA0001', 'IRTKGANJ0001', 'IRTKZARA0001')) AS top5_pct\n  FROM pair_trade.portfolio_snapshot p\n  CROSS JOIN nav0 n\n  CROSS JOIN LATERAL jsonb_each_text(p.marks) AS kv(key, value)\n  JOIN m0 m ON m.asset = split_part(kv.key, '-', 1)\n  WHERE p.session_id IN ($session)\n    AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n    AND kv.value::numeric > 0\n  GROUP BY p.session_id, p.ts, p.portfolio_value, n.v\n)\nSELECT raw.real_ts AS time,\n       raw.port_pct AS \"Portfolio %\",\n       raw.all_pct AS \"All index %\",\n       raw.top5_pct AS \"Top5 index %\",\n       raw.port_pct - raw.all_pct AS \"Excess vs All %\",\n       raw.port_pct - raw.top5_pct AS \"Excess vs Top5 %\"\nFROM raw\nJOIN sess_ord so ON so.session_id = raw.session_id\nORDER BY 1;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 3,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 15,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  },
+                  "unit": "percent"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Excess vs All %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "yellow"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Excess vs Top5 %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "blue"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Portfolio %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "All index %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Top5 index %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "m1-port": {
+        "kind": "Panel",
+        "spec": {
+          "id": 112,
+          "title": "1. Real time \u2014 Portfolio value (M IRT)",
+          "description": "Wall-clock ts. Honest labels; overnight/weekend gaps visible. Only rows with local clock time 12:00\u201318:00 (Asia/Tehran) are included (pre-open snapshots excluded).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH \nsess_ord AS (\n  SELECT s.id AS session_id,\n         ROW_NUMBER() OVER (ORDER BY s.started_at) - 1 AS sess_ord\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n),\nraw AS (\n  SELECT p.session_id, p.ts AS real_ts, p.portfolio_value / 1e7 AS port_m\n  FROM pair_trade.portfolio_snapshot p\n  WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n)\nSELECT raw.real_ts AS time,\n       raw.port_m AS \"Portfolio M IRT\"\nFROM raw\nJOIN sess_ord so ON so.session_id = raw.session_id\nORDER BY 1;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 2,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "m2-ret": {
+        "kind": "Panel",
+        "spec": {
+          "id": 120,
+          "title": "2. Gapless + tooltip \u2014 Portfolio return vs benchmark indexes (%)",
+          "description": "Synthetic gapless x-axis; hover Wall clock = real Tehran time (ISO).  Only rows with local clock time 12:00\u201318:00 (Asia/Tehran) are included (pre-open snapshots excluded).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH \n\nanchor AS (\n  SELECT s.id AS session_id, s.started_at, s.strategy_id\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n  ORDER BY s.started_at\n  LIMIT 1\n),\nprev_session AS (\n  SELECT s.id AS session_id\n  FROM pair_trade.session s\n  JOIN anchor a ON s.strategy_id = a.strategy_id AND s.started_at < a.started_at\n  ORDER BY s.started_at DESC\n  LIMIT 1\n),\nnav0 AS (\n  SELECT COALESCE(\n    (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id = (SELECT session_id FROM prev_session)\n     ORDER BY p.ts DESC LIMIT 1),\n    (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n     ORDER BY p.ts ASC LIMIT 1)\n  ) AS v\n),\nbase_marks AS (\n  SELECT COALESCE(\n    (SELECT p.marks FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id = (SELECT session_id FROM prev_session)\n     ORDER BY p.ts DESC LIMIT 1),\n    (SELECT p.marks FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n     ORDER BY p.ts ASC LIMIT 1)\n  ) AS marks\n),\nm0 AS (\n  SELECT split_part(kv.key, '-', 1) AS asset, kv.value::numeric AS m0\n  FROM base_marks b\n  CROSS JOIN LATERAL jsonb_each_text(b.marks) AS kv(key, value)\n  WHERE kv.value::numeric > 0\n),\nsess_ord AS (\n  SELECT s.id AS session_id,\n         ROW_NUMBER() OVER (ORDER BY s.started_at) - 1 AS sess_ord\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n),\nraw AS (\n  SELECT p.session_id,\n         p.ts AS real_ts,\n         100.0 * (p.portfolio_value / NULLIF(n.v, 0) - 1) AS port_pct,\n         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1)) AS all_pct,\n         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1))\n           FILTER (WHERE split_part(kv.key, '-', 1) IN ('IRTKMOFD0001', 'IRTKLOTF0001', 'IRTKROBA0001', 'IRTKGANJ0001', 'IRTKZARA0001')) AS top5_pct\n  FROM pair_trade.portfolio_snapshot p\n  CROSS JOIN nav0 n\n  CROSS JOIN LATERAL jsonb_each_text(p.marks) AS kv(key, value)\n  JOIN m0 m ON m.asset = split_part(kv.key, '-', 1)\n  WHERE p.session_id IN ($session)\n    AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n    AND kv.value::numeric > 0\n  GROUP BY p.session_id, p.ts, p.portfolio_value, n.v\n),\n\ntmap AS (\n  SELECT d.session_id,\n         d.real_ts,\n         to_timestamp($__unixEpochFrom())\n           + (ROW_NUMBER() OVER (ORDER BY s.started_at, d.real_ts) - 1)\n           * (($__unixEpochTo() - $__unixEpochFrom())\n              / GREATEST(COUNT(*) OVER (), 1))\n           * INTERVAL '1 second' AS time\n  FROM (SELECT DISTINCT session_id, real_ts FROM raw) d\n  JOIN pair_trade.session s ON s.id = d.session_id\n)\nSELECT m.time,\n       r.port_pct AS \"Portfolio %\",\n       r.all_pct AS \"All index %\",\n       r.top5_pct AS \"Top5 index %\",\n       r.port_pct - r.all_pct AS \"Excess vs All %\",\n       r.port_pct - r.top5_pct AS \"Excess vs Top5 %\",\n       (EXTRACT(EPOCH FROM r.real_ts) * 1000)::bigint AS \"Wall clock\"\nFROM raw r\nJOIN tmap m ON m.session_id = r.session_id AND m.real_ts = r.real_ts\nORDER BY m.time;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 3,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  },
+                  "unit": "percent"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Portfolio %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "green"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "All index %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "yellow"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Top5 index %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "blue"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Excess vs All %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Excess vs Top5 %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Wall clock"
+                    },
+                    "properties": [
+                      {
+                        "id": "unit",
+                        "value": "dateTimeAsIso"
+                      },
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": false,
+                          "viz": true
+                        }
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 0
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "m2-xs": {
+        "kind": "Panel",
+        "spec": {
+          "id": 121,
+          "title": "2. Gapless + tooltip \u2014 Portfolio excess return vs indexes (%)",
+          "description": "Synthetic gapless x-axis; hover Wall clock = real Tehran time (ISO). Excess = port \u2212 index (same baseline as return panel). Only rows with local clock time 12:00\u201318:00 (Asia/Tehran) are included (pre-open snapshots excluded).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH \n\nanchor AS (\n  SELECT s.id AS session_id, s.started_at, s.strategy_id\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n  ORDER BY s.started_at\n  LIMIT 1\n),\nprev_session AS (\n  SELECT s.id AS session_id\n  FROM pair_trade.session s\n  JOIN anchor a ON s.strategy_id = a.strategy_id AND s.started_at < a.started_at\n  ORDER BY s.started_at DESC\n  LIMIT 1\n),\nnav0 AS (\n  SELECT COALESCE(\n    (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id = (SELECT session_id FROM prev_session)\n     ORDER BY p.ts DESC LIMIT 1),\n    (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n     ORDER BY p.ts ASC LIMIT 1)\n  ) AS v\n),\nbase_marks AS (\n  SELECT COALESCE(\n    (SELECT p.marks FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id = (SELECT session_id FROM prev_session)\n     ORDER BY p.ts DESC LIMIT 1),\n    (SELECT p.marks FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n     ORDER BY p.ts ASC LIMIT 1)\n  ) AS marks\n),\nm0 AS (\n  SELECT split_part(kv.key, '-', 1) AS asset, kv.value::numeric AS m0\n  FROM base_marks b\n  CROSS JOIN LATERAL jsonb_each_text(b.marks) AS kv(key, value)\n  WHERE kv.value::numeric > 0\n),\nsess_ord AS (\n  SELECT s.id AS session_id,\n         ROW_NUMBER() OVER (ORDER BY s.started_at) - 1 AS sess_ord\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n),\nraw AS (\n  SELECT p.session_id,\n         p.ts AS real_ts,\n         100.0 * (p.portfolio_value / NULLIF(n.v, 0) - 1) AS port_pct,\n         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1)) AS all_pct,\n         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1))\n           FILTER (WHERE split_part(kv.key, '-', 1) IN ('IRTKMOFD0001', 'IRTKLOTF0001', 'IRTKROBA0001', 'IRTKGANJ0001', 'IRTKZARA0001')) AS top5_pct\n  FROM pair_trade.portfolio_snapshot p\n  CROSS JOIN nav0 n\n  CROSS JOIN LATERAL jsonb_each_text(p.marks) AS kv(key, value)\n  JOIN m0 m ON m.asset = split_part(kv.key, '-', 1)\n  WHERE p.session_id IN ($session)\n    AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n    AND kv.value::numeric > 0\n  GROUP BY p.session_id, p.ts, p.portfolio_value, n.v\n),\n\ntmap AS (\n  SELECT d.session_id,\n         d.real_ts,\n         to_timestamp($__unixEpochFrom())\n           + (ROW_NUMBER() OVER (ORDER BY s.started_at, d.real_ts) - 1)\n           * (($__unixEpochTo() - $__unixEpochFrom())\n              / GREATEST(COUNT(*) OVER (), 1))\n           * INTERVAL '1 second' AS time\n  FROM (SELECT DISTINCT session_id, real_ts FROM raw) d\n  JOIN pair_trade.session s ON s.id = d.session_id\n)\nSELECT m.time,\n       r.port_pct AS \"Portfolio %\",\n       r.all_pct AS \"All index %\",\n       r.top5_pct AS \"Top5 index %\",\n       r.port_pct - r.all_pct AS \"Excess vs All %\",\n       r.port_pct - r.top5_pct AS \"Excess vs Top5 %\",\n       (EXTRACT(EPOCH FROM r.real_ts) * 1000)::bigint AS \"Wall clock\"\nFROM raw r\nJOIN tmap m ON m.session_id = r.session_id AND m.real_ts = r.real_ts\nORDER BY m.time;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 3,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 15,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  },
+                  "unit": "percent"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Excess vs All %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "yellow"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Excess vs Top5 %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "blue"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Portfolio %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "All index %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Top5 index %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Wall clock"
+                    },
+                    "properties": [
+                      {
+                        "id": "unit",
+                        "value": "dateTimeAsIso"
+                      },
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": false,
+                          "viz": true
+                        }
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 0
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "m2-port": {
+        "kind": "Panel",
+        "spec": {
+          "id": 122,
+          "title": "2. Gapless + tooltip \u2014 Portfolio value (M IRT)",
+          "description": "Synthetic gapless x-axis; hover Wall clock = real Tehran time (ISO). Only rows with local clock time 12:00\u201318:00 (Asia/Tehran) are included (pre-open snapshots excluded).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH \nsess_ord AS (\n  SELECT s.id AS session_id,\n         ROW_NUMBER() OVER (ORDER BY s.started_at) - 1 AS sess_ord\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n),\nraw AS (\n  SELECT p.session_id, p.ts AS real_ts, p.portfolio_value / 1e7 AS port_m\n  FROM pair_trade.portfolio_snapshot p\n  WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n),\n\ntmap AS (\n  SELECT d.session_id,\n         d.real_ts,\n         to_timestamp($__unixEpochFrom())\n           + (ROW_NUMBER() OVER (ORDER BY s.started_at, d.real_ts) - 1)\n           * (($__unixEpochTo() - $__unixEpochFrom())\n              / GREATEST(COUNT(*) OVER (), 1))\n           * INTERVAL '1 second' AS time\n  FROM (SELECT DISTINCT session_id, real_ts FROM raw) d\n  JOIN pair_trade.session s ON s.id = d.session_id\n)\nSELECT m.time,\n       r.port_m AS \"Portfolio M IRT\",\n       (EXTRACT(EPOCH FROM r.real_ts) * 1000)::bigint AS \"Wall clock\"\nFROM raw r\nJOIN tmap m ON m.session_id = r.session_id AND m.real_ts = r.real_ts\nORDER BY m.time;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 2,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Wall clock"
+                    },
+                    "properties": [
+                      {
+                        "id": "unit",
+                        "value": "dateTimeAsIso"
+                      },
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": false,
+                          "viz": true
+                        }
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 0
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "m3-ret": {
+        "kind": "Panel",
+        "spec": {
+          "id": 130,
+          "title": "3. Overlay trading day \u2014 Portfolio return vs benchmark indexes (%)",
+          "description": "All sessions overlay from $__unixEpochFrom; x = From + seconds since Tehran 12:00.  Only rows with local clock time 12:00\u201318:00 (Asia/Tehran) are included (pre-open snapshots excluded).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH \n\nanchor AS (\n  SELECT s.id AS session_id, s.started_at, s.strategy_id\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n  ORDER BY s.started_at\n  LIMIT 1\n),\nprev_session AS (\n  SELECT s.id AS session_id\n  FROM pair_trade.session s\n  JOIN anchor a ON s.strategy_id = a.strategy_id AND s.started_at < a.started_at\n  ORDER BY s.started_at DESC\n  LIMIT 1\n),\nnav0 AS (\n  SELECT COALESCE(\n    (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id = (SELECT session_id FROM prev_session)\n     ORDER BY p.ts DESC LIMIT 1),\n    (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n     ORDER BY p.ts ASC LIMIT 1)\n  ) AS v\n),\nbase_marks AS (\n  SELECT COALESCE(\n    (SELECT p.marks FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id = (SELECT session_id FROM prev_session)\n     ORDER BY p.ts DESC LIMIT 1),\n    (SELECT p.marks FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n     ORDER BY p.ts ASC LIMIT 1)\n  ) AS marks\n),\nm0 AS (\n  SELECT split_part(kv.key, '-', 1) AS asset, kv.value::numeric AS m0\n  FROM base_marks b\n  CROSS JOIN LATERAL jsonb_each_text(b.marks) AS kv(key, value)\n  WHERE kv.value::numeric > 0\n),\nsess_ord AS (\n  SELECT s.id AS session_id,\n         ROW_NUMBER() OVER (ORDER BY s.started_at) - 1 AS sess_ord\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n),\nraw AS (\n  SELECT p.session_id,\n         p.ts AS real_ts,\n         100.0 * (p.portfolio_value / NULLIF(n.v, 0) - 1) AS port_pct,\n         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1)) AS all_pct,\n         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1))\n           FILTER (WHERE split_part(kv.key, '-', 1) IN ('IRTKMOFD0001', 'IRTKLOTF0001', 'IRTKROBA0001', 'IRTKGANJ0001', 'IRTKZARA0001')) AS top5_pct\n  FROM pair_trade.portfolio_snapshot p\n  CROSS JOIN nav0 n\n  CROSS JOIN LATERAL jsonb_each_text(p.marks) AS kv(key, value)\n  JOIN m0 m ON m.asset = split_part(kv.key, '-', 1)\n  WHERE p.session_id IN ($session)\n    AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n    AND kv.value::numeric > 0\n  GROUP BY p.session_id, p.ts, p.portfolio_value, n.v\n)\nSELECT to_timestamp($__unixEpochFrom()) + (GREATEST(0, EXTRACT(EPOCH FROM ((raw.real_ts AT TIME ZONE 'Asia/Tehran')::time - TIME '12:00:00')))) * INTERVAL '1 second' AS time,\n       raw.port_pct AS \"Portfolio %\",\n       raw.all_pct AS \"All index %\",\n       raw.top5_pct AS \"Top5 index %\",\n       raw.port_pct - raw.all_pct AS \"Excess vs All %\",\n       raw.port_pct - raw.top5_pct AS \"Excess vs Top5 %\"\nFROM raw\nJOIN sess_ord so ON so.session_id = raw.session_id\nORDER BY 1;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 3,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  },
+                  "unit": "percent"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Portfolio %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "green"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "All index %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "yellow"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Top5 index %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "blue"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Excess vs All %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Excess vs Top5 %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "m3-xs": {
+        "kind": "Panel",
+        "spec": {
+          "id": 131,
+          "title": "3. Overlay trading day \u2014 Portfolio excess return vs indexes (%)",
+          "description": "All sessions overlay from $__unixEpochFrom; x = From + seconds since Tehran 12:00. Excess = port \u2212 index (same baseline as return panel). Only rows with local clock time 12:00\u201318:00 (Asia/Tehran) are included (pre-open snapshots excluded).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH \n\nanchor AS (\n  SELECT s.id AS session_id, s.started_at, s.strategy_id\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n  ORDER BY s.started_at\n  LIMIT 1\n),\nprev_session AS (\n  SELECT s.id AS session_id\n  FROM pair_trade.session s\n  JOIN anchor a ON s.strategy_id = a.strategy_id AND s.started_at < a.started_at\n  ORDER BY s.started_at DESC\n  LIMIT 1\n),\nnav0 AS (\n  SELECT COALESCE(\n    (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id = (SELECT session_id FROM prev_session)\n     ORDER BY p.ts DESC LIMIT 1),\n    (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n     ORDER BY p.ts ASC LIMIT 1)\n  ) AS v\n),\nbase_marks AS (\n  SELECT COALESCE(\n    (SELECT p.marks FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id = (SELECT session_id FROM prev_session)\n     ORDER BY p.ts DESC LIMIT 1),\n    (SELECT p.marks FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n     ORDER BY p.ts ASC LIMIT 1)\n  ) AS marks\n),\nm0 AS (\n  SELECT split_part(kv.key, '-', 1) AS asset, kv.value::numeric AS m0\n  FROM base_marks b\n  CROSS JOIN LATERAL jsonb_each_text(b.marks) AS kv(key, value)\n  WHERE kv.value::numeric > 0\n),\nsess_ord AS (\n  SELECT s.id AS session_id,\n         ROW_NUMBER() OVER (ORDER BY s.started_at) - 1 AS sess_ord\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n),\nraw AS (\n  SELECT p.session_id,\n         p.ts AS real_ts,\n         100.0 * (p.portfolio_value / NULLIF(n.v, 0) - 1) AS port_pct,\n         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1)) AS all_pct,\n         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1))\n           FILTER (WHERE split_part(kv.key, '-', 1) IN ('IRTKMOFD0001', 'IRTKLOTF0001', 'IRTKROBA0001', 'IRTKGANJ0001', 'IRTKZARA0001')) AS top5_pct\n  FROM pair_trade.portfolio_snapshot p\n  CROSS JOIN nav0 n\n  CROSS JOIN LATERAL jsonb_each_text(p.marks) AS kv(key, value)\n  JOIN m0 m ON m.asset = split_part(kv.key, '-', 1)\n  WHERE p.session_id IN ($session)\n    AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n    AND kv.value::numeric > 0\n  GROUP BY p.session_id, p.ts, p.portfolio_value, n.v\n)\nSELECT to_timestamp($__unixEpochFrom()) + (GREATEST(0, EXTRACT(EPOCH FROM ((raw.real_ts AT TIME ZONE 'Asia/Tehran')::time - TIME '12:00:00')))) * INTERVAL '1 second' AS time,\n       raw.port_pct AS \"Portfolio %\",\n       raw.all_pct AS \"All index %\",\n       raw.top5_pct AS \"Top5 index %\",\n       raw.port_pct - raw.all_pct AS \"Excess vs All %\",\n       raw.port_pct - raw.top5_pct AS \"Excess vs Top5 %\"\nFROM raw\nJOIN sess_ord so ON so.session_id = raw.session_id\nORDER BY 1;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 3,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 15,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  },
+                  "unit": "percent"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Excess vs All %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "yellow"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Excess vs Top5 %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "blue"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Portfolio %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "All index %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Top5 index %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "m3-port": {
+        "kind": "Panel",
+        "spec": {
+          "id": 132,
+          "title": "3. Overlay trading day \u2014 Portfolio value (M IRT)",
+          "description": "All sessions overlay from $__unixEpochFrom; x = From + seconds since Tehran 12:00. Only rows with local clock time 12:00\u201318:00 (Asia/Tehran) are included (pre-open snapshots excluded).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH \nsess_ord AS (\n  SELECT s.id AS session_id,\n         ROW_NUMBER() OVER (ORDER BY s.started_at) - 1 AS sess_ord\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n),\nraw AS (\n  SELECT p.session_id, p.ts AS real_ts, p.portfolio_value / 1e7 AS port_m\n  FROM pair_trade.portfolio_snapshot p\n  WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n)\nSELECT to_timestamp($__unixEpochFrom()) + (GREATEST(0, EXTRACT(EPOCH FROM ((raw.real_ts AT TIME ZONE 'Asia/Tehran')::time - TIME '12:00:00')))) * INTERVAL '1 second' AS time,\n       raw.port_m AS \"Portfolio M IRT\"\nFROM raw\nJOIN sess_ord so ON so.session_id = raw.session_id\nORDER BY 1;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 2,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "m4-ret": {
+        "kind": "Panel",
+        "spec": {
+          "id": 140,
+          "title": "4. Concat session days \u2014 Portfolio return vs benchmark indexes (%)",
+          "description": "Sessions share [$__unixEpochFrom,$__unixEpochTo] in equal slices; TOD 12:00\u201318:00 maps into each slice.  Only rows with local clock time 12:00\u201318:00 (Asia/Tehran) are included (pre-open snapshots excluded).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH \n\nanchor AS (\n  SELECT s.id AS session_id, s.started_at, s.strategy_id\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n  ORDER BY s.started_at\n  LIMIT 1\n),\nprev_session AS (\n  SELECT s.id AS session_id\n  FROM pair_trade.session s\n  JOIN anchor a ON s.strategy_id = a.strategy_id AND s.started_at < a.started_at\n  ORDER BY s.started_at DESC\n  LIMIT 1\n),\nnav0 AS (\n  SELECT COALESCE(\n    (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id = (SELECT session_id FROM prev_session)\n     ORDER BY p.ts DESC LIMIT 1),\n    (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n     ORDER BY p.ts ASC LIMIT 1)\n  ) AS v\n),\nbase_marks AS (\n  SELECT COALESCE(\n    (SELECT p.marks FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id = (SELECT session_id FROM prev_session)\n     ORDER BY p.ts DESC LIMIT 1),\n    (SELECT p.marks FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n     ORDER BY p.ts ASC LIMIT 1)\n  ) AS marks\n),\nm0 AS (\n  SELECT split_part(kv.key, '-', 1) AS asset, kv.value::numeric AS m0\n  FROM base_marks b\n  CROSS JOIN LATERAL jsonb_each_text(b.marks) AS kv(key, value)\n  WHERE kv.value::numeric > 0\n),\nsess_ord AS (\n  SELECT s.id AS session_id,\n         ROW_NUMBER() OVER (ORDER BY s.started_at) - 1 AS sess_ord\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n),\nraw AS (\n  SELECT p.session_id,\n         p.ts AS real_ts,\n         100.0 * (p.portfolio_value / NULLIF(n.v, 0) - 1) AS port_pct,\n         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1)) AS all_pct,\n         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1))\n           FILTER (WHERE split_part(kv.key, '-', 1) IN ('IRTKMOFD0001', 'IRTKLOTF0001', 'IRTKROBA0001', 'IRTKGANJ0001', 'IRTKZARA0001')) AS top5_pct\n  FROM pair_trade.portfolio_snapshot p\n  CROSS JOIN nav0 n\n  CROSS JOIN LATERAL jsonb_each_text(p.marks) AS kv(key, value)\n  JOIN m0 m ON m.asset = split_part(kv.key, '-', 1)\n  WHERE p.session_id IN ($session)\n    AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n    AND kv.value::numeric > 0\n  GROUP BY p.session_id, p.ts, p.portfolio_value, n.v\n)\nSELECT to_timestamp($__unixEpochFrom()) + (so.sess_ord * ((($__unixEpochTo() - $__unixEpochFrom()))::double precision / GREATEST((SELECT COUNT(*) FROM sess_ord), 1))) * INTERVAL '1 second' + ((GREATEST(0, EXTRACT(EPOCH FROM ((raw.real_ts AT TIME ZONE 'Asia/Tehran')::time - TIME '12:00:00')))) / NULLIF(EXTRACT(EPOCH FROM (TIME '18:00:00' - TIME '12:00:00')), 0) * ((($__unixEpochTo() - $__unixEpochFrom()))::double precision / GREATEST((SELECT COUNT(*) FROM sess_ord), 1))) * INTERVAL '1 second' AS time,\n       raw.port_pct AS \"Portfolio %\",\n       raw.all_pct AS \"All index %\",\n       raw.top5_pct AS \"Top5 index %\",\n       raw.port_pct - raw.all_pct AS \"Excess vs All %\",\n       raw.port_pct - raw.top5_pct AS \"Excess vs Top5 %\"\nFROM raw\nJOIN sess_ord so ON so.session_id = raw.session_id\nORDER BY 1;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 3,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  },
+                  "unit": "percent"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Portfolio %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "green"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "All index %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "yellow"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Top5 index %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "blue"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Excess vs All %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Excess vs Top5 %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "m4-xs": {
+        "kind": "Panel",
+        "spec": {
+          "id": 141,
+          "title": "4. Concat session days \u2014 Portfolio excess return vs indexes (%)",
+          "description": "Sessions share [$__unixEpochFrom,$__unixEpochTo] in equal slices; TOD 12:00\u201318:00 maps into each slice. Excess = port \u2212 index (same baseline as return panel). Only rows with local clock time 12:00\u201318:00 (Asia/Tehran) are included (pre-open snapshots excluded).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH \n\nanchor AS (\n  SELECT s.id AS session_id, s.started_at, s.strategy_id\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n  ORDER BY s.started_at\n  LIMIT 1\n),\nprev_session AS (\n  SELECT s.id AS session_id\n  FROM pair_trade.session s\n  JOIN anchor a ON s.strategy_id = a.strategy_id AND s.started_at < a.started_at\n  ORDER BY s.started_at DESC\n  LIMIT 1\n),\nnav0 AS (\n  SELECT COALESCE(\n    (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id = (SELECT session_id FROM prev_session)\n     ORDER BY p.ts DESC LIMIT 1),\n    (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n     ORDER BY p.ts ASC LIMIT 1)\n  ) AS v\n),\nbase_marks AS (\n  SELECT COALESCE(\n    (SELECT p.marks FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id = (SELECT session_id FROM prev_session)\n     ORDER BY p.ts DESC LIMIT 1),\n    (SELECT p.marks FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n     ORDER BY p.ts ASC LIMIT 1)\n  ) AS marks\n),\nm0 AS (\n  SELECT split_part(kv.key, '-', 1) AS asset, kv.value::numeric AS m0\n  FROM base_marks b\n  CROSS JOIN LATERAL jsonb_each_text(b.marks) AS kv(key, value)\n  WHERE kv.value::numeric > 0\n),\nsess_ord AS (\n  SELECT s.id AS session_id,\n         ROW_NUMBER() OVER (ORDER BY s.started_at) - 1 AS sess_ord\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n),\nraw AS (\n  SELECT p.session_id,\n         p.ts AS real_ts,\n         100.0 * (p.portfolio_value / NULLIF(n.v, 0) - 1) AS port_pct,\n         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1)) AS all_pct,\n         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1))\n           FILTER (WHERE split_part(kv.key, '-', 1) IN ('IRTKMOFD0001', 'IRTKLOTF0001', 'IRTKROBA0001', 'IRTKGANJ0001', 'IRTKZARA0001')) AS top5_pct\n  FROM pair_trade.portfolio_snapshot p\n  CROSS JOIN nav0 n\n  CROSS JOIN LATERAL jsonb_each_text(p.marks) AS kv(key, value)\n  JOIN m0 m ON m.asset = split_part(kv.key, '-', 1)\n  WHERE p.session_id IN ($session)\n    AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n    AND kv.value::numeric > 0\n  GROUP BY p.session_id, p.ts, p.portfolio_value, n.v\n)\nSELECT to_timestamp($__unixEpochFrom()) + (so.sess_ord * ((($__unixEpochTo() - $__unixEpochFrom()))::double precision / GREATEST((SELECT COUNT(*) FROM sess_ord), 1))) * INTERVAL '1 second' + ((GREATEST(0, EXTRACT(EPOCH FROM ((raw.real_ts AT TIME ZONE 'Asia/Tehran')::time - TIME '12:00:00')))) / NULLIF(EXTRACT(EPOCH FROM (TIME '18:00:00' - TIME '12:00:00')), 0) * ((($__unixEpochTo() - $__unixEpochFrom()))::double precision / GREATEST((SELECT COUNT(*) FROM sess_ord), 1))) * INTERVAL '1 second' AS time,\n       raw.port_pct AS \"Portfolio %\",\n       raw.all_pct AS \"All index %\",\n       raw.top5_pct AS \"Top5 index %\",\n       raw.port_pct - raw.all_pct AS \"Excess vs All %\",\n       raw.port_pct - raw.top5_pct AS \"Excess vs Top5 %\"\nFROM raw\nJOIN sess_ord so ON so.session_id = raw.session_id\nORDER BY 1;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 3,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 15,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  },
+                  "unit": "percent"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Excess vs All %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "yellow"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Excess vs Top5 %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "blue"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Portfolio %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "All index %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Top5 index %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "m4-port": {
+        "kind": "Panel",
+        "spec": {
+          "id": 142,
+          "title": "4. Concat session days \u2014 Portfolio value (M IRT)",
+          "description": "Sessions share [$__unixEpochFrom,$__unixEpochTo] in equal slices; TOD 12:00\u201318:00 maps into each slice. Only rows with local clock time 12:00\u201318:00 (Asia/Tehran) are included (pre-open snapshots excluded).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH \nsess_ord AS (\n  SELECT s.id AS session_id,\n         ROW_NUMBER() OVER (ORDER BY s.started_at) - 1 AS sess_ord\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n),\nraw AS (\n  SELECT p.session_id, p.ts AS real_ts, p.portfolio_value / 1e7 AS port_m\n  FROM pair_trade.portfolio_snapshot p\n  WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n)\nSELECT to_timestamp($__unixEpochFrom()) + (so.sess_ord * ((($__unixEpochTo() - $__unixEpochFrom()))::double precision / GREATEST((SELECT COUNT(*) FROM sess_ord), 1))) * INTERVAL '1 second' + ((GREATEST(0, EXTRACT(EPOCH FROM ((raw.real_ts AT TIME ZONE 'Asia/Tehran')::time - TIME '12:00:00')))) / NULLIF(EXTRACT(EPOCH FROM (TIME '18:00:00' - TIME '12:00:00')), 0) * ((($__unixEpochTo() - $__unixEpochFrom()))::double precision / GREATEST((SELECT COUNT(*) FROM sess_ord), 1))) * INTERVAL '1 second' AS time,\n       raw.port_m AS \"Portfolio M IRT\"\nFROM raw\nJOIN sess_ord so ON so.session_id = raw.session_id\nORDER BY 1;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 2,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "m5-ret": {
+        "kind": "Panel",
+        "spec": {
+          "id": 150,
+          "title": "5. Real time \u00d7 session \u2014 Portfolio return vs benchmark indexes (%)",
+          "description": "Wall-clock; one series per session_id (repeat-by-series).  Only rows with local clock time 12:00\u201318:00 (Asia/Tehran) are included (pre-open snapshots excluded).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH \n\nanchor AS (\n  SELECT s.id AS session_id, s.started_at, s.strategy_id\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n  ORDER BY s.started_at\n  LIMIT 1\n),\nprev_session AS (\n  SELECT s.id AS session_id\n  FROM pair_trade.session s\n  JOIN anchor a ON s.strategy_id = a.strategy_id AND s.started_at < a.started_at\n  ORDER BY s.started_at DESC\n  LIMIT 1\n),\nnav0 AS (\n  SELECT COALESCE(\n    (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id = (SELECT session_id FROM prev_session)\n     ORDER BY p.ts DESC LIMIT 1),\n    (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n     ORDER BY p.ts ASC LIMIT 1)\n  ) AS v\n),\nbase_marks AS (\n  SELECT COALESCE(\n    (SELECT p.marks FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id = (SELECT session_id FROM prev_session)\n     ORDER BY p.ts DESC LIMIT 1),\n    (SELECT p.marks FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n     ORDER BY p.ts ASC LIMIT 1)\n  ) AS marks\n),\nm0 AS (\n  SELECT split_part(kv.key, '-', 1) AS asset, kv.value::numeric AS m0\n  FROM base_marks b\n  CROSS JOIN LATERAL jsonb_each_text(b.marks) AS kv(key, value)\n  WHERE kv.value::numeric > 0\n),\nsess_ord AS (\n  SELECT s.id AS session_id,\n         ROW_NUMBER() OVER (ORDER BY s.started_at) - 1 AS sess_ord\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n),\nraw AS (\n  SELECT p.session_id,\n         p.ts AS real_ts,\n         100.0 * (p.portfolio_value / NULLIF(n.v, 0) - 1) AS port_pct,\n         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1)) AS all_pct,\n         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1))\n           FILTER (WHERE split_part(kv.key, '-', 1) IN ('IRTKMOFD0001', 'IRTKLOTF0001', 'IRTKROBA0001', 'IRTKGANJ0001', 'IRTKZARA0001')) AS top5_pct\n  FROM pair_trade.portfolio_snapshot p\n  CROSS JOIN nav0 n\n  CROSS JOIN LATERAL jsonb_each_text(p.marks) AS kv(key, value)\n  JOIN m0 m ON m.asset = split_part(kv.key, '-', 1)\n  WHERE p.session_id IN ($session)\n    AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n    AND kv.value::numeric > 0\n  GROUP BY p.session_id, p.ts, p.portfolio_value, n.v\n)\nSELECT raw.real_ts AS time,\n       raw.port_pct AS value,\n       raw.session_id::text || ' Portfolio %' AS metric\nFROM raw\nUNION ALL\nSELECT raw.real_ts, raw.all_pct, raw.session_id::text || ' All index %'\nFROM raw\nUNION ALL\nSELECT raw.real_ts, raw.top5_pct, raw.session_id::text || ' Top5 index %'\nFROM raw\nORDER BY 1;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 3,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  },
+                  "unit": "percent"
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "m5-xs": {
+        "kind": "Panel",
+        "spec": {
+          "id": 151,
+          "title": "5. Real time \u00d7 session \u2014 Portfolio excess return vs indexes (%)",
+          "description": "Wall-clock; one series per session_id (repeat-by-series). Excess = port \u2212 index (same baseline as return panel). Only rows with local clock time 12:00\u201318:00 (Asia/Tehran) are included (pre-open snapshots excluded).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH \n\nanchor AS (\n  SELECT s.id AS session_id, s.started_at, s.strategy_id\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n  ORDER BY s.started_at\n  LIMIT 1\n),\nprev_session AS (\n  SELECT s.id AS session_id\n  FROM pair_trade.session s\n  JOIN anchor a ON s.strategy_id = a.strategy_id AND s.started_at < a.started_at\n  ORDER BY s.started_at DESC\n  LIMIT 1\n),\nnav0 AS (\n  SELECT COALESCE(\n    (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id = (SELECT session_id FROM prev_session)\n     ORDER BY p.ts DESC LIMIT 1),\n    (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n     ORDER BY p.ts ASC LIMIT 1)\n  ) AS v\n),\nbase_marks AS (\n  SELECT COALESCE(\n    (SELECT p.marks FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id = (SELECT session_id FROM prev_session)\n     ORDER BY p.ts DESC LIMIT 1),\n    (SELECT p.marks FROM pair_trade.portfolio_snapshot p\n     WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n     ORDER BY p.ts ASC LIMIT 1)\n  ) AS marks\n),\nm0 AS (\n  SELECT split_part(kv.key, '-', 1) AS asset, kv.value::numeric AS m0\n  FROM base_marks b\n  CROSS JOIN LATERAL jsonb_each_text(b.marks) AS kv(key, value)\n  WHERE kv.value::numeric > 0\n),\nsess_ord AS (\n  SELECT s.id AS session_id,\n         ROW_NUMBER() OVER (ORDER BY s.started_at) - 1 AS sess_ord\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n),\nraw AS (\n  SELECT p.session_id,\n         p.ts AS real_ts,\n         100.0 * (p.portfolio_value / NULLIF(n.v, 0) - 1) AS port_pct,\n         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1)) AS all_pct,\n         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1))\n           FILTER (WHERE split_part(kv.key, '-', 1) IN ('IRTKMOFD0001', 'IRTKLOTF0001', 'IRTKROBA0001', 'IRTKGANJ0001', 'IRTKZARA0001')) AS top5_pct\n  FROM pair_trade.portfolio_snapshot p\n  CROSS JOIN nav0 n\n  CROSS JOIN LATERAL jsonb_each_text(p.marks) AS kv(key, value)\n  JOIN m0 m ON m.asset = split_part(kv.key, '-', 1)\n  WHERE p.session_id IN ($session)\n    AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n    AND kv.value::numeric > 0\n  GROUP BY p.session_id, p.ts, p.portfolio_value, n.v\n)\nSELECT raw.real_ts AS time,\n       raw.port_pct - raw.all_pct AS value,\n       raw.session_id::text || ' Excess vs All %' AS metric\nFROM raw\nUNION ALL\nSELECT raw.real_ts, raw.port_pct - raw.top5_pct,\n       raw.session_id::text || ' Excess vs Top5 %'\nFROM raw\nORDER BY 1;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 3,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 15,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  },
+                  "unit": "percent"
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "m5-port": {
+        "kind": "Panel",
+        "spec": {
+          "id": 152,
+          "title": "5. Real time \u00d7 session \u2014 Portfolio value (M IRT)",
+          "description": "Wall-clock; one series per session_id (repeat-by-series). Only rows with local clock time 12:00\u201318:00 (Asia/Tehran) are included (pre-open snapshots excluded).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH \nsess_ord AS (\n  SELECT s.id AS session_id,\n         ROW_NUMBER() OVER (ORDER BY s.started_at) - 1 AS sess_ord\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n),\nraw AS (\n  SELECT p.session_id, p.ts AS real_ts, p.portfolio_value / 1e7 AS port_m\n  FROM pair_trade.portfolio_snapshot p\n  WHERE p.session_id IN ($session) AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n)\nSELECT raw.real_ts AS time,\n       raw.port_m AS value,\n       raw.session_id::text || ' Portfolio M IRT' AS metric\nFROM raw\nORDER BY 1;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 2,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "m6-ret": {
+        "kind": "Panel",
+        "spec": {
+          "id": 160,
+          "title": "6. Cumulative across sessions \u2014 Portfolio return vs benchmark indexes (%)",
+          "description": "All selected sessions on real wall-clock. Each day\u2019s path is shifted by the sum of earlier sessions\u2019 end port/index/excess % (vs each session\u2019s own prior close), so the series is a continuous additive cumulative from the first selected session.  Only rows with local clock time 12:00\u201318:00 (Asia/Tehran) are included (pre-open snapshots excluded).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH \nsess_ord AS (\n  SELECT s.id AS session_id, s.started_at, s.strategy_id,\n         ROW_NUMBER() OVER (ORDER BY s.started_at) - 1 AS sess_ord\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n),\nsess_prev AS (\n  SELECT so.session_id, so.sess_ord,\n         (\n           SELECT s2.id FROM pair_trade.session s2\n           WHERE s2.strategy_id = so.strategy_id AND s2.started_at < so.started_at\n           ORDER BY s2.started_at DESC LIMIT 1\n         ) AS prev_id\n  FROM sess_ord so\n),\nsess_nav0 AS (\n  SELECT sp.session_id,\n         COALESCE(\n           (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p\n            WHERE p.session_id = sp.prev_id ORDER BY p.ts DESC LIMIT 1),\n           (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p\n            WHERE p.session_id = sp.session_id AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n            ORDER BY p.ts ASC LIMIT 1)\n         ) AS v\n  FROM sess_prev sp\n),\nsess_marks0 AS (\n  SELECT sp.session_id,\n         COALESCE(\n           (SELECT p.marks FROM pair_trade.portfolio_snapshot p\n            WHERE p.session_id = sp.prev_id ORDER BY p.ts DESC LIMIT 1),\n           (SELECT p.marks FROM pair_trade.portfolio_snapshot p\n            WHERE p.session_id = sp.session_id AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n            ORDER BY p.ts ASC LIMIT 1)\n         ) AS marks\n  FROM sess_prev sp\n),\nm0 AS (\n  SELECT sm.session_id, split_part(kv.key, '-', 1) AS asset, kv.value::numeric AS m0\n  FROM sess_marks0 sm\n  CROSS JOIN LATERAL jsonb_each_text(sm.marks) AS kv(key, value)\n  WHERE kv.value::numeric > 0\n),\nraw AS (\n  SELECT p.session_id,\n         p.ts AS real_ts,\n         100.0 * (p.portfolio_value / NULLIF(n.v, 0) - 1) AS port_pct,\n         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1)) AS all_pct,\n         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1))\n           FILTER (WHERE split_part(kv.key, '-', 1) IN ('IRTKMOFD0001', 'IRTKLOTF0001', 'IRTKROBA0001', 'IRTKGANJ0001', 'IRTKZARA0001')) AS top5_pct\n  FROM pair_trade.portfolio_snapshot p\n  JOIN sess_nav0 n ON n.session_id = p.session_id\n  CROSS JOIN LATERAL jsonb_each_text(p.marks) AS kv(key, value)\n  JOIN m0 m ON m.session_id = p.session_id AND m.asset = split_part(kv.key, '-', 1)\n  WHERE p.session_id IN ($session)\n    AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n    AND kv.value::numeric > 0\n  GROUP BY p.session_id, p.ts, p.portfolio_value, n.v\n),\nsess_end AS (\n  SELECT DISTINCT ON (r.session_id)\n         r.session_id, r.port_pct, r.all_pct, r.top5_pct,\n         r.port_pct - r.all_pct AS xs_all,\n         r.port_pct - r.top5_pct AS xs_top5\n  FROM raw r\n  ORDER BY r.session_id, r.real_ts DESC\n),\n-- Offset for session k = sum of end-% of all earlier selected sessions (cumulative).\nsess_off AS (\n  SELECT so.session_id,\n         COALESCE(SUM(e.port_pct) OVER (\n           ORDER BY so.sess_ord ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING\n         ), 0) AS port_off,\n         COALESCE(SUM(e.all_pct) OVER (\n           ORDER BY so.sess_ord ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING\n         ), 0) AS all_off,\n         COALESCE(SUM(e.top5_pct) OVER (\n           ORDER BY so.sess_ord ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING\n         ), 0) AS top5_off,\n         COALESCE(SUM(e.xs_all) OVER (\n           ORDER BY so.sess_ord ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING\n         ), 0) AS xs_all_off,\n         COALESCE(SUM(e.xs_top5) OVER (\n           ORDER BY so.sess_ord ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING\n         ), 0) AS xs_top5_off\n  FROM sess_ord so\n  JOIN sess_end e ON e.session_id = so.session_id\n)\nSELECT r.real_ts AS time,\n       r.port_pct + o.port_off AS \"Portfolio %\",\n       r.all_pct + o.all_off AS \"All index %\",\n       r.top5_pct + o.top5_off AS \"Top5 index %\",\n       (r.port_pct - r.all_pct) + o.xs_all_off AS \"Excess vs All %\",\n       (r.port_pct - r.top5_pct) + o.xs_top5_off AS \"Excess vs Top5 %\"\nFROM raw r\nJOIN sess_off o ON o.session_id = r.session_id\nORDER BY 1;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 3,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "lineInterpolation": "stepAfter"
+                  },
+                  "unit": "percent"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Portfolio %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "green"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "All index %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "yellow"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Top5 index %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "blue"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Excess vs All %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Excess vs Top5 %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "m6-xs": {
+        "kind": "Panel",
+        "spec": {
+          "id": 161,
+          "title": "6. Cumulative across sessions \u2014 Portfolio excess return vs indexes (%)",
+          "description": "All selected sessions on real wall-clock. Each day\u2019s path is shifted by the sum of earlier sessions\u2019 end port/index/excess % (vs each session\u2019s own prior close), so the series is a continuous additive cumulative from the first selected session. Excess = port \u2212 index (same baseline as return panel). Only rows with local clock time 12:00\u201318:00 (Asia/Tehran) are included (pre-open snapshots excluded).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "WITH \nsess_ord AS (\n  SELECT s.id AS session_id, s.started_at, s.strategy_id,\n         ROW_NUMBER() OVER (ORDER BY s.started_at) - 1 AS sess_ord\n  FROM pair_trade.session s\n  WHERE s.id IN ($session)\n),\nsess_prev AS (\n  SELECT so.session_id, so.sess_ord,\n         (\n           SELECT s2.id FROM pair_trade.session s2\n           WHERE s2.strategy_id = so.strategy_id AND s2.started_at < so.started_at\n           ORDER BY s2.started_at DESC LIMIT 1\n         ) AS prev_id\n  FROM sess_ord so\n),\nsess_nav0 AS (\n  SELECT sp.session_id,\n         COALESCE(\n           (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p\n            WHERE p.session_id = sp.prev_id ORDER BY p.ts DESC LIMIT 1),\n           (SELECT p.portfolio_value FROM pair_trade.portfolio_snapshot p\n            WHERE p.session_id = sp.session_id AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n            ORDER BY p.ts ASC LIMIT 1)\n         ) AS v\n  FROM sess_prev sp\n),\nsess_marks0 AS (\n  SELECT sp.session_id,\n         COALESCE(\n           (SELECT p.marks FROM pair_trade.portfolio_snapshot p\n            WHERE p.session_id = sp.prev_id ORDER BY p.ts DESC LIMIT 1),\n           (SELECT p.marks FROM pair_trade.portfolio_snapshot p\n            WHERE p.session_id = sp.session_id AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n            ORDER BY p.ts ASC LIMIT 1)\n         ) AS marks\n  FROM sess_prev sp\n),\nm0 AS (\n  SELECT sm.session_id, split_part(kv.key, '-', 1) AS asset, kv.value::numeric AS m0\n  FROM sess_marks0 sm\n  CROSS JOIN LATERAL jsonb_each_text(sm.marks) AS kv(key, value)\n  WHERE kv.value::numeric > 0\n),\nraw AS (\n  SELECT p.session_id,\n         p.ts AS real_ts,\n         100.0 * (p.portfolio_value / NULLIF(n.v, 0) - 1) AS port_pct,\n         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1)) AS all_pct,\n         AVG(100.0 * (kv.value::numeric / NULLIF(m.m0, 0) - 1))\n           FILTER (WHERE split_part(kv.key, '-', 1) IN ('IRTKMOFD0001', 'IRTKLOTF0001', 'IRTKROBA0001', 'IRTKGANJ0001', 'IRTKZARA0001')) AS top5_pct\n  FROM pair_trade.portfolio_snapshot p\n  JOIN sess_nav0 n ON n.session_id = p.session_id\n  CROSS JOIN LATERAL jsonb_each_text(p.marks) AS kv(key, value)\n  JOIN m0 m ON m.session_id = p.session_id AND m.asset = split_part(kv.key, '-', 1)\n  WHERE p.session_id IN ($session)\n    AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\n    AND kv.value::numeric > 0\n  GROUP BY p.session_id, p.ts, p.portfolio_value, n.v\n),\nsess_end AS (\n  SELECT DISTINCT ON (r.session_id)\n         r.session_id, r.port_pct, r.all_pct, r.top5_pct,\n         r.port_pct - r.all_pct AS xs_all,\n         r.port_pct - r.top5_pct AS xs_top5\n  FROM raw r\n  ORDER BY r.session_id, r.real_ts DESC\n),\n-- Offset for session k = sum of end-% of all earlier selected sessions (cumulative).\nsess_off AS (\n  SELECT so.session_id,\n         COALESCE(SUM(e.port_pct) OVER (\n           ORDER BY so.sess_ord ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING\n         ), 0) AS port_off,\n         COALESCE(SUM(e.all_pct) OVER (\n           ORDER BY so.sess_ord ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING\n         ), 0) AS all_off,\n         COALESCE(SUM(e.top5_pct) OVER (\n           ORDER BY so.sess_ord ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING\n         ), 0) AS top5_off,\n         COALESCE(SUM(e.xs_all) OVER (\n           ORDER BY so.sess_ord ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING\n         ), 0) AS xs_all_off,\n         COALESCE(SUM(e.xs_top5) OVER (\n           ORDER BY so.sess_ord ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING\n         ), 0) AS xs_top5_off\n  FROM sess_ord so\n  JOIN sess_end e ON e.session_id = so.session_id\n)\nSELECT r.real_ts AS time,\n       r.port_pct + o.port_off AS \"Portfolio %\",\n       r.all_pct + o.all_off AS \"All index %\",\n       r.top5_pct + o.top5_off AS \"Top5 index %\",\n       (r.port_pct - r.all_pct) + o.xs_all_off AS \"Excess vs All %\",\n       (r.port_pct - r.top5_pct) + o.xs_top5_off AS \"Excess vs Top5 %\"\nFROM raw r\nJOIN sess_off o ON o.session_id = r.session_id\nORDER BY 1;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 3,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 15,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "lineInterpolation": "stepAfter"
+                  },
+                  "unit": "percent"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Excess vs All %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "yellow"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Excess vs Top5 %"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "blue"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Portfolio %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "All index %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Top5 index %"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom",
+                        "value": {
+                          "legend": true,
+                          "tooltip": true,
+                          "viz": true
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "m6-port": {
+        "kind": "Panel",
+        "spec": {
+          "id": 162,
+          "title": "6. Cumulative across sessions \u2014 Portfolio value (M IRT)",
+          "description": "All selected sessions on real wall-clock. Each day\u2019s path is shifted by the sum of earlier sessions\u2019 end port/index/excess % (vs each session\u2019s own prior close), so the series is a continuous additive cumulative from the first selected session. Only rows with local clock time 12:00\u201318:00 (Asia/Tehran) are included (pre-open snapshots excluded).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "SELECT p.ts AS time,\n       p.portfolio_value / 1e7 AS \"Portfolio M IRT\"\nFROM pair_trade.portfolio_snapshot p\nWHERE p.session_id IN ($session)\n  AND ((p.ts AT TIME ZONE 'Asia/Tehran')::time >= TIME '12:00:00' AND (p.ts AT TIME ZONE 'Asia/Tehran')::time <= TIME '18:00:00')\nORDER BY 1;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.1.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 2,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      }
+    },
+    "layout": {
+      "kind": "GridLayout",
+      "spec": {
+        "items": [
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 0,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "m1-ret"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 8,
+              "y": 0,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "m1-xs"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 16,
+              "y": 0,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "m1-port"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 8,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "m2-ret"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 8,
+              "y": 8,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "m2-xs"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 16,
+              "y": 8,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "m2-port"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 16,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "m3-ret"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 8,
+              "y": 16,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "m3-xs"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 16,
+              "y": 16,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "m3-port"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 24,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "m4-ret"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 8,
+              "y": 24,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "m4-xs"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 16,
+              "y": 24,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "m4-port"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 32,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "m5-ret"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 8,
+              "y": 32,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "m5-xs"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 16,
+              "y": 32,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "m5-port"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 40,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "m6-ret"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 8,
+              "y": 40,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "m6-xs"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 16,
+              "y": 40,
+              "width": 8,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "m6-port"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

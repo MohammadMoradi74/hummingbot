@@ -1,0 +1,2113 @@
+{
+  "apiVersion": "dashboard.grafana.app/v2",
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "market-microstructure-v1",
+    "namespace": "default",
+    "uid": "market-microstructure-v1"
+  },
+  "spec": {
+    "title": "Market Microstructure (L1) v1",
+    "description": "Side-by-side L1 bid/ask/mid, depth volume, spread, trades, and day_range. QuestDB column `symbol` is ISIN (IRTK\u2026). Variables pass ISIN values. Timestamps are TSE wall-clock (naive); TZ=UTC so 12:00 = TSE open; rows filtered to hour 12\u201318. Default range = 2026-11-08 12:00\u201313:00 (incident window). No strategy overlays.",
+    "tags": [
+      "questdb",
+      "orderbook",
+      "trades",
+      "microstructure",
+      "gold-etf",
+      "v1"
+    ],
+    "editable": true,
+    "cursorSync": "Crosshair",
+    "liveNow": false,
+    "preload": false,
+    "links": [],
+    "annotations": [
+      {
+        "kind": "AnnotationQuery",
+        "spec": {
+          "name": "Annotations & Alerts",
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "builtIn": true,
+          "query": {
+            "kind": "DataQuery",
+            "group": "grafana",
+            "version": "v0",
+            "datasource": {
+              "name": "-- Grafana --"
+            },
+            "spec": {}
+          }
+        }
+      }
+    ],
+    "timeSettings": {
+      "timezone": "UTC",
+      "from": "2026-11-08T12:00:00.000Z",
+      "to": "2026-11-08T13:00:00.000Z",
+      "autoRefresh": "",
+      "autoRefreshIntervals": [
+        "5s",
+        "10s",
+        "30s",
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h",
+        "2h",
+        "1d"
+      ],
+      "hideTimepicker": false,
+      "fiscalYearStartMonth": 0
+    },
+    "variables": [
+      {
+        "kind": "CustomVariable",
+        "spec": {
+          "name": "symbol_a",
+          "label": "ISIN A",
+          "description": "QuestDB `symbol` column holds ISIN (e.g. IRTKROSE0001), not Persian ticker.",
+          "hide": "dontHide",
+          "skipUrlSync": false,
+          "multi": false,
+          "includeAll": false,
+          "allowCustomValue": true,
+          "options": [
+            {
+              "selected": false,
+              "text": "\u0622\u0644\u062a\u0648\u0646 \u00b7 IRTKALTN0001",
+              "value": "IRTKALTN0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0622\u062a\u0634 \u00b7 IRTKATSH0001",
+              "value": "IRTKATSH0001"
+            },
+            {
+              "selected": false,
+              "text": "\u062f\u0631\u0646\u0627 \u00b7 IRTKDORN0001",
+              "value": "IRTKDORN0001"
+            },
+            {
+              "selected": true,
+              "text": "\u062f\u0631\u062e\u0634\u0627\u0646 \u00b7 IRTKDRKS0001",
+              "value": "IRTKDRKS0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0627\u0645\u0631\u0627\u0644\u062f \u00b7 IRTKEMRL0001",
+              "value": "IRTKEMRL0001"
+            },
+            {
+              "selected": false,
+              "text": "\u06af\u0646\u062c \u00b7 IRTKGANJ0001",
+              "value": "IRTKGANJ0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0642\u06cc\u0631\u0627\u0637 \u00b7 IRTKGHIR0001",
+              "value": "IRTKGHIR0001"
+            },
+            {
+              "selected": false,
+              "text": "\u06af\u0644\u062f\u0627 \u00b7 IRTKGOLD0001",
+              "value": "IRTKGOLD0001"
+            },
+            {
+              "selected": false,
+              "text": "\u06af\u0644\u062f\u06cc\u0633 \u00b7 IRTKGOLN0001",
+              "value": "IRTKGOLN0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0647\u0645\u06cc\u0627\u0646 \u00b7 IRTKHAMY0001",
+              "value": "IRTKHAMY0001"
+            },
+            {
+              "selected": false,
+              "text": "\u062c\u0627\u0645 \u0637\u0644\u0627 \u00b7 IRTKJAMF0001",
+              "value": "IRTKJAMF0001"
+            },
+            {
+              "selected": false,
+              "text": "\u062c\u0648\u0627\u0647\u0631 \u00b7 IRTKJAVA0001",
+              "value": "IRTKJAVA0001"
+            },
+            {
+              "selected": false,
+              "text": "\u06af\u0648\u0647\u0631 \u00b7 IRTKKIAN0001",
+              "value": "IRTKKIAN0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0644\u06cc\u0627\u0646 \u00b7 IRTKLIAN0001",
+              "value": "IRTKLIAN0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0637\u0644\u0627 \u00b7 IRTKLOTF0001",
+              "value": "IRTKLOTF0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0645\u06cc\u0631\u0627\u062b \u00b7 IRTKMIRA0001",
+              "value": "IRTKMIRA0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0639\u06cc\u0627\u0631 \u00b7 IRTKMOFD0001",
+              "value": "IRTKMOFD0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0646\u0627\u0628 \u00b7 IRTKNAAB0001",
+              "value": "IRTKNAAB0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0646\u0641\u06cc\u0633 \u00b7 IRTKNAFS0001",
+              "value": "IRTKNAFS0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0646\u06af\u06cc\u0646 \u0641\u0627\u0631\u0633 \u00b7 IRTKNGIN0001",
+              "value": "IRTKNGIN0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0631\u06cc\u062a\u0648\u0646 \u00b7 IRTKRITO0001",
+              "value": "IRTKRITO0001"
+            },
+            {
+              "selected": false,
+              "text": "\u06a9\u0647\u0631\u0628\u0627 \u00b7 IRTKROBA0001",
+              "value": "IRTKROBA0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0631\u0632 \u062a\u0631\u0646\u062c \u00b7 IRTKROSE0001",
+              "value": "IRTKROSE0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0631\u0632\u06af\u0644\u062f \u00b7 IRTKROZG0001",
+              "value": "IRTKROZG0001"
+            },
+            {
+              "selected": false,
+              "text": "\u062a\u0627\u0628\u0634 \u00b7 IRTKTABA0001",
+              "value": "IRTKTABA0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0645\u062b\u0642\u0627\u0644 \u00b7 IRTKZARA0001",
+              "value": "IRTKZARA0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0632\u0631 \u00b7 IRTKZARF0001",
+              "value": "IRTKZARF0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0632\u0631\u06af\u0631 \u00b7 IRTKZARG0001",
+              "value": "IRTKZARG0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0632\u0631\u0648\u0627\u0646 \u00b7 IRTKZARV0001",
+              "value": "IRTKZARV0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0632\u0631\u0641\u0627\u0645 \u00b7 IRTKZFAM0001",
+              "value": "IRTKZFAM0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0632\u0645\u0631\u062f \u00b7 IRTKZOMR0001",
+              "value": "IRTKZOMR0001"
+            }
+          ],
+          "current": {
+            "text": "\u062f\u0631\u062e\u0634\u0627\u0646 \u00b7 IRTKDRKS0001",
+            "value": "IRTKDRKS0001"
+          },
+          "query": "\u0622\u0644\u062a\u0648\u0646 \u00b7 IRTKALTN0001 : IRTKALTN0001, \u0622\u062a\u0634 \u00b7 IRTKATSH0001 : IRTKATSH0001, \u062f\u0631\u0646\u0627 \u00b7 IRTKDORN0001 : IRTKDORN0001, \u062f\u0631\u062e\u0634\u0627\u0646 \u00b7 IRTKDRKS0001 : IRTKDRKS0001, \u0627\u0645\u0631\u0627\u0644\u062f \u00b7 IRTKEMRL0001 : IRTKEMRL0001, \u06af\u0646\u062c \u00b7 IRTKGANJ0001 : IRTKGANJ0001, \u0642\u06cc\u0631\u0627\u0637 \u00b7 IRTKGHIR0001 : IRTKGHIR0001, \u06af\u0644\u062f\u0627 \u00b7 IRTKGOLD0001 : IRTKGOLD0001, \u06af\u0644\u062f\u06cc\u0633 \u00b7 IRTKGOLN0001 : IRTKGOLN0001, \u0647\u0645\u06cc\u0627\u0646 \u00b7 IRTKHAMY0001 : IRTKHAMY0001, \u062c\u0627\u0645 \u0637\u0644\u0627 \u00b7 IRTKJAMF0001 : IRTKJAMF0001, \u062c\u0648\u0627\u0647\u0631 \u00b7 IRTKJAVA0001 : IRTKJAVA0001, \u06af\u0648\u0647\u0631 \u00b7 IRTKKIAN0001 : IRTKKIAN0001, \u0644\u06cc\u0627\u0646 \u00b7 IRTKLIAN0001 : IRTKLIAN0001, \u0637\u0644\u0627 \u00b7 IRTKLOTF0001 : IRTKLOTF0001, \u0645\u06cc\u0631\u0627\u062b \u00b7 IRTKMIRA0001 : IRTKMIRA0001, \u0639\u06cc\u0627\u0631 \u00b7 IRTKMOFD0001 : IRTKMOFD0001, \u0646\u0627\u0628 \u00b7 IRTKNAAB0001 : IRTKNAAB0001, \u0646\u0641\u06cc\u0633 \u00b7 IRTKNAFS0001 : IRTKNAFS0001, \u0646\u06af\u06cc\u0646 \u0641\u0627\u0631\u0633 \u00b7 IRTKNGIN0001 : IRTKNGIN0001, \u0631\u06cc\u062a\u0648\u0646 \u00b7 IRTKRITO0001 : IRTKRITO0001, \u06a9\u0647\u0631\u0628\u0627 \u00b7 IRTKROBA0001 : IRTKROBA0001, \u0631\u0632 \u062a\u0631\u0646\u062c \u00b7 IRTKROSE0001 : IRTKROSE0001, \u0631\u0632\u06af\u0644\u062f \u00b7 IRTKROZG0001 : IRTKROZG0001, \u062a\u0627\u0628\u0634 \u00b7 IRTKTABA0001 : IRTKTABA0001, \u0645\u062b\u0642\u0627\u0644 \u00b7 IRTKZARA0001 : IRTKZARA0001, \u0632\u0631 \u00b7 IRTKZARF0001 : IRTKZARF0001, \u0632\u0631\u06af\u0631 \u00b7 IRTKZARG0001 : IRTKZARG0001, \u0632\u0631\u0648\u0627\u0646 \u00b7 IRTKZARV0001 : IRTKZARV0001, \u0632\u0631\u0641\u0627\u0645 \u00b7 IRTKZFAM0001 : IRTKZFAM0001, \u0632\u0645\u0631\u062f \u00b7 IRTKZOMR0001 : IRTKZOMR0001"
+        }
+      },
+      {
+        "kind": "CustomVariable",
+        "spec": {
+          "name": "symbol_b",
+          "label": "ISIN B",
+          "description": "QuestDB `symbol` column holds ISIN (e.g. IRTKROSE0001), not Persian ticker.",
+          "hide": "dontHide",
+          "skipUrlSync": false,
+          "multi": false,
+          "includeAll": false,
+          "allowCustomValue": true,
+          "options": [
+            {
+              "selected": false,
+              "text": "\u0622\u0644\u062a\u0648\u0646 \u00b7 IRTKALTN0001",
+              "value": "IRTKALTN0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0622\u062a\u0634 \u00b7 IRTKATSH0001",
+              "value": "IRTKATSH0001"
+            },
+            {
+              "selected": false,
+              "text": "\u062f\u0631\u0646\u0627 \u00b7 IRTKDORN0001",
+              "value": "IRTKDORN0001"
+            },
+            {
+              "selected": false,
+              "text": "\u062f\u0631\u062e\u0634\u0627\u0646 \u00b7 IRTKDRKS0001",
+              "value": "IRTKDRKS0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0627\u0645\u0631\u0627\u0644\u062f \u00b7 IRTKEMRL0001",
+              "value": "IRTKEMRL0001"
+            },
+            {
+              "selected": false,
+              "text": "\u06af\u0646\u062c \u00b7 IRTKGANJ0001",
+              "value": "IRTKGANJ0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0642\u06cc\u0631\u0627\u0637 \u00b7 IRTKGHIR0001",
+              "value": "IRTKGHIR0001"
+            },
+            {
+              "selected": false,
+              "text": "\u06af\u0644\u062f\u0627 \u00b7 IRTKGOLD0001",
+              "value": "IRTKGOLD0001"
+            },
+            {
+              "selected": false,
+              "text": "\u06af\u0644\u062f\u06cc\u0633 \u00b7 IRTKGOLN0001",
+              "value": "IRTKGOLN0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0647\u0645\u06cc\u0627\u0646 \u00b7 IRTKHAMY0001",
+              "value": "IRTKHAMY0001"
+            },
+            {
+              "selected": false,
+              "text": "\u062c\u0627\u0645 \u0637\u0644\u0627 \u00b7 IRTKJAMF0001",
+              "value": "IRTKJAMF0001"
+            },
+            {
+              "selected": false,
+              "text": "\u062c\u0648\u0627\u0647\u0631 \u00b7 IRTKJAVA0001",
+              "value": "IRTKJAVA0001"
+            },
+            {
+              "selected": false,
+              "text": "\u06af\u0648\u0647\u0631 \u00b7 IRTKKIAN0001",
+              "value": "IRTKKIAN0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0644\u06cc\u0627\u0646 \u00b7 IRTKLIAN0001",
+              "value": "IRTKLIAN0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0637\u0644\u0627 \u00b7 IRTKLOTF0001",
+              "value": "IRTKLOTF0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0645\u06cc\u0631\u0627\u062b \u00b7 IRTKMIRA0001",
+              "value": "IRTKMIRA0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0639\u06cc\u0627\u0631 \u00b7 IRTKMOFD0001",
+              "value": "IRTKMOFD0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0646\u0627\u0628 \u00b7 IRTKNAAB0001",
+              "value": "IRTKNAAB0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0646\u0641\u06cc\u0633 \u00b7 IRTKNAFS0001",
+              "value": "IRTKNAFS0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0646\u06af\u06cc\u0646 \u0641\u0627\u0631\u0633 \u00b7 IRTKNGIN0001",
+              "value": "IRTKNGIN0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0631\u06cc\u062a\u0648\u0646 \u00b7 IRTKRITO0001",
+              "value": "IRTKRITO0001"
+            },
+            {
+              "selected": false,
+              "text": "\u06a9\u0647\u0631\u0628\u0627 \u00b7 IRTKROBA0001",
+              "value": "IRTKROBA0001"
+            },
+            {
+              "selected": true,
+              "text": "\u0631\u0632 \u062a\u0631\u0646\u062c \u00b7 IRTKROSE0001",
+              "value": "IRTKROSE0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0631\u0632\u06af\u0644\u062f \u00b7 IRTKROZG0001",
+              "value": "IRTKROZG0001"
+            },
+            {
+              "selected": false,
+              "text": "\u062a\u0627\u0628\u0634 \u00b7 IRTKTABA0001",
+              "value": "IRTKTABA0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0645\u062b\u0642\u0627\u0644 \u00b7 IRTKZARA0001",
+              "value": "IRTKZARA0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0632\u0631 \u00b7 IRTKZARF0001",
+              "value": "IRTKZARF0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0632\u0631\u06af\u0631 \u00b7 IRTKZARG0001",
+              "value": "IRTKZARG0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0632\u0631\u0648\u0627\u0646 \u00b7 IRTKZARV0001",
+              "value": "IRTKZARV0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0632\u0631\u0641\u0627\u0645 \u00b7 IRTKZFAM0001",
+              "value": "IRTKZFAM0001"
+            },
+            {
+              "selected": false,
+              "text": "\u0632\u0645\u0631\u062f \u00b7 IRTKZOMR0001",
+              "value": "IRTKZOMR0001"
+            }
+          ],
+          "current": {
+            "text": "\u0631\u0632 \u062a\u0631\u0646\u062c \u00b7 IRTKROSE0001",
+            "value": "IRTKROSE0001"
+          },
+          "query": "\u0622\u0644\u062a\u0648\u0646 \u00b7 IRTKALTN0001 : IRTKALTN0001, \u0622\u062a\u0634 \u00b7 IRTKATSH0001 : IRTKATSH0001, \u062f\u0631\u0646\u0627 \u00b7 IRTKDORN0001 : IRTKDORN0001, \u062f\u0631\u062e\u0634\u0627\u0646 \u00b7 IRTKDRKS0001 : IRTKDRKS0001, \u0627\u0645\u0631\u0627\u0644\u062f \u00b7 IRTKEMRL0001 : IRTKEMRL0001, \u06af\u0646\u062c \u00b7 IRTKGANJ0001 : IRTKGANJ0001, \u0642\u06cc\u0631\u0627\u0637 \u00b7 IRTKGHIR0001 : IRTKGHIR0001, \u06af\u0644\u062f\u0627 \u00b7 IRTKGOLD0001 : IRTKGOLD0001, \u06af\u0644\u062f\u06cc\u0633 \u00b7 IRTKGOLN0001 : IRTKGOLN0001, \u0647\u0645\u06cc\u0627\u0646 \u00b7 IRTKHAMY0001 : IRTKHAMY0001, \u062c\u0627\u0645 \u0637\u0644\u0627 \u00b7 IRTKJAMF0001 : IRTKJAMF0001, \u062c\u0648\u0627\u0647\u0631 \u00b7 IRTKJAVA0001 : IRTKJAVA0001, \u06af\u0648\u0647\u0631 \u00b7 IRTKKIAN0001 : IRTKKIAN0001, \u0644\u06cc\u0627\u0646 \u00b7 IRTKLIAN0001 : IRTKLIAN0001, \u0637\u0644\u0627 \u00b7 IRTKLOTF0001 : IRTKLOTF0001, \u0645\u06cc\u0631\u0627\u062b \u00b7 IRTKMIRA0001 : IRTKMIRA0001, \u0639\u06cc\u0627\u0631 \u00b7 IRTKMOFD0001 : IRTKMOFD0001, \u0646\u0627\u0628 \u00b7 IRTKNAAB0001 : IRTKNAAB0001, \u0646\u0641\u06cc\u0633 \u00b7 IRTKNAFS0001 : IRTKNAFS0001, \u0646\u06af\u06cc\u0646 \u0641\u0627\u0631\u0633 \u00b7 IRTKNGIN0001 : IRTKNGIN0001, \u0631\u06cc\u062a\u0648\u0646 \u00b7 IRTKRITO0001 : IRTKRITO0001, \u06a9\u0647\u0631\u0628\u0627 \u00b7 IRTKROBA0001 : IRTKROBA0001, \u0631\u0632 \u062a\u0631\u0646\u062c \u00b7 IRTKROSE0001 : IRTKROSE0001, \u0631\u0632\u06af\u0644\u062f \u00b7 IRTKROZG0001 : IRTKROZG0001, \u062a\u0627\u0628\u0634 \u00b7 IRTKTABA0001 : IRTKTABA0001, \u0645\u062b\u0642\u0627\u0644 \u00b7 IRTKZARA0001 : IRTKZARA0001, \u0632\u0631 \u00b7 IRTKZARF0001 : IRTKZARF0001, \u0632\u0631\u06af\u0631 \u00b7 IRTKZARG0001 : IRTKZARG0001, \u0632\u0631\u0648\u0627\u0646 \u00b7 IRTKZARV0001 : IRTKZARV0001, \u0632\u0631\u0641\u0627\u0645 \u00b7 IRTKZFAM0001 : IRTKZFAM0001, \u0632\u0645\u0631\u062f \u00b7 IRTKZOMR0001 : IRTKZOMR0001"
+        }
+      },
+      {
+        "kind": "CustomVariable",
+        "spec": {
+          "name": "bucket",
+          "label": "Sample by",
+          "hide": "dontHide",
+          "skipUrlSync": false,
+          "multi": false,
+          "includeAll": false,
+          "allowCustomValue": true,
+          "options": [],
+          "current": {
+            "text": "5s",
+            "value": "5s"
+          },
+          "query": "1s, 5s, 15s, 30s, 1m"
+        }
+      }
+    ],
+    "elements": {
+      "panel-1a": {
+        "kind": "Panel",
+        "spec": {
+          "id": 1,
+          "title": "A \u00b7 L1 price + day range",
+          "description": "L1 bid/ask/mid, last trade, day_range_min/max. Symbol = $symbol_a.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "questdb-questdb-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "df3b4brg6ejggc"
+                      },
+                      "spec": {
+                        "format": 1,
+                        "meta": {
+                          "builderOptions": {
+                            "fields": [],
+                            "limit": "",
+                            "mode": "list",
+                            "timeField": ""
+                          }
+                        },
+                        "queryType": "sql",
+                        "rawSql": "WITH ob AS (\n  SELECT timestamp,\n    avg(CASE WHEN side = 'bid' THEN price END) AS bid,\n    avg(CASE WHEN side = 'ask' THEN price END) AS ask,\n    (avg(CASE WHEN side = 'bid' THEN price END)\n      + avg(CASE WHEN side = 'ask' THEN price END)) / 2 AS mid\n  FROM orderbook_historical\n  WHERE symbol = '${symbol_a}'\n    AND level = '1'\n    AND is_deleted = false\n    AND $__timeFilter(timestamp)\n    AND hour(timestamp) >= 12 AND hour(timestamp) < 18\n  SAMPLE BY ${bucket} ALIGN TO CALENDAR\n),\ndr AS (\n  SELECT timestamp, day_range_min, day_range_max\n  FROM day_range_historical\n  WHERE symbol = '${symbol_a}' AND is_deleted = false\n),\ntr AS (\n  SELECT timestamp, last(price) AS last_px\n  FROM trades_historical\n  WHERE symbol = '${symbol_a}'\n    AND is_deleted = false\n    AND canceled = false\n    AND $__timeFilter(timestamp)\n    AND hour(timestamp) >= 12 AND hour(timestamp) < 18\n  SAMPLE BY ${bucket} ALIGN TO CALENDAR\n)\nSELECT ob.timestamp AS time,\n  ob.bid, ob.ask, ob.mid, tr.last_px,\n  dr.day_range_min, dr.day_range_max\nFROM ob\nASOF JOIN dr\nASOF JOIN tr;",
+                        "selectedFormat": 2
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.0.1+security-01",
+            "spec": {
+              "options": {
+                "annotations": {
+                  "clustering": -1,
+                  "multiLane": false
+                },
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "lineInterpolation": "linear",
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showValues": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      },
+                      {
+                        "value": 80,
+                        "color": "red"
+                      }
+                    ]
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "day_range_min"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dash",
+                          "dash": [
+                            4,
+                            4
+                          ]
+                        }
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "semi-dark-orange",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "day_range_max"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dash",
+                          "dash": [
+                            4,
+                            4
+                          ]
+                        }
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "semi-dark-orange",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "bid"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "green",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "ask"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "red",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "last_px"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.showPoints",
+                        "value": "always"
+                      },
+                      {
+                        "id": "custom.pointSize",
+                        "value": 4
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "purple",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-1b": {
+        "kind": "Panel",
+        "spec": {
+          "id": 2,
+          "title": "B \u00b7 L1 price + day range",
+          "description": "L1 bid/ask/mid, last trade, day_range_min/max. Symbol = $symbol_b.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "questdb-questdb-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "df3b4brg6ejggc"
+                      },
+                      "spec": {
+                        "format": 1,
+                        "meta": {
+                          "builderOptions": {
+                            "fields": [],
+                            "limit": "",
+                            "mode": "list",
+                            "timeField": ""
+                          }
+                        },
+                        "queryType": "sql",
+                        "rawSql": "WITH ob AS (\n  SELECT timestamp,\n    avg(CASE WHEN side = 'bid' THEN price END) AS bid,\n    avg(CASE WHEN side = 'ask' THEN price END) AS ask,\n    (avg(CASE WHEN side = 'bid' THEN price END)\n      + avg(CASE WHEN side = 'ask' THEN price END)) / 2 AS mid\n  FROM orderbook_historical\n  WHERE symbol = '${symbol_b}'\n    AND level = '1'\n    AND is_deleted = false\n    AND $__timeFilter(timestamp)\n    AND hour(timestamp) >= 12 AND hour(timestamp) < 18\n  SAMPLE BY ${bucket} ALIGN TO CALENDAR\n),\ndr AS (\n  SELECT timestamp, day_range_min, day_range_max\n  FROM day_range_historical\n  WHERE symbol = '${symbol_b}' AND is_deleted = false\n),\ntr AS (\n  SELECT timestamp, last(price) AS last_px\n  FROM trades_historical\n  WHERE symbol = '${symbol_b}'\n    AND is_deleted = false\n    AND canceled = false\n    AND $__timeFilter(timestamp)\n    AND hour(timestamp) >= 12 AND hour(timestamp) < 18\n  SAMPLE BY ${bucket} ALIGN TO CALENDAR\n)\nSELECT ob.timestamp AS time,\n  ob.bid, ob.ask, ob.mid, tr.last_px,\n  dr.day_range_min, dr.day_range_max\nFROM ob\nASOF JOIN dr\nASOF JOIN tr;",
+                        "selectedFormat": 2
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.0.1+security-01",
+            "spec": {
+              "options": {
+                "annotations": {
+                  "clustering": -1,
+                  "multiLane": false
+                },
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "lineInterpolation": "linear",
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showValues": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      },
+                      {
+                        "value": 80,
+                        "color": "red"
+                      }
+                    ]
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "day_range_min"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dash",
+                          "dash": [
+                            4,
+                            4
+                          ]
+                        }
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "semi-dark-orange",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "day_range_max"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dash",
+                          "dash": [
+                            4,
+                            4
+                          ]
+                        }
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "semi-dark-orange",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "bid"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "green",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "ask"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "red",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "last_px"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.showPoints",
+                        "value": "always"
+                      },
+                      {
+                        "id": "custom.pointSize",
+                        "value": 4
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "purple",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-2a": {
+        "kind": "Panel",
+        "spec": {
+          "id": 3,
+          "title": "A \u00b7 L1 volume (bid up / ask down)",
+          "description": "Best-bid size positive; best-ask size negated. Symbol = $symbol_a.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "questdb-questdb-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "df3b4brg6ejggc"
+                      },
+                      "spec": {
+                        "format": 1,
+                        "meta": {
+                          "builderOptions": {
+                            "fields": [],
+                            "limit": "",
+                            "mode": "list",
+                            "timeField": ""
+                          }
+                        },
+                        "queryType": "sql",
+                        "rawSql": "SELECT timestamp AS time,\n  avg(CASE WHEN side = 'bid' THEN volume END) AS bid_vol,\n  -avg(CASE WHEN side = 'ask' THEN volume END) AS ask_vol_neg\nFROM orderbook_historical\nWHERE symbol = '${symbol_a}'\n  AND level = '1'\n  AND is_deleted = false\n  AND $__timeFilter(timestamp)\n  AND hour(timestamp) >= 12 AND hour(timestamp) < 18\nSAMPLE BY ${bucket} ALIGN TO CALENDAR;",
+                        "selectedFormat": 2
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.0.1+security-01",
+            "spec": {
+              "options": {
+                "annotations": {
+                  "clustering": -1,
+                  "multiLane": false
+                },
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "bars",
+                    "fillOpacity": 40,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "lineInterpolation": "linear",
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showValues": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      },
+                      {
+                        "value": 80,
+                        "color": "red"
+                      }
+                    ]
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "bid_vol"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "green",
+                          "mode": "fixed"
+                        }
+                      },
+                      {
+                        "id": "custom.drawStyle",
+                        "value": "bars"
+                      },
+                      {
+                        "id": "custom.fillOpacity",
+                        "value": 50
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "ask_vol_neg"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "red",
+                          "mode": "fixed"
+                        }
+                      },
+                      {
+                        "id": "custom.drawStyle",
+                        "value": "bars"
+                      },
+                      {
+                        "id": "custom.fillOpacity",
+                        "value": 50
+                      },
+                      {
+                        "id": "displayName",
+                        "value": "ask_vol (neg)"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-2b": {
+        "kind": "Panel",
+        "spec": {
+          "id": 4,
+          "title": "B \u00b7 L1 volume (bid up / ask down)",
+          "description": "Best-bid size positive; best-ask size negated. Symbol = $symbol_b.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "questdb-questdb-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "df3b4brg6ejggc"
+                      },
+                      "spec": {
+                        "format": 1,
+                        "meta": {
+                          "builderOptions": {
+                            "fields": [],
+                            "limit": "",
+                            "mode": "list",
+                            "timeField": ""
+                          }
+                        },
+                        "queryType": "sql",
+                        "rawSql": "SELECT timestamp AS time,\n  avg(CASE WHEN side = 'bid' THEN volume END) AS bid_vol,\n  -avg(CASE WHEN side = 'ask' THEN volume END) AS ask_vol_neg\nFROM orderbook_historical\nWHERE symbol = '${symbol_b}'\n  AND level = '1'\n  AND is_deleted = false\n  AND $__timeFilter(timestamp)\n  AND hour(timestamp) >= 12 AND hour(timestamp) < 18\nSAMPLE BY ${bucket} ALIGN TO CALENDAR;",
+                        "selectedFormat": 2
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.0.1+security-01",
+            "spec": {
+              "options": {
+                "annotations": {
+                  "clustering": -1,
+                  "multiLane": false
+                },
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "bars",
+                    "fillOpacity": 40,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "lineInterpolation": "linear",
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showValues": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      },
+                      {
+                        "value": 80,
+                        "color": "red"
+                      }
+                    ]
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "bid_vol"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "green",
+                          "mode": "fixed"
+                        }
+                      },
+                      {
+                        "id": "custom.drawStyle",
+                        "value": "bars"
+                      },
+                      {
+                        "id": "custom.fillOpacity",
+                        "value": 50
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "ask_vol_neg"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "red",
+                          "mode": "fixed"
+                        }
+                      },
+                      {
+                        "id": "custom.drawStyle",
+                        "value": "bars"
+                      },
+                      {
+                        "id": "custom.fillOpacity",
+                        "value": 50
+                      },
+                      {
+                        "id": "displayName",
+                        "value": "ask_vol (neg)"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-3a": {
+        "kind": "Panel",
+        "spec": {
+          "id": 5,
+          "title": "A \u00b7 spread (bps)",
+          "description": "10000 * (ask \u2212 bid) / mid. Symbol = $symbol_a.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "questdb-questdb-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "df3b4brg6ejggc"
+                      },
+                      "spec": {
+                        "format": 1,
+                        "meta": {
+                          "builderOptions": {
+                            "fields": [],
+                            "limit": "",
+                            "mode": "list",
+                            "timeField": ""
+                          }
+                        },
+                        "queryType": "sql",
+                        "rawSql": "SELECT timestamp AS time,\n  10000.0 * (avg(CASE WHEN side = 'ask' THEN price END)\n    - avg(CASE WHEN side = 'bid' THEN price END))\n    / nullif(\n      (avg(CASE WHEN side = 'bid' THEN price END)\n        + avg(CASE WHEN side = 'ask' THEN price END)) / 2, 0) AS spread_bps\nFROM orderbook_historical\nWHERE symbol = '${symbol_a}'\n  AND level = '1'\n  AND is_deleted = false\n  AND $__timeFilter(timestamp)\n  AND hour(timestamp) >= 12 AND hour(timestamp) < 18\nSAMPLE BY ${bucket} ALIGN TO CALENDAR;",
+                        "selectedFormat": 2
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.0.1+security-01",
+            "spec": {
+              "options": {
+                "annotations": {
+                  "clustering": -1,
+                  "multiLane": false
+                },
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 1,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "lineInterpolation": "linear",
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showValues": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      },
+                      {
+                        "value": 80,
+                        "color": "red"
+                      }
+                    ]
+                  },
+                  "unit": "none"
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-3b": {
+        "kind": "Panel",
+        "spec": {
+          "id": 6,
+          "title": "B \u00b7 spread (bps)",
+          "description": "10000 * (ask \u2212 bid) / mid. Symbol = $symbol_b.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "questdb-questdb-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "df3b4brg6ejggc"
+                      },
+                      "spec": {
+                        "format": 1,
+                        "meta": {
+                          "builderOptions": {
+                            "fields": [],
+                            "limit": "",
+                            "mode": "list",
+                            "timeField": ""
+                          }
+                        },
+                        "queryType": "sql",
+                        "rawSql": "SELECT timestamp AS time,\n  10000.0 * (avg(CASE WHEN side = 'ask' THEN price END)\n    - avg(CASE WHEN side = 'bid' THEN price END))\n    / nullif(\n      (avg(CASE WHEN side = 'bid' THEN price END)\n        + avg(CASE WHEN side = 'ask' THEN price END)) / 2, 0) AS spread_bps\nFROM orderbook_historical\nWHERE symbol = '${symbol_b}'\n  AND level = '1'\n  AND is_deleted = false\n  AND $__timeFilter(timestamp)\n  AND hour(timestamp) >= 12 AND hour(timestamp) < 18\nSAMPLE BY ${bucket} ALIGN TO CALENDAR;",
+                        "selectedFormat": 2
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.0.1+security-01",
+            "spec": {
+              "options": {
+                "annotations": {
+                  "clustering": -1,
+                  "multiLane": false
+                },
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 1,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "lineInterpolation": "linear",
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showValues": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      },
+                      {
+                        "value": 80,
+                        "color": "red"
+                      }
+                    ]
+                  },
+                  "unit": "none"
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-4a": {
+        "kind": "Panel",
+        "spec": {
+          "id": 7,
+          "title": "A \u00b7 trades",
+          "description": "Last trade price (left) + traded volume (right). Symbol = $symbol_a.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "questdb-questdb-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "df3b4brg6ejggc"
+                      },
+                      "spec": {
+                        "format": 1,
+                        "meta": {
+                          "builderOptions": {
+                            "fields": [],
+                            "limit": "",
+                            "mode": "list",
+                            "timeField": ""
+                          }
+                        },
+                        "queryType": "sql",
+                        "rawSql": "SELECT timestamp AS time,\n  last(price) AS trade_px,\n  sum(volume) AS trade_vol\nFROM trades_historical\nWHERE symbol = '${symbol_a}'\n  AND is_deleted = false\n  AND canceled = false\n  AND $__timeFilter(timestamp)\n  AND hour(timestamp) >= 12 AND hour(timestamp) < 18\nSAMPLE BY ${bucket} ALIGN TO CALENDAR;",
+                        "selectedFormat": 2
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.0.1+security-01",
+            "spec": {
+              "options": {
+                "annotations": {
+                  "clustering": -1,
+                  "multiLane": false
+                },
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "lineWidth": 2,
+                    "showPoints": "auto",
+                    "spanNulls": true,
+                    "lineInterpolation": "linear",
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showValues": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      },
+                      {
+                        "value": 80,
+                        "color": "red"
+                      }
+                    ]
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "trade_px"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "left"
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "purple",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "trade_vol"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "custom.drawStyle",
+                        "value": "bars"
+                      },
+                      {
+                        "id": "custom.fillOpacity",
+                        "value": 40
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "blue",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-4b": {
+        "kind": "Panel",
+        "spec": {
+          "id": 8,
+          "title": "B \u00b7 trades",
+          "description": "Last trade price (left) + traded volume (right). Symbol = $symbol_b.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "questdb-questdb-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "df3b4brg6ejggc"
+                      },
+                      "spec": {
+                        "format": 1,
+                        "meta": {
+                          "builderOptions": {
+                            "fields": [],
+                            "limit": "",
+                            "mode": "list",
+                            "timeField": ""
+                          }
+                        },
+                        "queryType": "sql",
+                        "rawSql": "SELECT timestamp AS time,\n  last(price) AS trade_px,\n  sum(volume) AS trade_vol\nFROM trades_historical\nWHERE symbol = '${symbol_b}'\n  AND is_deleted = false\n  AND canceled = false\n  AND $__timeFilter(timestamp)\n  AND hour(timestamp) >= 12 AND hour(timestamp) < 18\nSAMPLE BY ${bucket} ALIGN TO CALENDAR;",
+                        "selectedFormat": 2
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.0.1+security-01",
+            "spec": {
+              "options": {
+                "annotations": {
+                  "clustering": -1,
+                  "multiLane": false
+                },
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "lineWidth": 2,
+                    "showPoints": "auto",
+                    "spanNulls": true,
+                    "lineInterpolation": "linear",
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showValues": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      },
+                      {
+                        "value": 80,
+                        "color": "red"
+                      }
+                    ]
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "trade_px"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "left"
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "purple",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "trade_vol"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "custom.drawStyle",
+                        "value": "bars"
+                      },
+                      {
+                        "id": "custom.fillOpacity",
+                        "value": 40
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "blue",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-5": {
+        "kind": "Panel",
+        "spec": {
+          "id": 9,
+          "title": "Compare \u00b7 mid % from window open",
+          "description": "Each mid indexed to its first in-window value. A = $symbol_a, B = $symbol_b.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "questdb-questdb-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "df3b4brg6ejggc"
+                      },
+                      "spec": {
+                        "format": 1,
+                        "meta": {
+                          "builderOptions": {
+                            "fields": [],
+                            "limit": "",
+                            "mode": "list",
+                            "timeField": ""
+                          }
+                        },
+                        "queryType": "sql",
+                        "rawSql": "WITH a AS (\n  SELECT timestamp,\n    (avg(CASE WHEN side = 'bid' THEN price END)\n      + avg(CASE WHEN side = 'ask' THEN price END)) / 2 AS mid\n  FROM orderbook_historical\n  WHERE symbol = '$symbol_a'\n    AND level = '1' AND is_deleted = false\n    AND $__timeFilter(timestamp) AND hour(timestamp) >= 12 AND hour(timestamp) < 18\n  SAMPLE BY ${bucket} ALIGN TO CALENDAR\n),\nb AS (\n  SELECT timestamp,\n    (avg(CASE WHEN side = 'bid' THEN price END)\n      + avg(CASE WHEN side = 'ask' THEN price END)) / 2 AS mid\n  FROM orderbook_historical\n  WHERE symbol = '$symbol_b'\n    AND level = '1' AND is_deleted = false\n    AND $__timeFilter(timestamp) AND hour(timestamp) >= 12 AND hour(timestamp) < 18\n  SAMPLE BY ${bucket} ALIGN TO CALENDAR\n),\na0 AS (SELECT first(mid) AS m0 FROM a),\nb0 AS (SELECT first(mid) AS m0 FROM b)\nSELECT a.timestamp AS time,\n  100.0 * (a.mid / a0.m0 - 1) AS mid_pct_a,\n  100.0 * (b.mid / b0.m0 - 1) AS mid_pct_b\nFROM a\nJOIN b ON a.timestamp = b.timestamp\nCROSS JOIN a0\nCROSS JOIN b0;",
+                        "selectedFormat": 2
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.0.1+security-01",
+            "spec": {
+              "options": {
+                "annotations": {
+                  "clustering": -1,
+                  "multiLane": false
+                },
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 2,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "lineInterpolation": "linear",
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showValues": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      },
+                      {
+                        "value": 80,
+                        "color": "red"
+                      }
+                    ]
+                  },
+                  "unit": "percent"
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      }
+    },
+    "layout": {
+      "kind": "GridLayout",
+      "spec": {
+        "items": [
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 9,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-1a"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 9,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-1b"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 9,
+              "width": 12,
+              "height": 7,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-2a"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 12,
+              "y": 9,
+              "width": 12,
+              "height": 7,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-2b"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 16,
+              "width": 12,
+              "height": 6,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-3a"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 12,
+              "y": 16,
+              "width": 12,
+              "height": 6,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-3b"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 22,
+              "width": 12,
+              "height": 7,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-4a"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 12,
+              "y": 22,
+              "width": 12,
+              "height": 7,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-4b"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 29,
+              "width": 24,
+              "height": 7,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-5"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

@@ -19,7 +19,7 @@ from pathlib import Path
 DS = "afz4am1a4lywwf"
 GROUP = "grafana-postgresql-datasource"
 VER = "13.1.0"
-OUT = Path(__file__).with_name("hummingbot-pair-trade-mobin-v7.json")
+OUT = Path(__file__).resolve().parent / "hummingbot-pair-trade-mobin-v7.json"
 
 # TSE gold ETF regular session (Asia/Tehran wall clock). Do not replace with fixed UTC hours:
 # this dataset mixes +3:30 and +4:30 offsets, so 08:30–14:30 UTC ≠ 12:00–18:00 Tehran.
@@ -767,14 +767,14 @@ ORDER BY m.time;
         "panel-7": panel(
             7,
             "Turnover (×)",
-            "Sum(fill notional) / latest NAV. Both buy+sell legs count: ≈2 ≈ one full book renew "
-            "(sold once + bought once). From pair_trade.fill.",
+            "0.5 × sum(fill notional) / latest NAV — buy+sell averaged so ≈1 ≈ one full book renew. "
+            "From pair_trade.fill.",
             qg([pq(
                 f"WITH latest AS ("
                 f"SELECT portfolio_value AS v FROM pair_trade.portfolio_snapshot "
                 f"WHERE {SESS} ORDER BY ts DESC LIMIT 1"
                 f") "
-                f"SELECT COALESCE(("
+                f"SELECT 0.5 * COALESCE(("
                 f"SELECT SUM(f.amount * f.price) FROM pair_trade.fill f WHERE f.session_id IN ($session)"
                 f"), 0) / NULLIF(latest.v, 0) AS turnover FROM latest;",
                 "table",

@@ -1,0 +1,2207 @@
+{
+  "apiVersion": "dashboard.grafana.app/v2",
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "market-microstructure-v2",
+    "namespace": "default",
+    "uid": "market-microstructure-v2"
+  },
+  "spec": {
+    "title": "Market Microstructure (Rotation) v2",
+    "description": "Both legs of a pair_trade rotation: L1\u2013L5 book (QuestDB ISIN) + strategy overlays (Postgres). Panel time = rotation Tehran wall \u22125m \u2026 +10m (vars win_from/win_to; not the top time picker). Default: session 58 / rotation 3141 (Nov 8 \u062f\u0631\u062e\u0634\u0627\u0646\u2192\u0631\u0632 \u062a\u0631\u0646\u062c).",
+    "tags": [
+      "questdb",
+      "postgres",
+      "microstructure",
+      "pair-trade",
+      "slippage",
+      "v2"
+    ],
+    "editable": true,
+    "cursorSync": "Crosshair",
+    "liveNow": false,
+    "preload": false,
+    "links": [],
+    "annotations": [
+      {
+        "kind": "AnnotationQuery",
+        "spec": {
+          "name": "Annotations & Alerts",
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "builtIn": true,
+          "query": {
+            "kind": "DataQuery",
+            "group": "grafana",
+            "version": "v0",
+            "datasource": {
+              "name": "-- Grafana --"
+            },
+            "spec": {}
+          }
+        }
+      }
+    ],
+    "timeSettings": {
+      "timezone": "UTC",
+      "from": "2026-11-08T11:56:17.000Z",
+      "to": "2026-11-08T12:11:17.000Z",
+      "autoRefresh": "",
+      "autoRefreshIntervals": [
+        "5s",
+        "10s",
+        "30s",
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h",
+        "2h",
+        "1d"
+      ],
+      "hideTimepicker": false,
+      "fiscalYearStartMonth": 0
+    },
+    "variables": [
+      {
+        "kind": "QueryVariable",
+        "spec": {
+          "name": "strategy",
+          "label": "Strategy",
+          "hide": "dontHide",
+          "refresh": "onDashboardLoad",
+          "skipUrlSync": false,
+          "multi": false,
+          "includeAll": false,
+          "allowCustomValue": true,
+          "sort": "alphabeticalAsc",
+          "regex": "",
+          "regexApplyTo": "value",
+          "options": [],
+          "current": {
+            "text": "gold_etf_statistical_arbitrage",
+            "value": "gold_etf_statistical_arbitrage"
+          },
+          "query": {
+            "kind": "DataQuery",
+            "group": "grafana-postgresql-datasource",
+            "version": "v0",
+            "datasource": {
+              "name": "afz4am1a4lywwf"
+            },
+            "spec": {
+              "__legacyStringValue": "SELECT name AS __text, name AS __value FROM pair_trade.strategy ORDER BY name;"
+            }
+          }
+        }
+      },
+      {
+        "kind": "QueryVariable",
+        "spec": {
+          "name": "session",
+          "label": "Session",
+          "hide": "dontHide",
+          "refresh": "onTimeRangeChanged",
+          "skipUrlSync": false,
+          "multi": true,
+          "includeAll": false,
+          "allowCustomValue": true,
+          "sort": "disabled",
+          "regex": "",
+          "regexApplyTo": "value",
+          "options": [],
+          "current": {
+            "text": "58",
+            "value": "58"
+          },
+          "query": {
+            "kind": "DataQuery",
+            "group": "grafana-postgresql-datasource",
+            "version": "v0",
+            "datasource": {
+              "name": "afz4am1a4lywwf"
+            },
+            "spec": {
+              "__legacyStringValue": "SELECT s.id::text || ' @ ' || to_char(s.started_at AT TIME ZONE 'Asia/Tehran', 'YYYY-MM-DD HH24:MI') AS __text, s.id AS __value FROM pair_trade.session s JOIN pair_trade.strategy st ON st.id = s.strategy_id WHERE st.name = '$strategy' ORDER BY s.started_at DESC;"
+            }
+          }
+        }
+      },
+      {
+        "kind": "QueryVariable",
+        "spec": {
+          "name": "rotation",
+          "label": "Rotation",
+          "hide": "dontHide",
+          "refresh": "onTimeRangeChanged",
+          "skipUrlSync": false,
+          "multi": false,
+          "includeAll": false,
+          "allowCustomValue": true,
+          "sort": "disabled",
+          "regex": "",
+          "regexApplyTo": "value",
+          "options": [],
+          "current": {
+            "text": "3141",
+            "value": "3141"
+          },
+          "query": {
+            "kind": "DataQuery",
+            "group": "grafana-postgresql-datasource",
+            "version": "v0",
+            "datasource": {
+              "name": "afz4am1a4lywwf"
+            },
+            "spec": {
+              "__legacyStringValue": "SELECT r.id::text || ' \u00b7 ' || r.prev_symbol || '\u2192' || r.new_symbol || ' \u00b7 ' || r.status || ' @ ' || to_char(r.ts AT TIME ZONE 'Asia/Tehran', 'HH24:MI:SS') AS __text, r.id AS __value FROM pair_trade.rotation r WHERE r.session_id IN ($session) ORDER BY r.ts DESC;"
+            }
+          }
+        }
+      },
+      {
+        "kind": "QueryVariable",
+        "spec": {
+          "name": "isin_sell",
+          "label": "ISIN sell",
+          "hide": "dontHide",
+          "refresh": "onTimeRangeChanged",
+          "skipUrlSync": false,
+          "multi": false,
+          "includeAll": false,
+          "allowCustomValue": true,
+          "sort": "disabled",
+          "regex": "",
+          "regexApplyTo": "value",
+          "options": [],
+          "current": {
+            "text": "\u062f\u0631\u062e\u0634\u0627\u0646 \u00b7 IRTKDRKS0001",
+            "value": "IRTKDRKS0001"
+          },
+          "query": {
+            "kind": "DataQuery",
+            "group": "grafana-postgresql-datasource",
+            "version": "v0",
+            "datasource": {
+              "name": "afz4am1a4lywwf"
+            },
+            "spec": {
+              "__legacyStringValue": "SELECT COALESCE(split_part(sell_pair,'-',1), 'IRTKDRKS0001') AS __value, prev_symbol || ' \u00b7 ' || COALESCE(split_part(sell_pair,'-',1), '?') AS __text FROM pair_trade.rotation WHERE id = $rotation;"
+            }
+          }
+        }
+      },
+      {
+        "kind": "QueryVariable",
+        "spec": {
+          "name": "isin_buy",
+          "label": "ISIN buy",
+          "hide": "dontHide",
+          "refresh": "onTimeRangeChanged",
+          "skipUrlSync": false,
+          "multi": false,
+          "includeAll": false,
+          "allowCustomValue": true,
+          "sort": "disabled",
+          "regex": "",
+          "regexApplyTo": "value",
+          "options": [],
+          "current": {
+            "text": "\u0631\u0632 \u062a\u0631\u0646\u062c \u00b7 IRTKROSE0001",
+            "value": "IRTKROSE0001"
+          },
+          "query": {
+            "kind": "DataQuery",
+            "group": "grafana-postgresql-datasource",
+            "version": "v0",
+            "datasource": {
+              "name": "afz4am1a4lywwf"
+            },
+            "spec": {
+              "__legacyStringValue": "SELECT COALESCE(split_part(buy_pair,'-',1), 'IRTKROSE0001') AS __value, new_symbol || ' \u00b7 ' || COALESCE(split_part(buy_pair,'-',1), '?') AS __text FROM pair_trade.rotation WHERE id = $rotation;"
+            }
+          }
+        }
+      },
+      {
+        "kind": "QueryVariable",
+        "spec": {
+          "name": "intended_sell",
+          "label": "Intended sell",
+          "hide": "dontHide",
+          "refresh": "onTimeRangeChanged",
+          "skipUrlSync": false,
+          "multi": false,
+          "includeAll": false,
+          "allowCustomValue": true,
+          "sort": "disabled",
+          "regex": "",
+          "regexApplyTo": "value",
+          "options": [],
+          "current": {
+            "text": "44000",
+            "value": "44000"
+          },
+          "query": {
+            "kind": "DataQuery",
+            "group": "grafana-postgresql-datasource",
+            "version": "v0",
+            "datasource": {
+              "name": "afz4am1a4lywwf"
+            },
+            "spec": {
+              "__legacyStringValue": "SELECT ROUND(COALESCE(intended_sell_price, 0))::bigint::text AS __value, ROUND(COALESCE(intended_sell_price, 0))::bigint::text AS __text FROM pair_trade.rotation WHERE id = $rotation;"
+            }
+          }
+        }
+      },
+      {
+        "kind": "QueryVariable",
+        "spec": {
+          "name": "intended_buy",
+          "label": "Intended buy",
+          "hide": "dontHide",
+          "refresh": "onTimeRangeChanged",
+          "skipUrlSync": false,
+          "multi": false,
+          "includeAll": false,
+          "allowCustomValue": true,
+          "sort": "disabled",
+          "regex": "",
+          "regexApplyTo": "value",
+          "options": [],
+          "current": {
+            "text": "30190",
+            "value": "30190"
+          },
+          "query": {
+            "kind": "DataQuery",
+            "group": "grafana-postgresql-datasource",
+            "version": "v0",
+            "datasource": {
+              "name": "afz4am1a4lywwf"
+            },
+            "spec": {
+              "__legacyStringValue": "SELECT ROUND(COALESCE(intended_buy_price, 0))::bigint::text AS __value, ROUND(COALESCE(intended_buy_price, 0))::bigint::text AS __text FROM pair_trade.rotation WHERE id = $rotation;"
+            }
+          }
+        }
+      },
+      {
+        "kind": "QueryVariable",
+        "spec": {
+          "name": "win_from",
+          "label": "Window from",
+          "hide": "dontHide",
+          "refresh": "onTimeRangeChanged",
+          "skipUrlSync": false,
+          "multi": false,
+          "includeAll": false,
+          "allowCustomValue": true,
+          "sort": "disabled",
+          "regex": "",
+          "regexApplyTo": "value",
+          "options": [],
+          "current": {
+            "text": "2026-11-08 11:56:17",
+            "value": "2026-11-08T11:56:17"
+          },
+          "query": {
+            "kind": "DataQuery",
+            "group": "grafana-postgresql-datasource",
+            "version": "v0",
+            "datasource": {
+              "name": "afz4am1a4lywwf"
+            },
+            "spec": {
+              "__legacyStringValue": "SELECT to_char((ts AT TIME ZONE 'Asia/Tehran') - interval '5 minutes', 'YYYY-MM-DD\"T\"HH24:MI:SS') AS __value, to_char((ts AT TIME ZONE 'Asia/Tehran') - interval '5 minutes', 'YYYY-MM-DD HH24:MI:SS') AS __text FROM pair_trade.rotation WHERE id = $rotation;"
+            }
+          }
+        }
+      },
+      {
+        "kind": "QueryVariable",
+        "spec": {
+          "name": "win_to",
+          "label": "Window to",
+          "hide": "dontHide",
+          "refresh": "onTimeRangeChanged",
+          "skipUrlSync": false,
+          "multi": false,
+          "includeAll": false,
+          "allowCustomValue": true,
+          "sort": "disabled",
+          "regex": "",
+          "regexApplyTo": "value",
+          "options": [],
+          "current": {
+            "text": "2026-11-08 12:11:17",
+            "value": "2026-11-08T12:11:17"
+          },
+          "query": {
+            "kind": "DataQuery",
+            "group": "grafana-postgresql-datasource",
+            "version": "v0",
+            "datasource": {
+              "name": "afz4am1a4lywwf"
+            },
+            "spec": {
+              "__legacyStringValue": "SELECT to_char((ts AT TIME ZONE 'Asia/Tehran') + interval '10 minutes', 'YYYY-MM-DD\"T\"HH24:MI:SS') AS __value, to_char((ts AT TIME ZONE 'Asia/Tehran') + interval '10 minutes', 'YYYY-MM-DD HH24:MI:SS') AS __text FROM pair_trade.rotation WHERE id = $rotation;"
+            }
+          }
+        }
+      },
+      {
+        "kind": "CustomVariable",
+        "spec": {
+          "name": "buy_slippage_bps",
+          "label": "Buy slip bps",
+          "description": "Markup for aggressive_buy line (config buy_slippage_bps).",
+          "hide": "dontHide",
+          "skipUrlSync": false,
+          "multi": false,
+          "includeAll": false,
+          "allowCustomValue": true,
+          "options": [],
+          "current": {
+            "text": "10",
+            "value": "10"
+          },
+          "query": "10, 30, 50"
+        }
+      },
+      {
+        "kind": "CustomVariable",
+        "spec": {
+          "name": "bucket",
+          "label": "Sample by",
+          "hide": "dontHide",
+          "skipUrlSync": false,
+          "multi": false,
+          "includeAll": false,
+          "allowCustomValue": true,
+          "options": [],
+          "current": {
+            "text": "5s",
+            "value": "5s"
+          },
+          "query": "1s, 5s, 15s, 30s, 1m"
+        }
+      }
+    ],
+    "elements": {
+      "panel-kpi": {
+        "kind": "Panel",
+        "spec": {
+          "id": 1,
+          "title": "Rotation summary",
+          "description": "Postgres pair_trade.rotation (+ first buy fill lag). n/a = no fill / not completed.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "SELECT\n  r.status,\n  COALESCE(ROUND((r.buy_slippage * 10000)::numeric, 2)::text, 'n/a') AS buy_slip_bps,\n  COALESCE(ROUND((r.sell_slippage * 10000)::numeric, 2)::text, 'n/a') AS sell_slip_bps,\n  COALESCE(ROUND(r.latency_sec::numeric, 1)::text, 'n/a') AS latency_sec,\n  COALESCE(\n    ROUND(EXTRACT(EPOCH FROM (MIN(f.ts) - r.ts))::numeric, 1)::text,\n    'n/a (no buy fill)'\n  ) AS sec_to_first_buy_fill,\n  ROUND(r.intended_buy_price::numeric, 0) AS intended_buy,\n  ROUND(r.intended_sell_price::numeric, 0) AS intended_sell\nFROM pair_trade.rotation r\nLEFT JOIN pair_trade.fill f\n  ON f.rotation_id = r.id AND upper(f.side) = 'BUY'\nWHERE r.id = ${rotation}\nGROUP BY r.id, r.status, r.buy_slippage, r.sell_slippage, r.latency_sec,\n         r.intended_buy_price, r.intended_sell_price, r.ts;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "13.0.1+security-01",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "showHeader": true
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "inspect": false
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-sell-depth": {
+        "kind": "Panel",
+        "spec": {
+          "id": 10,
+          "title": "Sell leg \u00b7 L1\u2013L5 + intended/fills",
+          "description": "QuestDB depth for $isin_sell + intended_sell. Yellow points = sell fills (Postgres).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "questdb-questdb-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "df3b4brg6ejggc"
+                      },
+                      "spec": {
+                        "format": 1,
+                        "meta": {
+                          "builderOptions": {
+                            "fields": [],
+                            "limit": "",
+                            "mode": "list",
+                            "timeField": ""
+                          }
+                        },
+                        "queryType": "sql",
+                        "rawSql": "WITH ob AS (\n  SELECT timestamp,\n    avg(CASE WHEN side='bid' AND level='1' THEN price END) AS bid1,\n    avg(CASE WHEN side='bid' AND level='2' THEN price END) AS bid2,\n    avg(CASE WHEN side='bid' AND level='3' THEN price END) AS bid3,\n    avg(CASE WHEN side='bid' AND level='4' THEN price END) AS bid4,\n    avg(CASE WHEN side='bid' AND level='5' THEN price END) AS bid5,\n    avg(CASE WHEN side='ask' AND level='1' THEN price END) AS ask1,\n    avg(CASE WHEN side='ask' AND level='2' THEN price END) AS ask2,\n    avg(CASE WHEN side='ask' AND level='3' THEN price END) AS ask3,\n    avg(CASE WHEN side='ask' AND level='4' THEN price END) AS ask4,\n    avg(CASE WHEN side='ask' AND level='5' THEN price END) AS ask5\n  FROM orderbook_historical\n  WHERE symbol = '${isin_sell}'\n    AND is_deleted = false\n    AND timestamp BETWEEN '${win_from}' AND '${win_to}'\n    AND hour(timestamp) >= 12 AND hour(timestamp) < 18\n  SAMPLE BY ${bucket} ALIGN TO CALENDAR\n),\ndr AS (\n  SELECT timestamp, day_range_min, day_range_max\n  FROM day_range_historical\n  WHERE symbol = '${isin_sell}' AND is_deleted = false\n)\nSELECT ob.timestamp AS time,\n  ob.bid1, ob.bid2, ob.bid3, ob.bid4, ob.bid5,\n  ob.ask1, ob.ask2, ob.ask3, ob.ask4, ob.ask5,\n  (ob.bid1 + ob.ask1) / 2 AS mid,\n  dr.day_range_min, dr.day_range_max,\n  ${intended_sell} AS intended_sell\nFROM ob\nASOF JOIN dr;",
+                        "selectedFormat": 2
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "B",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "SELECT (ts AT TIME ZONE 'Asia/Tehran') AS time, price::float8 AS sell_fill\nFROM pair_trade.fill\nWHERE rotation_id = ${rotation} AND upper(side) = 'SELL';"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.0.1+security-01",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "lineInterpolation": "linear",
+                    "axisPlacement": "auto",
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      }
+                    ]
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "bid2"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dot",
+                          "dash": [
+                            2,
+                            2
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "bid3"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dot",
+                          "dash": [
+                            2,
+                            2
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "bid4"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dot",
+                          "dash": [
+                            2,
+                            2
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "bid5"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dot",
+                          "dash": [
+                            2,
+                            2
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "ask2"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dot",
+                          "dash": [
+                            2,
+                            2
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "ask3"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dot",
+                          "dash": [
+                            2,
+                            2
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "ask4"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dot",
+                          "dash": [
+                            2,
+                            2
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "ask5"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dot",
+                          "dash": [
+                            2,
+                            2
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "bid1"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "green",
+                          "mode": "fixed"
+                        }
+                      },
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 2
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "ask1"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "red",
+                          "mode": "fixed"
+                        }
+                      },
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 2
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "mid"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "blue",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "day_range_.*"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dash",
+                          "dash": [
+                            4,
+                            4
+                          ]
+                        }
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "orange",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "intended_.*"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dash",
+                          "dash": [
+                            8,
+                            4
+                          ]
+                        }
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "purple",
+                          "mode": "fixed"
+                        }
+                      },
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 2
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": ".*_fill"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.drawStyle",
+                        "value": "points"
+                      },
+                      {
+                        "id": "custom.showPoints",
+                        "value": "always"
+                      },
+                      {
+                        "id": "custom.pointSize",
+                        "value": 8
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "yellow",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "buy_fail"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.drawStyle",
+                        "value": "points"
+                      },
+                      {
+                        "id": "custom.showPoints",
+                        "value": "always"
+                      },
+                      {
+                        "id": "custom.pointSize",
+                        "value": 7
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "dark-red",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-buy-depth": {
+        "kind": "Panel",
+        "spec": {
+          "id": 11,
+          "title": "Buy leg \u00b7 L1\u2013L5 + intended/fills/fails",
+          "description": "QuestDB depth for $isin_buy + intended_buy. Yellow = buy fills; dark-red = failed buys.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "questdb-questdb-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "df3b4brg6ejggc"
+                      },
+                      "spec": {
+                        "format": 1,
+                        "meta": {
+                          "builderOptions": {
+                            "fields": [],
+                            "limit": "",
+                            "mode": "list",
+                            "timeField": ""
+                          }
+                        },
+                        "queryType": "sql",
+                        "rawSql": "WITH ob AS (\n  SELECT timestamp,\n    avg(CASE WHEN side='bid' AND level='1' THEN price END) AS bid1,\n    avg(CASE WHEN side='bid' AND level='2' THEN price END) AS bid2,\n    avg(CASE WHEN side='bid' AND level='3' THEN price END) AS bid3,\n    avg(CASE WHEN side='bid' AND level='4' THEN price END) AS bid4,\n    avg(CASE WHEN side='bid' AND level='5' THEN price END) AS bid5,\n    avg(CASE WHEN side='ask' AND level='1' THEN price END) AS ask1,\n    avg(CASE WHEN side='ask' AND level='2' THEN price END) AS ask2,\n    avg(CASE WHEN side='ask' AND level='3' THEN price END) AS ask3,\n    avg(CASE WHEN side='ask' AND level='4' THEN price END) AS ask4,\n    avg(CASE WHEN side='ask' AND level='5' THEN price END) AS ask5\n  FROM orderbook_historical\n  WHERE symbol = '${isin_buy}'\n    AND is_deleted = false\n    AND timestamp BETWEEN '${win_from}' AND '${win_to}'\n    AND hour(timestamp) >= 12 AND hour(timestamp) < 18\n  SAMPLE BY ${bucket} ALIGN TO CALENDAR\n),\ndr AS (\n  SELECT timestamp, day_range_min, day_range_max\n  FROM day_range_historical\n  WHERE symbol = '${isin_buy}' AND is_deleted = false\n)\nSELECT ob.timestamp AS time,\n  ob.bid1, ob.bid2, ob.bid3, ob.bid4, ob.bid5,\n  ob.ask1, ob.ask2, ob.ask3, ob.ask4, ob.ask5,\n  (ob.bid1 + ob.ask1) / 2 AS mid,\n  dr.day_range_min, dr.day_range_max,\n  ${intended_buy} AS intended_buy\nFROM ob\nASOF JOIN dr;",
+                        "selectedFormat": 2
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "B",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "SELECT (ts AT TIME ZONE 'Asia/Tehran') AS time, price::float8 AS buy_fill\nFROM pair_trade.fill\nWHERE rotation_id = ${rotation} AND upper(side) = 'BUY';"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "C",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "SELECT (e.ts AT TIME ZONE 'Asia/Tehran') AS time,\n  ${intended_buy}::float8 AS buy_fail\nFROM pair_trade.event_log e\nJOIN pair_trade.rotation r ON r.session_id = e.session_id AND r.id = ${rotation}\nWHERE e.session_id IN (${session})\n  AND e.event_type = 'order_end'\n  AND e.payload->>'side' = 'buy'\n  AND e.payload->>'reason' = 'failed'\n  AND e.ts BETWEEN r.ts - interval '2 minutes' AND r.ts + interval '30 minutes';"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.0.1+security-01",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "lineInterpolation": "linear",
+                    "axisPlacement": "auto",
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      }
+                    ]
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "bid2"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dot",
+                          "dash": [
+                            2,
+                            2
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "bid3"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dot",
+                          "dash": [
+                            2,
+                            2
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "bid4"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dot",
+                          "dash": [
+                            2,
+                            2
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "bid5"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dot",
+                          "dash": [
+                            2,
+                            2
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "ask2"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dot",
+                          "dash": [
+                            2,
+                            2
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "ask3"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dot",
+                          "dash": [
+                            2,
+                            2
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "ask4"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dot",
+                          "dash": [
+                            2,
+                            2
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "ask5"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dot",
+                          "dash": [
+                            2,
+                            2
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "bid1"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "green",
+                          "mode": "fixed"
+                        }
+                      },
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 2
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "ask1"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "red",
+                          "mode": "fixed"
+                        }
+                      },
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 2
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "mid"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "blue",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "day_range_.*"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dash",
+                          "dash": [
+                            4,
+                            4
+                          ]
+                        }
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "orange",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "intended_.*"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dash",
+                          "dash": [
+                            8,
+                            4
+                          ]
+                        }
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "purple",
+                          "mode": "fixed"
+                        }
+                      },
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 2
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": ".*_fill"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.drawStyle",
+                        "value": "points"
+                      },
+                      {
+                        "id": "custom.showPoints",
+                        "value": "always"
+                      },
+                      {
+                        "id": "custom.pointSize",
+                        "value": 8
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "yellow",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "buy_fail"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.drawStyle",
+                        "value": "points"
+                      },
+                      {
+                        "id": "custom.showPoints",
+                        "value": "always"
+                      },
+                      {
+                        "id": "custom.pointSize",
+                        "value": 7
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "dark-red",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-sell-vol": {
+        "kind": "Panel",
+        "spec": {
+          "id": 12,
+          "title": "Sell leg \u00b7 L1 volume",
+          "description": "bid up / ask down. ISIN=$isin_sell.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "questdb-questdb-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "df3b4brg6ejggc"
+                      },
+                      "spec": {
+                        "format": 1,
+                        "meta": {
+                          "builderOptions": {
+                            "fields": [],
+                            "limit": "",
+                            "mode": "list",
+                            "timeField": ""
+                          }
+                        },
+                        "queryType": "sql",
+                        "rawSql": "SELECT timestamp AS time,\n  avg(CASE WHEN side='bid' AND level='1' THEN volume END) AS bid1_vol,\n  -avg(CASE WHEN side='ask' AND level='1' THEN volume END) AS ask1_vol_neg\nFROM orderbook_historical\nWHERE symbol = '${isin_sell}'\n  AND is_deleted = false\n  AND timestamp BETWEEN '${win_from}' AND '${win_to}'\n  AND hour(timestamp) >= 12 AND hour(timestamp) < 18\nSAMPLE BY ${bucket} ALIGN TO CALENDAR;",
+                        "selectedFormat": 2
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.0.1+security-01",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "bars",
+                    "fillOpacity": 40,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "lineInterpolation": "linear",
+                    "axisPlacement": "auto",
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      }
+                    ]
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "bid1_vol"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "green",
+                          "mode": "fixed"
+                        }
+                      },
+                      {
+                        "id": "custom.drawStyle",
+                        "value": "bars"
+                      },
+                      {
+                        "id": "custom.fillOpacity",
+                        "value": 50
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "ask1_vol_neg"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "red",
+                          "mode": "fixed"
+                        }
+                      },
+                      {
+                        "id": "custom.drawStyle",
+                        "value": "bars"
+                      },
+                      {
+                        "id": "custom.fillOpacity",
+                        "value": 50
+                      },
+                      {
+                        "id": "displayName",
+                        "value": "ask1_vol (neg)"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-buy-vol": {
+        "kind": "Panel",
+        "spec": {
+          "id": 13,
+          "title": "Buy leg \u00b7 L1 volume",
+          "description": "bid up / ask down. ISIN=$isin_buy.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "questdb-questdb-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "df3b4brg6ejggc"
+                      },
+                      "spec": {
+                        "format": 1,
+                        "meta": {
+                          "builderOptions": {
+                            "fields": [],
+                            "limit": "",
+                            "mode": "list",
+                            "timeField": ""
+                          }
+                        },
+                        "queryType": "sql",
+                        "rawSql": "SELECT timestamp AS time,\n  avg(CASE WHEN side='bid' AND level='1' THEN volume END) AS bid1_vol,\n  -avg(CASE WHEN side='ask' AND level='1' THEN volume END) AS ask1_vol_neg\nFROM orderbook_historical\nWHERE symbol = '${isin_buy}'\n  AND is_deleted = false\n  AND timestamp BETWEEN '${win_from}' AND '${win_to}'\n  AND hour(timestamp) >= 12 AND hour(timestamp) < 18\nSAMPLE BY ${bucket} ALIGN TO CALENDAR;",
+                        "selectedFormat": 2
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.0.1+security-01",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "bars",
+                    "fillOpacity": 40,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "lineInterpolation": "linear",
+                    "axisPlacement": "auto",
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      }
+                    ]
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "bid1_vol"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "green",
+                          "mode": "fixed"
+                        }
+                      },
+                      {
+                        "id": "custom.drawStyle",
+                        "value": "bars"
+                      },
+                      {
+                        "id": "custom.fillOpacity",
+                        "value": 50
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "ask1_vol_neg"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "red",
+                          "mode": "fixed"
+                        }
+                      },
+                      {
+                        "id": "custom.drawStyle",
+                        "value": "bars"
+                      },
+                      {
+                        "id": "custom.fillOpacity",
+                        "value": 50
+                      },
+                      {
+                        "id": "displayName",
+                        "value": "ask1_vol (neg)"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-cf": {
+        "kind": "Panel",
+        "spec": {
+          "id": 20,
+          "title": "Would waiting help? \u00b7 ask \u2264 intended_buy",
+          "description": "HOW TO READ: Purple = signal intended_buy. Red = live L1 ask. Dashed dark-red = aggressive limit (ask\u00d7(1+buy_slippage_bps)). Green bars (right axis) = L1 ask size ONLY when ask \u2264 intended (passive fill was possible). If ask stays above purple and green never appears \u2192 waiting would NOT get you filled at intended; you needed to cross or abandon. If green bars appear later \u2192 a patient limit at intended could have filled.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "questdb-questdb-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "df3b4brg6ejggc"
+                      },
+                      "spec": {
+                        "format": 1,
+                        "meta": {
+                          "builderOptions": {
+                            "fields": [],
+                            "limit": "",
+                            "mode": "list",
+                            "timeField": ""
+                          }
+                        },
+                        "queryType": "sql",
+                        "rawSql": "WITH ob AS (\n  SELECT timestamp AS time,\n    avg(CASE WHEN side='ask' AND level='1' THEN price END) AS ask1,\n    avg(CASE WHEN side='ask' AND level='1' THEN volume END) AS ask1_vol\n  FROM orderbook_historical\n  WHERE symbol = '${isin_buy}'\n    AND is_deleted = false\n    AND timestamp BETWEEN '${win_from}' AND '${win_to}'\n    AND hour(timestamp) >= 12 AND hour(timestamp) < 18\n  SAMPLE BY ${bucket} ALIGN TO CALENDAR\n)\nSELECT time,\n  ask1,\n  ask1 * (1.0 + ${buy_slippage_bps} / 10000.0) AS aggressive_buy,\n  ${intended_buy} AS intended_buy,\n  CASE WHEN ask1 <= ${intended_buy} THEN ask1_vol ELSE NULL END AS passive_vol\nFROM ob;",
+                        "selectedFormat": 2
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.0.1+security-01",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "lineWidth": 2,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "lineInterpolation": "linear",
+                    "axisPlacement": "auto",
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      }
+                    ]
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "intended_buy"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dash",
+                          "dash": [
+                            8,
+                            4
+                          ]
+                        }
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "purple",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "aggressive_buy"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dash",
+                          "dash": [
+                            2,
+                            4
+                          ]
+                        }
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "semi-dark-red",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "passive_vol"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.drawStyle",
+                        "value": "bars"
+                      },
+                      {
+                        "id": "custom.fillOpacity",
+                        "value": 60
+                      },
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "green",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "ask1"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "red",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-slip": {
+        "kind": "Panel",
+        "spec": {
+          "id": 21,
+          "title": "Rotation slippage breakdown",
+          "description": "Stored rotation fields. buy_slip mixes wait+cross+impact; use depth/CF panels to unbundle.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "SELECT\n  r.id AS rotation_id,\n  r.status,\n  r.prev_symbol || ' \u2192 ' || r.new_symbol AS legs,\n  r.intended_sell_price,\n  r.sell_vwap,\n  ROUND((r.sell_slippage * 10000)::numeric, 2) AS sell_slip_bps,\n  r.intended_buy_price,\n  r.buy_vwap,\n  ROUND((r.buy_slippage * 10000)::numeric, 2) AS buy_slip_bps,\n  ROUND(r.latency_sec::numeric, 1) AS latency_sec,\n  ROUND(r.last_edge::numeric, 6) AS last_edge,\n  ROUND(r.realized_edge::numeric, 6) AS realized_edge,\n  ROUND(r.transition_score::numeric, 6) AS expected_edge,\n  (ts AT TIME ZONE 'Asia/Tehran') AS tehran_ts\nFROM pair_trade.rotation r\nWHERE r.id = ${rotation};"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "13.0.1+security-01",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "showHeader": true
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "inspect": false
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-scatter": {
+        "kind": "Panel",
+        "spec": {
+          "id": 22,
+          "title": "Session \u00b7 latency vs buy slip",
+          "description": "Non-cash rotations with buy fill. Sort/scan for slow+expensive outliers.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "SELECT\n  COALESCE(r.latency_sec, 0)::float8 AS latency_sec,\n  (r.buy_slippage * 10000)::float8 AS buy_slip_bps,\n  r.status\nFROM pair_trade.rotation r\nWHERE r.session_id IN (${session})\n  AND r.prev_symbol <> 'CASH'\n  AND r.buy_slippage IS NOT NULL;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "13.0.1+security-01",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "showHeader": true,
+                "sortBy": [
+                  {
+                    "desc": true,
+                    "displayName": "buy_slip_bps"
+                  }
+                ]
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "inspect": false
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-rots": {
+        "kind": "Panel",
+        "spec": {
+          "id": 23,
+          "title": "Session rotations",
+          "description": "Pick a row's id in the Rotation variable. Tehran wall clock.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "afz4am1a4lywwf"
+                      },
+                      "spec": {
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "SELECT\n  r.id,\n  (ts AT TIME ZONE 'Asia/Tehran') AS tehran_ts,\n  r.prev_symbol,\n  r.new_symbol,\n  r.status,\n  ROUND((r.sell_slippage * 10000)::numeric, 2) AS sell_slip_bps,\n  ROUND((r.buy_slippage * 10000)::numeric, 2) AS buy_slip_bps,\n  ROUND(r.latency_sec::numeric, 1) AS latency_sec,\n  ROUND(r.intended_buy_price::numeric, 0) AS intended_buy,\n  ROUND(r.buy_vwap::numeric, 0) AS buy_vwap\nFROM pair_trade.rotation r\nWHERE r.session_id IN (${session})\nORDER BY r.ts DESC\nLIMIT 100;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "13.0.1+security-01",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "showHeader": true,
+                "sortBy": [
+                  {
+                    "desc": true,
+                    "displayName": "tehran_ts"
+                  }
+                ]
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "inspect": false
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      }
+    },
+    "layout": {
+      "kind": "GridLayout",
+      "spec": {
+        "items": [
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 0,
+              "width": 24,
+              "height": 4,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-kpi"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 4,
+              "width": 12,
+              "height": 10,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-sell-depth"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 12,
+              "y": 4,
+              "width": 12,
+              "height": 10,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-buy-depth"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 14,
+              "width": 12,
+              "height": 6,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-sell-vol"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 12,
+              "y": 14,
+              "width": 12,
+              "height": 6,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-buy-vol"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 20,
+              "width": 16,
+              "height": 9,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-cf"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 16,
+              "y": 20,
+              "width": 8,
+              "height": 9,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-slip"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 29,
+              "width": 10,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-scatter"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 10,
+              "y": 29,
+              "width": 14,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-rots"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,2573 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Gold ETF basket: mark-to-mid P&L (% + M IRT), equal-weight mid indexes (All / Top5) and portfolio excess vs those benchmarks, portfolio weights, signal edges, rotation execution quality (expected/last/realized/realized_net edge, fees, slippage, latency).",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Latest session mark-to-mid P&L from portfolio_snapshot, in million IRT (IRR / 1e7). Green if \u2265 0.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "red"
+              },
+              {
+                "value": 0,
+                "color": "green"
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "links": [],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT pnl / 1e7 AS pnl_m_irt FROM pair_trade.portfolio_snapshot WHERE session_id = $session ORDER BY ts DESC LIMIT 1;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "P&L (M IRT)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Latest P&L as % of session start NAV: 100 * pnl / start_value (first portfolio_snapshot of the session).",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "red"
+              },
+              {
+                "value": 0,
+                "color": "green"
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 3,
+        "y": 0
+      },
+      "id": 101,
+      "links": [],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH start_nav AS (SELECT portfolio_value AS v FROM pair_trade.portfolio_snapshot WHERE session_id = $session ORDER BY ts ASC LIMIT 1), latest AS (SELECT pnl FROM pair_trade.portfolio_snapshot WHERE session_id = $session ORDER BY ts DESC LIMIT 1) SELECT 100.0 * latest.pnl / NULLIF(start_nav.v, 0) AS pnl_pct FROM latest, start_nav;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "P&L (%)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Latest mark-to-mid NAV from portfolio_snapshot only (IRR / 1e7).",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "blue"
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 6,
+        "y": 0
+      },
+      "id": 2,
+      "links": [],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT portfolio_value / 1e7 AS portfolio_m_irt FROM pair_trade.portfolio_snapshot WHERE session_id = $session ORDER BY ts DESC LIMIT 1;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Portfolio value (M IRT)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Count of rotation rows with status \u2260 buy_complete (in-flight started/sell_complete/buy_partial, failed/cancelled, or unfinished cash_collector). High means stuck or unfinished legs.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "green"
+              },
+              {
+                "value": 1,
+                "color": "yellow"
+              },
+              {
+                "value": 3,
+                "color": "red"
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 9,
+        "y": 0
+      },
+      "id": 3,
+      "links": [],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) AS incomplete FROM pair_trade.rotation WHERE session_id = $session AND status <> 'buy_complete';",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Incomplete rotations",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Among sell\u2192buy rotations only (excludes cash_collector / prev_symbol=CASH): 100 \u00d7 count(status=buy_complete) / count(*). Measures how often both legs finish.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "red"
+              },
+              {
+                "value": 50,
+                "color": "yellow"
+              },
+              {
+                "value": 80,
+                "color": "green"
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 0
+      },
+      "id": 4,
+      "links": [],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT CASE WHEN COUNT(*) = 0 THEN 0 ELSE 100.0 * SUM(CASE WHEN status = 'buy_complete' THEN 1 ELSE 0 END) / COUNT(*) END AS complete_rate FROM pair_trade.rotation WHERE session_id = $session AND prev_symbol <> 'CASH';",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Rotation complete %",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Sum(quote_earned \u2212 quote_spent) for sell\u2192buy only; cash_collector excluded. Cash flow through rotations, not true mark-to-mid P&L.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "red"
+              },
+              {
+                "value": 0,
+                "color": "green"
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 0
+      },
+      "id": 5,
+      "links": [],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(SUM(quote_earned - quote_spent), 0) / 1e7 AS net_cash_m_irt FROM pair_trade.rotation WHERE session_id = $session AND prev_symbol <> 'CASH';",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Net rotation cash (M IRT)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Total fill events this session (rotations + cash-collector), linked via rotation_id when applicable.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "purple"
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 0
+      },
+      "id": 6,
+      "links": [],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) AS fills FROM pair_trade.fill WHERE session_id = $session;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Fills",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Mark-to-mid P&L over time in million IRT (portfolio_snapshot.pnl / 1e7).",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 4
+      },
+      "id": 10,
+      "links": [],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT ts AS time, pnl / 1e7 AS \"P&L M IRT\" FROM pair_trade.portfolio_snapshot WHERE session_id = $session AND $__timeFilter(ts) ORDER BY ts;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Portfolio P&L vs session start (M IRT)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "100 * pnl / session_start_NAV over time. Start NAV = first portfolio_snapshot.portfolio_value for the session.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 4
+      },
+      "id": 110,
+      "links": [],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH start_nav AS (SELECT portfolio_value AS v FROM pair_trade.portfolio_snapshot WHERE session_id = $session ORDER BY ts ASC LIMIT 1) SELECT p.ts AS time, 100.0 * p.pnl / NULLIF(s.v, 0) AS \"P&L %\" FROM pair_trade.portfolio_snapshot p CROSS JOIN start_nav s WHERE p.session_id = $session AND $__timeFilter(p.ts) ORDER BY p.ts;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Portfolio P&L vs session start (%)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Mark-to-mid NAV over time from portfolio_snapshot (IRR / 1e7).",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 4
+      },
+      "id": 11,
+      "links": [],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT ts AS time, portfolio_value / 1e7 AS \"Portfolio M IRT\" FROM pair_trade.portfolio_snapshot WHERE session_id = $session AND $__timeFilter(ts) ORDER BY ts;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Portfolio value (M IRT)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Portfolio P&L % (vs session-start NAV) alongside equal-weight mid-price indexes. All = every symbol in the session; Top5 = \u0639\u06cc\u0627\u0631\u060c \u0637\u0644\u0627\u060c \u06a9\u0647\u0631\u0628\u0627\u060c \u06af\u0646\u062c\u060c \u0645\u062b\u0642\u0627\u0644. Index: 100*(mid_ffill / first_mid - 1); missing mids forward-filled. Portfolio aligned to each signal bin via last portfolio_snapshot.ts \u2264 bin_ts.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "unit": "percent"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Portfolio %"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "All index %"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Top5 index %"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "id": 111,
+      "links": [],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH \nraw AS (\n  SELECT bin_ts, symbol, mid_price\n  FROM pair_trade.signal_snapshot\n  WHERE session_id = $session\n),\nall_bins AS (SELECT DISTINCT bin_ts FROM raw),\nall_syms AS (SELECT DISTINCT symbol FROM raw),\ngrid AS (\n  SELECT b.bin_ts, s.symbol FROM all_bins b CROSS JOIN all_syms s\n),\njoined AS (\n  SELECT g.bin_ts, g.symbol, r.mid_price\n  FROM grid g\n  LEFT JOIN raw r ON r.bin_ts = g.bin_ts AND r.symbol = g.symbol\n),\ngrp AS (\n  SELECT bin_ts, symbol, mid_price,\n         COUNT(mid_price) OVER (PARTITION BY symbol ORDER BY bin_ts) AS grp\n  FROM joined\n),\nfilled AS (\n  SELECT bin_ts, symbol,\n         first_value(mid_price) OVER (\n           PARTITION BY symbol, grp ORDER BY bin_ts\n         ) AS mid_price\n  FROM grp\n  WHERE grp > 0\n),\nsym_start AS (\n  SELECT DISTINCT ON (symbol) symbol, mid_price AS m0\n  FROM filled\n  WHERE mid_price IS NOT NULL\n  ORDER BY symbol, bin_ts\n), idx AS (SELECT f.bin_ts AS time, AVG(100.0 * (f.mid_price / NULLIF(ss.m0, 0) - 1)) AS index_pct FROM filled f JOIN sym_start ss ON ss.symbol = f.symbol WHERE f.mid_price IS NOT NULL  AND $__timeFilter(f.bin_ts) GROUP BY f.bin_ts), start_nav AS (SELECT portfolio_value AS v FROM pair_trade.portfolio_snapshot WHERE session_id = $session ORDER BY ts ASC LIMIT 1), port AS (SELECT p.ts, 100.0 * p.pnl / NULLIF(sn.v, 0) AS port_pct FROM pair_trade.portfolio_snapshot p CROSS JOIN start_nav sn WHERE p.session_id = $session) SELECT i.time, lat.port_pct AS \"Portfolio %\" FROM idx i JOIN LATERAL (SELECT p.port_pct FROM port p WHERE p.ts <= i.time ORDER BY p.ts DESC LIMIT 1) lat ON TRUE ORDER BY i.time;",
+          "editorMode": "code"
+        },
+        {
+          "refId": "B",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH \nraw AS (\n  SELECT bin_ts, symbol, mid_price\n  FROM pair_trade.signal_snapshot\n  WHERE session_id = $session\n),\nall_bins AS (SELECT DISTINCT bin_ts FROM raw),\nall_syms AS (SELECT DISTINCT symbol FROM raw),\ngrid AS (\n  SELECT b.bin_ts, s.symbol FROM all_bins b CROSS JOIN all_syms s\n),\njoined AS (\n  SELECT g.bin_ts, g.symbol, r.mid_price\n  FROM grid g\n  LEFT JOIN raw r ON r.bin_ts = g.bin_ts AND r.symbol = g.symbol\n),\ngrp AS (\n  SELECT bin_ts, symbol, mid_price,\n         COUNT(mid_price) OVER (PARTITION BY symbol ORDER BY bin_ts) AS grp\n  FROM joined\n),\nfilled AS (\n  SELECT bin_ts, symbol,\n         first_value(mid_price) OVER (\n           PARTITION BY symbol, grp ORDER BY bin_ts\n         ) AS mid_price\n  FROM grp\n  WHERE grp > 0\n),\nsym_start AS (\n  SELECT DISTINCT ON (symbol) symbol, mid_price AS m0\n  FROM filled\n  WHERE mid_price IS NOT NULL\n  ORDER BY symbol, bin_ts\n), idx AS (SELECT f.bin_ts AS time, AVG(100.0 * (f.mid_price / NULLIF(ss.m0, 0) - 1)) AS index_pct FROM filled f JOIN sym_start ss ON ss.symbol = f.symbol WHERE f.mid_price IS NOT NULL  AND $__timeFilter(f.bin_ts) GROUP BY f.bin_ts) SELECT time, index_pct AS \"All index %\" FROM idx ORDER BY time;",
+          "editorMode": "code"
+        },
+        {
+          "refId": "C",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH \nraw AS (\n  SELECT bin_ts, symbol, mid_price\n  FROM pair_trade.signal_snapshot\n  WHERE session_id = $session\n),\nall_bins AS (SELECT DISTINCT bin_ts FROM raw),\nall_syms AS (SELECT DISTINCT symbol FROM raw),\ngrid AS (\n  SELECT b.bin_ts, s.symbol FROM all_bins b CROSS JOIN all_syms s\n),\njoined AS (\n  SELECT g.bin_ts, g.symbol, r.mid_price\n  FROM grid g\n  LEFT JOIN raw r ON r.bin_ts = g.bin_ts AND r.symbol = g.symbol\n),\ngrp AS (\n  SELECT bin_ts, symbol, mid_price,\n         COUNT(mid_price) OVER (PARTITION BY symbol ORDER BY bin_ts) AS grp\n  FROM joined\n),\nfilled AS (\n  SELECT bin_ts, symbol,\n         first_value(mid_price) OVER (\n           PARTITION BY symbol, grp ORDER BY bin_ts\n         ) AS mid_price\n  FROM grp\n  WHERE grp > 0\n),\nsym_start AS (\n  SELECT DISTINCT ON (symbol) symbol, mid_price AS m0\n  FROM filled\n  WHERE mid_price IS NOT NULL\n  ORDER BY symbol, bin_ts\n), idx AS (SELECT f.bin_ts AS time, AVG(100.0 * (f.mid_price / NULLIF(ss.m0, 0) - 1)) AS index_pct FROM filled f JOIN sym_start ss ON ss.symbol = f.symbol WHERE f.mid_price IS NOT NULL AND f.symbol IN ('\u0639\u06cc\u0627\u0631', '\u0637\u0644\u0627', '\u06a9\u0647\u0631\u0628\u0627', '\u06af\u0646\u062c', '\u0645\u062b\u0642\u0627\u0644') AND $__timeFilter(f.bin_ts) GROUP BY f.bin_ts) SELECT time, index_pct AS \"Top5 index %\" FROM idx ORDER BY time;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Portfolio return vs benchmark indexes (%)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Portfolio P&L % (vs session-start NAV) minus each equal-weight mid index %. Portfolio aligned to each signal bin via last portfolio_snapshot.ts \u2264 bin_ts. Positive = outperforming that benchmark since session start. Colors match All/Top5 on the panel to the left.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "unit": "percent"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Excess vs All %"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Excess vs Top5 %"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "id": 113,
+      "links": [],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH \nraw AS (\n  SELECT bin_ts, symbol, mid_price\n  FROM pair_trade.signal_snapshot\n  WHERE session_id = $session\n),\nall_bins AS (SELECT DISTINCT bin_ts FROM raw),\nall_syms AS (SELECT DISTINCT symbol FROM raw),\ngrid AS (\n  SELECT b.bin_ts, s.symbol FROM all_bins b CROSS JOIN all_syms s\n),\njoined AS (\n  SELECT g.bin_ts, g.symbol, r.mid_price\n  FROM grid g\n  LEFT JOIN raw r ON r.bin_ts = g.bin_ts AND r.symbol = g.symbol\n),\ngrp AS (\n  SELECT bin_ts, symbol, mid_price,\n         COUNT(mid_price) OVER (PARTITION BY symbol ORDER BY bin_ts) AS grp\n  FROM joined\n),\nfilled AS (\n  SELECT bin_ts, symbol,\n         first_value(mid_price) OVER (\n           PARTITION BY symbol, grp ORDER BY bin_ts\n         ) AS mid_price\n  FROM grp\n  WHERE grp > 0\n),\nsym_start AS (\n  SELECT DISTINCT ON (symbol) symbol, mid_price AS m0\n  FROM filled\n  WHERE mid_price IS NOT NULL\n  ORDER BY symbol, bin_ts\n), idx AS (SELECT f.bin_ts AS time, AVG(100.0 * (f.mid_price / NULLIF(ss.m0, 0) - 1)) AS index_pct FROM filled f JOIN sym_start ss ON ss.symbol = f.symbol WHERE f.mid_price IS NOT NULL  AND $__timeFilter(f.bin_ts) GROUP BY f.bin_ts), start_nav AS (SELECT portfolio_value AS v FROM pair_trade.portfolio_snapshot WHERE session_id = $session ORDER BY ts ASC LIMIT 1), port AS (SELECT p.ts, 100.0 * p.pnl / NULLIF(sn.v, 0) AS port_pct FROM pair_trade.portfolio_snapshot p CROSS JOIN start_nav sn WHERE p.session_id = $session) SELECT i.time, lat.port_pct - i.index_pct AS \"Excess vs All %\" FROM idx i JOIN LATERAL (SELECT p.port_pct FROM port p WHERE p.ts <= i.time ORDER BY p.ts DESC LIMIT 1) lat ON TRUE ORDER BY i.time;",
+          "editorMode": "code"
+        },
+        {
+          "refId": "B",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH \nraw AS (\n  SELECT bin_ts, symbol, mid_price\n  FROM pair_trade.signal_snapshot\n  WHERE session_id = $session\n),\nall_bins AS (SELECT DISTINCT bin_ts FROM raw),\nall_syms AS (SELECT DISTINCT symbol FROM raw),\ngrid AS (\n  SELECT b.bin_ts, s.symbol FROM all_bins b CROSS JOIN all_syms s\n),\njoined AS (\n  SELECT g.bin_ts, g.symbol, r.mid_price\n  FROM grid g\n  LEFT JOIN raw r ON r.bin_ts = g.bin_ts AND r.symbol = g.symbol\n),\ngrp AS (\n  SELECT bin_ts, symbol, mid_price,\n         COUNT(mid_price) OVER (PARTITION BY symbol ORDER BY bin_ts) AS grp\n  FROM joined\n),\nfilled AS (\n  SELECT bin_ts, symbol,\n         first_value(mid_price) OVER (\n           PARTITION BY symbol, grp ORDER BY bin_ts\n         ) AS mid_price\n  FROM grp\n  WHERE grp > 0\n),\nsym_start AS (\n  SELECT DISTINCT ON (symbol) symbol, mid_price AS m0\n  FROM filled\n  WHERE mid_price IS NOT NULL\n  ORDER BY symbol, bin_ts\n), idx AS (SELECT f.bin_ts AS time, AVG(100.0 * (f.mid_price / NULLIF(ss.m0, 0) - 1)) AS index_pct FROM filled f JOIN sym_start ss ON ss.symbol = f.symbol WHERE f.mid_price IS NOT NULL AND f.symbol IN ('\u0639\u06cc\u0627\u0631', '\u0637\u0644\u0627', '\u06a9\u0647\u0631\u0628\u0627', '\u06af\u0646\u062c', '\u0645\u062b\u0642\u0627\u0644') AND $__timeFilter(f.bin_ts) GROUP BY f.bin_ts), start_nav AS (SELECT portfolio_value AS v FROM pair_trade.portfolio_snapshot WHERE session_id = $session ORDER BY ts ASC LIMIT 1), port AS (SELECT p.ts, 100.0 * p.pnl / NULLIF(sn.v, 0) AS port_pct FROM pair_trade.portfolio_snapshot p CROSS JOIN start_nav sn WHERE p.session_id = $session) SELECT i.time, lat.port_pct - i.index_pct AS \"Excess vs Top5 %\" FROM idx i JOIN LATERAL (SELECT p.port_pct FROM port p WHERE p.ts <= i.time ORDER BY p.ts DESC LIMIT 1) lat ON TRUE ORDER BY i.time;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Portfolio excess return vs indexes (%)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Share of mark-to-mid NAV per asset over time. IRR = cash; ETF bases valued as units \u00d7 mid from portfolio_snapshot.marks. Stacked area \u2248 100% composition.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 40,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            }
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 0,
+        "y": 20
+      },
+      "id": 12,
+      "links": [],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT b.ts AS time, 100.0 * CASE WHEN b.asset = 'IRR' THEN b.total ELSE b.total * COALESCE((SELECT kv.value::numeric FROM jsonb_each_text(p.marks) AS kv(key, value) WHERE kv.key LIKE b.asset || '-%' LIMIT 1), 0) END / NULLIF(p.portfolio_value, 0) AS value, b.asset AS metric FROM pair_trade.balance_snapshot b JOIN pair_trade.portfolio_snapshot p ON p.session_id = b.session_id AND p.ts = b.ts WHERE b.session_id = $session AND $__timeFilter(b.ts) ORDER BY b.ts;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Portfolio weights by asset (%)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Pie of latest asset weights by mark-to-mid value (same valuation as weights chart). Cash = IRR. One slice per asset (time_series + metric); legend shows asset name, value %, and share.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "unit": "percent",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 20
+      },
+      "id": 112,
+      "links": [],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "sort": "desc",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "displayLabels": [
+          "name",
+          "percent"
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH latest AS (SELECT MAX(ts) AS ts FROM pair_trade.portfolio_snapshot WHERE session_id = $session), p AS (SELECT ts, portfolio_value, marks FROM pair_trade.portfolio_snapshot WHERE session_id = $session AND ts = (SELECT ts FROM latest)), b AS (SELECT asset, SUM(total) AS total FROM pair_trade.balance_snapshot WHERE session_id = $session AND ts = (SELECT ts FROM latest) GROUP BY asset), valued AS (SELECT p.ts AS time, b.asset AS metric, 100.0 * CASE WHEN b.asset = 'IRR' THEN b.total ELSE b.total * COALESCE((SELECT kv.value::numeric FROM jsonb_each_text(p.marks) AS kv(key, value) WHERE kv.key = b.asset || '-IRR' OR kv.key LIKE b.asset || '-%' LIMIT 1), 0) END / NULLIF(p.portfolio_value, 0) AS value FROM b CROSS JOIN p) SELECT time, value, metric FROM valued WHERE value > 0 ORDER BY value DESC;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Latest portfolio composition (%)",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Free IRR cash from basket_snapshot (M IRT) and open strategy order count.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pending orders"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cash M IRT"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "id": 13,
+      "links": [],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT ts AS time, quote_balance / 1e7 AS \"Cash M IRT\" FROM pair_trade.basket_snapshot WHERE session_id = $session AND $__timeFilter(ts) ORDER BY ts;",
+          "editorMode": "code"
+        },
+        {
+          "refId": "B",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT ts AS time, pending_order_count AS \"Pending orders\" FROM pair_trade.basket_snapshot WHERE session_id = $session AND $__timeFilter(ts) ORDER BY ts;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Quote balance & pending orders",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Number of symbols with positive position in basket_snapshot.symbols (jsonb_array_length).",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
+      "id": 14,
+      "links": [],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT ts AS time, jsonb_array_length(symbols) AS \"Held ETFs\" FROM pair_trade.basket_snapshot WHERE session_id = $session AND $__timeFilter(ts) ORDER BY ts;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Held ETF count",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Cash-collector target: argmin(ret + ba_spread), refreshed on snapshots/ticks.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 36
+      },
+      "id": 15,
+      "links": [],
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ts, lowest_ret_symbol FROM pair_trade.basket_snapshot WHERE session_id = $session AND lowest_ret_symbol IS NOT NULL AND $__timeFilter(ts) ORDER BY ts DESC LIMIT 100;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Lowest-ret symbol (cash target)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Primary signal: EWM log-mid residual (signal_snapshot.ret). Positive = rich vs own EWM; negative = cheap. Rotations sell high ret, buy low ret.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 4,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 42
+      },
+      "id": 20,
+      "links": [],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT bin_ts AS time, ret AS value, symbol AS metric FROM pair_trade.signal_snapshot WHERE session_id = $session AND $__timeFilter(bin_ts) ORDER BY bin_ts;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Return signal by symbol",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "For each bin_ts: ret \u2212 mean(ret across symbols). Highlights relative richness/cheapness vs the basket average that tick.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 4,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 42
+      },
+      "id": 120,
+      "links": [],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT bin_ts AS time, ret - AVG(ret) OVER (PARTITION BY bin_ts) AS value, symbol AS metric FROM pair_trade.signal_snapshot WHERE session_id = $session AND ret IS NOT NULL AND $__timeFilter(bin_ts) ORDER BY bin_ts;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Return signal demeaned (cross-section)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Relative BA cost: mean((ask\u2212bid)/mid) over the freq bin, displayed as percent (\u00d7100).",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 50
+      },
+      "id": 21,
+      "links": [],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT bin_ts AS time, ba_spread * 100 AS value, symbol AS metric FROM pair_trade.signal_snapshot WHERE session_id = $session AND $__timeFilter(bin_ts) ORDER BY bin_ts;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Bid-ask spread % by symbol",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Latest freq bin. Ordered by ret+ba_spread ASC (cash-collector target at top). Prices in M IRT.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 50
+      },
+      "id": 22,
+      "links": [],
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "ret_plus_spread"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT s.symbol, s.ret, s.ba_spread, s.mid_price / 1e7 AS mid_m_irt, s.ret_ask, s.ret_bid, s.ask_price / 1e7 AS ask_m_irt, s.bid_price / 1e7 AS bid_m_irt, (s.ret + s.ba_spread) AS ret_plus_spread, s.bin_ts FROM pair_trade.signal_snapshot s WHERE s.session_id = $session AND s.bin_ts = (SELECT MAX(bin_ts) FROM pair_trade.signal_snapshot WHERE session_id = $session) ORDER BY s.ret + s.ba_spread ASC NULLS LAST;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Latest signals (all symbols)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Sell\u2192buy only. expected=transition_score; last=ret_bid[prev]\u2212ret_ask[new]; realized=fill VWAPs (pre-fee); realized_net=fee-adjusted VWAPs. Log units \u00d710000 \u2248 bps. Negatives OK.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "lineWidth": 1,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 58
+      },
+      "id": 41,
+      "links": [],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT ts AS time, transition_score * 10000 AS value, 'expected' AS metric FROM pair_trade.rotation WHERE session_id = $session AND prev_symbol <> 'CASH' AND transition_score IS NOT NULL AND $__timeFilter(ts) UNION ALL SELECT ts, last_edge * 10000, 'last' FROM pair_trade.rotation WHERE session_id = $session AND prev_symbol <> 'CASH' AND last_edge IS NOT NULL AND $__timeFilter(ts) UNION ALL SELECT ts, realized_edge * 10000, 'realized' FROM pair_trade.rotation WHERE session_id = $session AND prev_symbol <> 'CASH' AND realized_edge IS NOT NULL AND $__timeFilter(ts) UNION ALL SELECT ts, realized_edge_net * 10000, 'realized_net' FROM pair_trade.rotation WHERE session_id = $session AND prev_symbol <> 'CASH' AND realized_edge_net IS NOT NULL AND $__timeFilter(ts) ORDER BY 1;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Rotation edges (bps)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Sell\u2192buy only. sell_slippage=log(sell_vwap/intended_sell); buy_slippage=log(buy_vwap/intended_buy). \u00d710000 \u2248 bps. Sell neg=worse; buy pos=worse.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "lineWidth": 1,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 58
+      },
+      "id": 42,
+      "links": [],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT ts AS time, sell_slippage * 10000 AS value, 'sell_slippage_bps' AS metric FROM pair_trade.rotation WHERE session_id = $session AND prev_symbol <> 'CASH' AND sell_slippage IS NOT NULL AND $__timeFilter(ts) UNION ALL SELECT ts, buy_slippage * 10000, 'buy_slippage_bps' FROM pair_trade.rotation WHERE session_id = $session AND prev_symbol <> 'CASH' AND buy_slippage IS NOT NULL AND $__timeFilter(ts) ORDER BY 1;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Buy / sell slippage (bps)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Seconds from rotation start (sell placed) to buy_complete for sell\u2192buy rotations.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "lineWidth": 1,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 66
+      },
+      "id": 43,
+      "links": [],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT ts AS time, latency_sec AS \"latency_sec\", prev_symbol || '\u2192' || new_symbol AS metric FROM pair_trade.rotation WHERE session_id = $session AND prev_symbol <> 'CASH' AND latency_sec IS NOT NULL AND $__timeFilter(ts) ORDER BY ts;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Rotation latency (sec)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Running sum of realized_edge (pre-fee) and realized_edge_net (post-fee) for sell\u2192buy (\u00d710000 \u2248 bps). Gap between series \u2248 cumulative fee drag in edge space.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 66
+      },
+      "id": 44,
+      "links": [],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT ts AS time, SUM(realized_edge) OVER (ORDER BY ts) * 10000 AS \"cum realized bps\" FROM pair_trade.rotation WHERE session_id = $session AND prev_symbol <> 'CASH' AND realized_edge IS NOT NULL AND $__timeFilter(ts) ORDER BY ts;",
+          "editorMode": "code"
+        },
+        {
+          "refId": "B",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT ts AS time, SUM(realized_edge_net) OVER (ORDER BY ts) * 10000 AS \"cum realized_net bps\" FROM pair_trade.rotation WHERE session_id = $session AND prev_symbol <> 'CASH' AND realized_edge_net IS NOT NULL AND $__timeFilter(ts) ORDER BY ts;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Cumulative realized edge (bps)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Distribution of rotation.status including cash_collector.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 73
+      },
+      "id": 30,
+      "links": [],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "sort": "desc",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "displayLabels": [
+          "name",
+          "percent"
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT NOW() AS time, COUNT(*)::float AS value, status AS metric FROM pair_trade.rotation WHERE session_id = $session GROUP BY status ORDER BY value DESC;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Rotation status",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Sell\u2192buy expected_edge = ret_prev\u2212ret_new\u2212ba_prev\u2212ba_new, shown \u00d7100.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 73
+      },
+      "id": 31,
+      "links": [],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT ts AS time, transition_score * 100 AS \"Score %\", prev_symbol || '->' || new_symbol AS metric FROM pair_trade.rotation WHERE session_id = $session AND prev_symbol <> 'CASH' AND transition_score IS NOT NULL AND $__timeFilter(ts) ORDER BY ts;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Expected edge (transition_score) \u00d7100",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Cumulative quote_earned / quote_spent for sell\u2192buy only (cash_collector excluded).",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 73
+      },
+      "id": 32,
+      "links": [],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT ts AS time, SUM(quote_earned) OVER (ORDER BY ts) / 1e7 AS \"Earned M IRT\" FROM pair_trade.rotation WHERE session_id = $session AND prev_symbol <> 'CASH' AND $__timeFilter(ts) ORDER BY ts;",
+          "editorMode": "code"
+        },
+        {
+          "refId": "B",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT ts AS time, SUM(quote_spent) OVER (ORDER BY ts) / 1e7 AS \"Spent M IRT\" FROM pair_trade.rotation WHERE session_id = $session AND prev_symbol <> 'CASH' AND $__timeFilter(ts) ORDER BY ts;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Cumulative rotation cash (M IRT)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Includes cash_collector (prev_symbol=CASH). Edges (incl. realized_edge_net) and fees_m_irt for debugging.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 81
+      },
+      "id": 33,
+      "links": [],
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "ts"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ts, CASE WHEN prev_symbol = 'CASH' THEN 'cash_collector' ELSE 'rotation' END AS kind, prev_symbol, new_symbol, status, transition_score, last_edge, realized_edge, realized_edge_net, sell_slippage, buy_slippage, latency_sec, transition_value / 1e7 AS transition_value_m_irt, quote_earned / 1e7 AS earned_m_irt, quote_spent / 1e7 AS spent_m_irt, total_fee_quote / 1e7 AS fees_m_irt, sell_order_id FROM pair_trade.rotation WHERE session_id = $session ORDER BY ts DESC LIMIT 50;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Recent rotations",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Aggregated fills by side/pair. fee_quote includes percent fees. Notional/fees in M IRT.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 81
+      },
+      "id": 34,
+      "links": [],
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT side, trading_pair, COUNT(*) AS fills, ROUND(SUM(amount)::numeric, 6) AS base_volume, ROUND((SUM(amount * price) / 1e7)::numeric, 2) AS notional_m_irt, ROUND((SUM(fee_quote) / 1e7)::numeric, 4) AS fees_m_irt, COUNT(*) FILTER (WHERE rotation_id IS NULL) AS unlinked_fills FROM pair_trade.fill WHERE session_id = $session GROUP BY side, trading_pair ORDER BY notional_m_irt DESC;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Fill volume by side",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Running sum of amount\u00d7price by side (M IRT).",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 89
+      },
+      "id": 35,
+      "links": [],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT ts AS time, SUM(amount * price) OVER (PARTITION BY side ORDER BY ts) / 1e7 AS value, side || ' M IRT' AS metric FROM pair_trade.fill WHERE session_id = $session AND $__timeFilter(ts) ORDER BY ts;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Cumulative fill notional (M IRT)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Cumulative quote_spent for cash_collector rotations (prev_symbol=CASH).",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 89
+      },
+      "id": 39,
+      "links": [],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT ts AS time, SUM(quote_spent) OVER (ORDER BY ts) / 1e7 AS \"CC spent M IRT\" FROM pair_trade.rotation WHERE session_id = $session AND prev_symbol = 'CASH' AND $__timeFilter(ts) ORDER BY ts;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Cash-collector spend (M IRT)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Running sum of fills.fee_quote (percent + flat) in M IRT. Includes rotation fills and cash-collector / unlinked fills \u2014 full session fee spend from the exchange.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 4,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 89
+      },
+      "id": 40,
+      "links": [],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT ts AS time, SUM(fee_quote) OVER (ORDER BY ts) / 1e7 AS \"Fees M IRT\" FROM pair_trade.fill WHERE session_id = $session AND $__timeFilter(ts) ORDER BY ts;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Cumulative fees (M IRT)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Counts of event_log types (timeouts, skips, checkpoints, \u2026).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 0,
+        "y": 96
+      },
+      "id": 36,
+      "links": [],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "sort": "desc",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "displayLabels": [
+          "name",
+          "percent"
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT event_type, COUNT(*) AS value FROM pair_trade.event_log WHERE session_id = $session GROUP BY event_type ORDER BY value DESC;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Event types (health)",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Latest event_log rows for ops debugging.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 6,
+        "y": 96
+      },
+      "id": 37,
+      "links": [],
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ts, level, event_type, payload FROM pair_trade.event_log WHERE session_id = $session ORDER BY ts DESC LIMIT 50;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Recent events",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "bfyiyvnl0701sa"
+      },
+      "description": "Latest total/available per asset. Prefer weight/composition panels for value view; this keeps raw units.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 96
+      },
+      "id": 38,
+      "links": [],
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "hide": false,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "bfyiyvnl0701sa"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT DISTINCT ON (exchange, asset) exchange, asset, CASE WHEN asset = 'IRR' THEN total / 1e7 ELSE total END AS total, CASE WHEN asset = 'IRR' THEN available / 1e7 ELSE available END AS available, CASE WHEN asset = 'IRR' THEN 'M IRT' ELSE 'units' END AS unit, ts FROM pair_trade.balance_snapshot WHERE session_id = $session ORDER BY exchange, asset, ts DESC;",
+          "editorMode": "code"
+        }
+      ],
+      "title": "Latest balances",
+      "type": "table"
+    }
+  ],
+  "preload": false,
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [
+    "hummingbot",
+    "pair-trade",
+    "mobin",
+    "gold-etf",
+    "v3"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "strategy",
+        "label": "Strategy",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "bfyiyvnl0701sa"
+        },
+        "query": "SELECT name AS __text, name AS __value FROM pair_trade.strategy ORDER BY name;",
+        "definition": "SELECT name AS __text, name AS __value FROM pair_trade.strategy ORDER BY name;",
+        "regex": "",
+        "refresh": 1,
+        "multi": false,
+        "includeAll": false,
+        "allValue": null,
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "options": [],
+        "hide": 0,
+        "skipUrlSync": false,
+        "sort": 1,
+        "allowCustomValue": true
+      },
+      {
+        "name": "session",
+        "label": "Session",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "bfyiyvnl0701sa"
+        },
+        "query": "SELECT s.id::text || ' @ ' || to_char(s.started_at, 'YYYY-MM-DD HH24:MI') AS __text, s.id AS __value FROM pair_trade.session s JOIN pair_trade.strategy st ON st.id = s.strategy_id WHERE st.name = '$strategy' ORDER BY s.started_at DESC;",
+        "definition": "SELECT s.id::text || ' @ ' || to_char(s.started_at, 'YYYY-MM-DD HH24:MI') AS __text, s.id AS __value FROM pair_trade.session s JOIN pair_trade.strategy st ON st.id = s.strategy_id WHERE st.name = '$strategy' ORDER BY s.started_at DESC;",
+        "regex": "",
+        "refresh": 1,
+        "multi": false,
+        "includeAll": false,
+        "allValue": null,
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "options": [],
+        "hide": 0,
+        "skipUrlSync": false,
+        "sort": 0,
+        "allowCustomValue": true
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ]
+  },
+  "timezone": "browser",
+  "title": "Hummingbot Pair Trade (Mobin Gold) v3 (Grafana 11)",
+  "uid": "hb-pair-trade-mobin-v3-g11",
+  "version": 1,
+  "weekStart": ""
+}
