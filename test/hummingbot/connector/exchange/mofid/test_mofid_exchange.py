@@ -1271,3 +1271,66 @@ class MofidExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
         completed: SellOrderCompletedEvent = self.sell_order_completed_logger.event_log[0]
         self.assertEqual(order_id, completed.order_id)
         self.assertNotIn(order_id, self.exchange.in_flight_orders)
+
+    async def test_rest_status_ignores_late_on_sending_after_open(self):
+        """Regression: REST open-orders OnSending after OPEN must not re-emit SellOrderCreated (live 2026-11-08)."""
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+
+        self.exchange._set_current_timestamp(1640780000)
+        order_id = self.client_order_id_prefix + "rest-dup"
+        self.exchange.start_tracking_order(
+            order_id=order_id,
+            exchange_order_id=str(self.expected_exchange_order_id),
+            trading_pair=self.trading_pair,
+            order_type=OrderType.LIMIT,
+            trade_type=TradeType.SELL,
+            price=Decimal("188000"),
+            amount=Decimal("31"),
+        )
+        order = self.exchange.in_flight_orders[order_id]
+        self.exchange._order_tracker.process_order_update(
+            OrderUpdate(
+                client_order_id=order_id,
+                exchange_order_id=str(self.expected_exchange_order_id),
+                trading_pair=self.trading_pair,
+                update_timestamp=self.exchange.current_timestamp,
+                new_state=OrderState.OPEN,
+            )
+        )
+        await asyncio.sleep(0.1)
+        self.assertEqual(1, len(self.sell_order_created_logger.event_log))
+
+        on_sending_row = {
+            "id": str(self.expected_exchange_order_id),
+            "orderState": 7,
+            "orderStateStr": "OnSending",
+            "quantity": 31,
+            "executedQuantity": 0,
+            "createDateTime": "2026-09-05T17:54:52",
+        }
+        with patch.object(self.exchange, "_get_open_orders", new_callable=AsyncMock), patch.object(
+            self.exchange, "_find_open_order", return_value=on_sending_row
+        ):
+            update = await self.exchange._request_order_status(order)
+        self.exchange._order_tracker.process_order_update(update)
+        await asyncio.sleep(0.1)
+
+        self.assertEqual(OrderState.OPEN, order.current_state)
+        self.assertEqual(1, len(self.sell_order_created_logger.event_log))
+
+        on_board_row = {
+            **on_sending_row,
+            "orderState": 6,
+            "orderStateStr": "OnBoard",
+            "createDateTime": "2026-09-05T17:54:53",
+        }
+        with patch.object(self.exchange, "_get_open_orders", new_callable=AsyncMock), patch.object(
+            self.exchange, "_find_open_order", return_value=on_board_row
+        ):
+            update = await self.exchange._request_order_status(order)
+        self.exchange._order_tracker.process_order_update(update)
+        await asyncio.sleep(0.1)
+
+        self.assertEqual(OrderState.OPEN, order.current_state)
+        self.assertEqual(1, len(self.sell_order_created_logger.event_log))

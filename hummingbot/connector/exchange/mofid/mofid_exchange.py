@@ -477,11 +477,12 @@ class MofidExchange(ExchangePyBase):
         msg_type: Optional[str],
     ) -> bool:
         """
-        Drop out-of-order Lightstreamer order lifecycle WS updates.
+        Drop out-of-order Mofid order lifecycle updates (WS and REST).
 
-        Live (2026-10-12/13): after REST place sets OPEN, stale OnSending (PENDING_CREATE)
-        then OnBoard (OPEN) can replay. InFlightOrder accepts any state regression, so
-        ClientOrderTracker fires Buy/SellOrderCreated twice → MarketsRecorder Order.id UNIQUE.
+        Live (2026-10-12/13 WS; 2026-11-08 REST): after place sets OPEN, stale OnSending
+        (PENDING_CREATE) then OnBoard (OPEN) can replay — from Lightstreamer or the open-orders
+        poll (~10s). InFlightOrder accepts any state regression, so ClientOrderTracker fires
+        Buy/SellOrderCreated twice → MarketsRecorder Order.id UNIQUE.
         Fills only update executed qty; they do not block late OnBoard while still OPEN.
         """
         current = tracked_order.current_state
@@ -530,18 +531,30 @@ class MofidExchange(ExchangePyBase):
             pass
         return self.current_timestamp
 
+    def _gated_order_state(
+        self,
+        tracked_order: InFlightOrder,
+        new_state: OrderState,
+        msg_type: Optional[str] = None,
+    ) -> OrderState:
+        """Keep current state when lifecycle update would regress (see _should_apply_ws_order_state)."""
+        if self._should_apply_ws_order_state(tracked_order, new_state, msg_type):
+            return new_state
+        return tracked_order.current_state
+
     async def _request_order_status(self, tracked_order: InFlightOrder) -> OrderUpdate:
         exchange_order_id = await tracked_order.get_exchange_order_id()
         await self._get_open_orders(force_refresh=True)
         row = self._find_open_order(exchange_order_id)
 
         if row is not None:
+            new_state = self._gated_order_state(tracked_order, self._map_rest_order_to_state(row))
             return OrderUpdate(
                 client_order_id=tracked_order.client_order_id,
                 exchange_order_id=exchange_order_id,
                 trading_pair=tracked_order.trading_pair,
                 update_timestamp=self._parse_mofid_timestamp(row.get("createDateTime")),
-                new_state=self._map_rest_order_to_state(row),
+                new_state=new_state,
                 misc_updates={"error_message": row.get("error")} if row.get("error") else None,
             )
 
@@ -550,9 +563,10 @@ class MofidExchange(ExchangePyBase):
         if trades:
             last = trades[-1]
             if not last.get("hasRemain", True) or Decimal(str(last.get("remain", 1))) == 0:
-                new_state = OrderState.FILLED
+                mapped = OrderState.FILLED
             else:
-                new_state = OrderState.PARTIALLY_FILLED
+                mapped = OrderState.PARTIALLY_FILLED
+            new_state = self._gated_order_state(tracked_order, mapped)
             return OrderUpdate(
                 client_order_id=tracked_order.client_order_id,
                 exchange_order_id=exchange_order_id,
@@ -561,12 +575,13 @@ class MofidExchange(ExchangePyBase):
                 new_state=new_state,
             )
 
+        new_state = self._gated_order_state(tracked_order, OrderState.CANCELED)
         return OrderUpdate(
             client_order_id=tracked_order.client_order_id,
             exchange_order_id=exchange_order_id,
             trading_pair=tracked_order.trading_pair,
             update_timestamp=self.current_timestamp,
-            new_state=OrderState.CANCELED,
+            new_state=new_state,
         )
 
     async def _fetch_order_trades(self, exchange_order_id: str) -> List[Dict[str, Any]]:
