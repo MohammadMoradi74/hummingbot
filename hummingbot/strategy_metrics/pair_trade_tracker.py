@@ -436,7 +436,9 @@ class PairTradeMetricsTracker:
         rotation_id = None
         if sell_order_id:
             rotation_id = self._repo.get_rotation_id(self._session_id, sell_order_id)
-        fill_key = event.exchange_trade_id or f"{event.order_id}:{event.timestamp}"
+        # Mofid exchange_trade_id is short and reused across days — alone it collides
+        # (ON CONFLICT updates an old row → today's fill never lands). Scope by order_id.
+        fill_key = f"{event.order_id}:{event.exchange_trade_id or event.timestamp}"
         fee_q = fee_to_quote(event.trade_fee, dec(event.price), dec(event.amount), self._config.quote_currency, None)
         self._repo.insert_fill(
             session_id=self._session_id,
