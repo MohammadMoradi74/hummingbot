@@ -969,31 +969,43 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
             available_sell_amount = Decimal(str(connector.get_available_balance(sell_base)))
             sell_amt = Decimal(str(rotation_info["sell_amount"]))
             line_notional = total_base * sell_px
+            # Transition sizes notional with mid then / bid, so sell_amt can exceed
+            # available by 1..N; cancel lag can also leave available short. Clamp
+            # instead of skipping the rotate forever.
             if line_notional < MOFID_MIN_NOTIONAL and not mofid_sell_allowed(
                 sell_amt, sell_px, total_base, MOFID_MIN_NOTIONAL, step_eps
             ):
-                sell_amt = connector.quantize_order_amount(sell_pair, available_sell_amount)
-                rotation_info["sell_amount"] = sell_amt
-
-            if available_sell_amount < rotation_info["sell_amount"]:
-                self.logger().warning(f"Not enough {sell_base} available to sell for {sell_pair}; skip.")
+                sell_amt = available_sell_amount
+            elif sell_amt > available_sell_amount:
                 if self._metrics is not None:
                     self._metrics.log_event(
-                        "not_enough_balance",
-                        {"symbol": pre_symbol, "pair": sell_pair, "needed": str(rotation_info["sell_amount"])},
-                        level="warning",
+                        "clamp_sell_to_available",
+                        {
+                            "symbol": pre_symbol,
+                            "pair": sell_pair,
+                            "wanted": str(sell_amt),
+                            "available": str(available_sell_amount),
+                        },
                     )
+                self.logger().info(
+                    f"Clamp rotate sell {sell_pair}: wanted={sell_amt} available={available_sell_amount}"
+                )
+                sell_amt = available_sell_amount
+
+            sell_amt = connector.quantize_order_amount(sell_pair, sell_amt)
+            rotation_info["sell_amount"] = sell_amt
+            if sell_amt <= 0:
                 continue
 
             if not mofid_sell_allowed(
-                Decimal(str(rotation_info["sell_amount"])),
+                sell_amt,
                 sell_px,
                 total_base,
                 MOFID_MIN_NOTIONAL,
                 step_eps,
             ):
                 self.logger().info(
-                    f"Skip rotate sell {sell_pair}: amount={rotation_info['sell_amount']} "
+                    f"Skip rotate sell {sell_pair}: amount={sell_amt} "
                     f"total={total_base} price={sell_px} (Mofid sell line rules)"
                 )
                 continue
