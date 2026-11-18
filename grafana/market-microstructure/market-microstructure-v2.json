@@ -8,7 +8,7 @@
   },
   "spec": {
     "title": "Market Microstructure (Rotation) v2",
-    "description": "Both legs of a pair_trade rotation: L1\u2013L5 book (QuestDB ISIN) + strategy overlays (Postgres). Panels use $__timeFilter. After changing Rotation, click Apply \u22125m/+10m (or a rotations-table id) to jump the time picker. Default: session 58 / rotation 3141 (Nov 8 \u062f\u0631\u062e\u0634\u0627\u0646\u2192\u0631\u0632 \u062a\u0631\u0646\u062c).",
+    "description": "Both legs of a pair_trade rotation: L1\u2013L5 book (QuestDB ISIN) + strategy overlays (Postgres). Panels use $__timeFilter. Click a rotations-table id to jump \u22125m/+10m around that rotation. Default: session 58 / rotation 3141 (Nov 8 \u062f\u0631\u062e\u0634\u0627\u0646\u2192\u0631\u0632 \u062a\u0631\u0646\u062c).",
     "links": [],
     "tags": [
       "questdb",
@@ -289,70 +289,6 @@
         }
       },
       {
-        "kind": "QueryVariable",
-        "spec": {
-          "name": "win_from_ms",
-          "label": "From ms",
-          "hide": "hideVariable",
-          "refresh": "onTimeRangeChanged",
-          "skipUrlSync": false,
-          "multi": false,
-          "includeAll": false,
-          "allowCustomValue": true,
-          "sort": "disabled",
-          "regex": "",
-          "regexApplyTo": "value",
-          "options": [],
-          "current": {
-            "text": "1794138977000",
-            "value": "1794138977000"
-          },
-          "query": {
-            "kind": "DataQuery",
-            "group": "grafana-postgresql-datasource",
-            "version": "v0",
-            "datasource": {
-              "name": "afz4am1a4lywwf"
-            },
-            "spec": {
-              "__legacyStringValue": "SELECT (EXTRACT(EPOCH FROM (((ts AT TIME ZONE 'Asia/Tehran') - interval '5 minutes')::timestamp AT TIME ZONE 'UTC')) * 1000)::bigint AS __value, (EXTRACT(EPOCH FROM (((ts AT TIME ZONE 'Asia/Tehran') - interval '5 minutes')::timestamp AT TIME ZONE 'UTC')) * 1000)::bigint::text AS __text FROM pair_trade.rotation WHERE id = $rotation;"
-            }
-          }
-        }
-      },
-      {
-        "kind": "QueryVariable",
-        "spec": {
-          "name": "win_to_ms",
-          "label": "To ms",
-          "hide": "hideVariable",
-          "refresh": "onTimeRangeChanged",
-          "skipUrlSync": false,
-          "multi": false,
-          "includeAll": false,
-          "allowCustomValue": true,
-          "sort": "disabled",
-          "regex": "",
-          "regexApplyTo": "value",
-          "options": [],
-          "current": {
-            "text": "1794139877000",
-            "value": "1794139877000"
-          },
-          "query": {
-            "kind": "DataQuery",
-            "group": "grafana-postgresql-datasource",
-            "version": "v0",
-            "datasource": {
-              "name": "afz4am1a4lywwf"
-            },
-            "spec": {
-              "__legacyStringValue": "SELECT (EXTRACT(EPOCH FROM (((ts AT TIME ZONE 'Asia/Tehran') + interval '10 minutes')::timestamp AT TIME ZONE 'UTC')) * 1000)::bigint AS __value, (EXTRACT(EPOCH FROM (((ts AT TIME ZONE 'Asia/Tehran') + interval '10 minutes')::timestamp AT TIME ZONE 'UTC')) * 1000)::bigint::text AS __text FROM pair_trade.rotation WHERE id = $rotation;"
-            }
-          }
-        }
-      },
-      {
         "kind": "CustomVariable",
         "spec": {
           "name": "buy_slippage_bps",
@@ -391,43 +327,6 @@
       }
     ],
     "elements": {
-      "panel-apply": {
-        "kind": "Panel",
-        "spec": {
-          "id": 30,
-          "title": "Apply rotation time window",
-          "description": "Grafana cannot auto-move the time picker on variable change; this link sets from/to via URL.",
-          "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [],
-              "transformations": [],
-              "queryOptions": {}
-            }
-          },
-          "vizConfig": {
-            "kind": "VizConfig",
-            "group": "text",
-            "version": "13.0.1+security-01",
-            "spec": {
-              "options": {
-                "mode": "markdown",
-                "code": {
-                  "language": "plaintext",
-                  "showLineNumbers": false,
-                  "showMiniMap": false
-                },
-                "content": "**Time window:** panels follow the top time picker (`$__timeFilter`).  \nAfter changing **Rotation**, click: [**Apply \u22125m / +10m window**](/d/market-microstructure-v2/market-microstructure-v2?from=${win_from_ms}&to=${win_to_ms}&var-strategy=${strategy}&var-session=${session}&var-rotation=${rotation}&var-bucket=${bucket}&var-buy_slippage_bps=${buy_slippage_bps}) \u2014 reloads this dashboard with `from`/`to` set to rotation Tehran wall \u22125m \u2026 +10m.  \nOr click a rotation **id** in *Session rotations* (same link per row)."
-              },
-              "fieldConfig": {
-                "defaults": {},
-                "overrides": []
-              }
-            }
-          }
-        }
-      },
       "panel-kpi": {
         "kind": "Panel",
         "spec": {
@@ -494,7 +393,7 @@
         "spec": {
           "id": 10,
           "title": "Sell leg \u00b7 L1\u2013L5 + intended/fills",
-          "description": "QuestDB depth for $isin_sell + intended_sell. Yellow = sell fills. Default legend: intended_sell, sell_fill, bid1.",
+          "description": "QuestDB depth for $isin_sell + intended_sell. Yellow = sell fills. Right axis: bid1_bps vs intended (0 = at intended). Default: intended_sell, sell_fill, bid1, bid1_bps.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -523,7 +422,7 @@
                           }
                         },
                         "queryType": "sql",
-                        "rawSql": "WITH ob AS (\n  SELECT timestamp,\n    avg(CASE WHEN side='bid' AND level='1' THEN price END) AS bid1,\n    avg(CASE WHEN side='bid' AND level='2' THEN price END) AS bid2,\n    avg(CASE WHEN side='bid' AND level='3' THEN price END) AS bid3,\n    avg(CASE WHEN side='bid' AND level='4' THEN price END) AS bid4,\n    avg(CASE WHEN side='bid' AND level='5' THEN price END) AS bid5,\n    avg(CASE WHEN side='ask' AND level='1' THEN price END) AS ask1,\n    avg(CASE WHEN side='ask' AND level='2' THEN price END) AS ask2,\n    avg(CASE WHEN side='ask' AND level='3' THEN price END) AS ask3,\n    avg(CASE WHEN side='ask' AND level='4' THEN price END) AS ask4,\n    avg(CASE WHEN side='ask' AND level='5' THEN price END) AS ask5\n  FROM orderbook_historical\n  WHERE symbol = '${isin_sell}'\n    AND is_deleted = false\n    AND $__timeFilter(timestamp)\n    AND hour(timestamp) >= 12 AND hour(timestamp) < 18\n  SAMPLE BY ${bucket} ALIGN TO CALENDAR\n),\ndr AS (\n  SELECT timestamp, day_range_min, day_range_max\n  FROM day_range_historical\n  WHERE symbol = '${isin_sell}' AND is_deleted = false\n)\nSELECT ob.timestamp AS time,\n  ob.bid1, ob.bid2, ob.bid3, ob.bid4, ob.bid5,\n  ob.ask1, ob.ask2, ob.ask3, ob.ask4, ob.ask5,\n  (ob.bid1 + ob.ask1) / 2 AS mid,\n  dr.day_range_min, dr.day_range_max,\n  ${intended_sell} AS intended_sell\nFROM ob\nASOF JOIN dr;",
+                        "rawSql": "WITH ob AS (\n  SELECT timestamp,\n    avg(CASE WHEN side='bid' AND level='1' THEN price END) AS bid1,\n    avg(CASE WHEN side='bid' AND level='2' THEN price END) AS bid2,\n    avg(CASE WHEN side='bid' AND level='3' THEN price END) AS bid3,\n    avg(CASE WHEN side='bid' AND level='4' THEN price END) AS bid4,\n    avg(CASE WHEN side='bid' AND level='5' THEN price END) AS bid5,\n    avg(CASE WHEN side='ask' AND level='1' THEN price END) AS ask1,\n    avg(CASE WHEN side='ask' AND level='2' THEN price END) AS ask2,\n    avg(CASE WHEN side='ask' AND level='3' THEN price END) AS ask3,\n    avg(CASE WHEN side='ask' AND level='4' THEN price END) AS ask4,\n    avg(CASE WHEN side='ask' AND level='5' THEN price END) AS ask5\n  FROM orderbook_historical\n  WHERE symbol = '${isin_sell}'\n    AND is_deleted = false\n    AND $__timeFilter(timestamp)\n    AND hour(timestamp) >= 12 AND hour(timestamp) < 18\n  SAMPLE BY ${bucket} ALIGN TO CALENDAR\n),\ndr AS (\n  SELECT timestamp, day_range_min, day_range_max\n  FROM day_range_historical\n  WHERE symbol = '${isin_sell}' AND is_deleted = false\n)\nSELECT ob.timestamp AS time,\n  ob.bid1, ob.bid2, ob.bid3, ob.bid4, ob.bid5,\n  ob.ask1, ob.ask2, ob.ask3, ob.ask4, ob.ask5,\n  (ob.bid1 + ob.ask1) / 2 AS mid,\n  dr.day_range_min, dr.day_range_max,\n  ${intended_sell} AS intended_sell,\n  (ob.bid1 / ${intended_sell} - 1) * 10000 AS bid1_bps,\n  (ob.ask1 / ${intended_sell} - 1) * 10000 AS ask1_bps\nFROM ob\nASOF JOIN dr;",
                         "selectedFormat": 2
                       }
                     }
@@ -544,7 +443,7 @@
                       "spec": {
                         "format": "time_series",
                         "rawQuery": true,
-                        "rawSql": "SELECT (ts AT TIME ZONE 'Asia/Tehran') AS time, price::float8 AS sell_fill\nFROM pair_trade.fill\nWHERE rotation_id = ${rotation} AND upper(side) = 'SELL';"
+                        "rawSql": "SELECT (ts AT TIME ZONE 'Asia/Tehran') AS time, price::float8 AS sell_fill,\n  (price::float8 / ${intended_sell}::float8 - 1) * 10000 AS sell_fill_bps\nFROM pair_trade.fill\nWHERE rotation_id = ${rotation} AND upper(side) = 'SELL';"
                       }
                     }
                   }
@@ -944,7 +843,56 @@
                   {
                     "matcher": {
                       "id": "byRegexp",
-                      "options": "/(ask[1-5]|bid[2-5]|\\bmid\\b|day_range_)/"
+                      "options": "/_bps\\b/"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "custom.axisLabel",
+                        "value": "bps vs intended"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "none"
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dash",
+                          "dash": [
+                            4,
+                            3
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "__systemRef": "hideSeriesFrom",
+                    "matcher": {
+                      "id": "byNames",
+                      "options": {
+                        "mode": "exclude",
+                        "names": [
+                          "A bid1",
+                          "A intended_sell",
+                          "sell_fill",
+                          "A bid1_bps"
+                        ],
+                        "prefix": "All except:",
+                        "readOnly": true
+                      }
                     },
                     "properties": [
                       {
@@ -968,7 +916,7 @@
         "spec": {
           "id": 11,
           "title": "Buy leg \u00b7 L1\u2013L5 + intended/fills/fails",
-          "description": "QuestDB depth for $isin_buy + intended_buy. Yellow = buy fills; dark-red = failed buys. Default legend: intended_buy, buy_fill, ask1.",
+          "description": "QuestDB depth for $isin_buy + intended_buy. Yellow = buy fills; dark-red = failed buys. Right axis: ask1_bps vs intended (0 = at intended). Default: intended_buy, buy_fill, ask1, ask1_bps.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -997,7 +945,7 @@
                           }
                         },
                         "queryType": "sql",
-                        "rawSql": "WITH ob AS (\n  SELECT timestamp,\n    avg(CASE WHEN side='bid' AND level='1' THEN price END) AS bid1,\n    avg(CASE WHEN side='bid' AND level='2' THEN price END) AS bid2,\n    avg(CASE WHEN side='bid' AND level='3' THEN price END) AS bid3,\n    avg(CASE WHEN side='bid' AND level='4' THEN price END) AS bid4,\n    avg(CASE WHEN side='bid' AND level='5' THEN price END) AS bid5,\n    avg(CASE WHEN side='ask' AND level='1' THEN price END) AS ask1,\n    avg(CASE WHEN side='ask' AND level='2' THEN price END) AS ask2,\n    avg(CASE WHEN side='ask' AND level='3' THEN price END) AS ask3,\n    avg(CASE WHEN side='ask' AND level='4' THEN price END) AS ask4,\n    avg(CASE WHEN side='ask' AND level='5' THEN price END) AS ask5\n  FROM orderbook_historical\n  WHERE symbol = '${isin_buy}'\n    AND is_deleted = false\n    AND $__timeFilter(timestamp)\n    AND hour(timestamp) >= 12 AND hour(timestamp) < 18\n  SAMPLE BY ${bucket} ALIGN TO CALENDAR\n),\ndr AS (\n  SELECT timestamp, day_range_min, day_range_max\n  FROM day_range_historical\n  WHERE symbol = '${isin_buy}' AND is_deleted = false\n)\nSELECT ob.timestamp AS time,\n  ob.bid1, ob.bid2, ob.bid3, ob.bid4, ob.bid5,\n  ob.ask1, ob.ask2, ob.ask3, ob.ask4, ob.ask5,\n  (ob.bid1 + ob.ask1) / 2 AS mid,\n  dr.day_range_min, dr.day_range_max,\n  ${intended_buy} AS intended_buy\nFROM ob\nASOF JOIN dr;",
+                        "rawSql": "WITH ob AS (\n  SELECT timestamp,\n    avg(CASE WHEN side='bid' AND level='1' THEN price END) AS bid1,\n    avg(CASE WHEN side='bid' AND level='2' THEN price END) AS bid2,\n    avg(CASE WHEN side='bid' AND level='3' THEN price END) AS bid3,\n    avg(CASE WHEN side='bid' AND level='4' THEN price END) AS bid4,\n    avg(CASE WHEN side='bid' AND level='5' THEN price END) AS bid5,\n    avg(CASE WHEN side='ask' AND level='1' THEN price END) AS ask1,\n    avg(CASE WHEN side='ask' AND level='2' THEN price END) AS ask2,\n    avg(CASE WHEN side='ask' AND level='3' THEN price END) AS ask3,\n    avg(CASE WHEN side='ask' AND level='4' THEN price END) AS ask4,\n    avg(CASE WHEN side='ask' AND level='5' THEN price END) AS ask5\n  FROM orderbook_historical\n  WHERE symbol = '${isin_buy}'\n    AND is_deleted = false\n    AND $__timeFilter(timestamp)\n    AND hour(timestamp) >= 12 AND hour(timestamp) < 18\n  SAMPLE BY ${bucket} ALIGN TO CALENDAR\n),\ndr AS (\n  SELECT timestamp, day_range_min, day_range_max\n  FROM day_range_historical\n  WHERE symbol = '${isin_buy}' AND is_deleted = false\n)\nSELECT ob.timestamp AS time,\n  ob.bid1, ob.bid2, ob.bid3, ob.bid4, ob.bid5,\n  ob.ask1, ob.ask2, ob.ask3, ob.ask4, ob.ask5,\n  (ob.bid1 + ob.ask1) / 2 AS mid,\n  dr.day_range_min, dr.day_range_max,\n  ${intended_buy} AS intended_buy,\n  (ob.bid1 / ${intended_buy} - 1) * 10000 AS bid1_bps,\n  (ob.ask1 / ${intended_buy} - 1) * 10000 AS ask1_bps\nFROM ob\nASOF JOIN dr;",
                         "selectedFormat": 2
                       }
                     }
@@ -1018,7 +966,7 @@
                       "spec": {
                         "format": "time_series",
                         "rawQuery": true,
-                        "rawSql": "SELECT (ts AT TIME ZONE 'Asia/Tehran') AS time, price::float8 AS buy_fill\nFROM pair_trade.fill\nWHERE rotation_id = ${rotation} AND upper(side) = 'BUY';"
+                        "rawSql": "SELECT (ts AT TIME ZONE 'Asia/Tehran') AS time, price::float8 AS buy_fill,\n  (price::float8 / ${intended_buy}::float8 - 1) * 10000 AS buy_fill_bps\nFROM pair_trade.fill\nWHERE rotation_id = ${rotation} AND upper(side) = 'BUY';"
                       }
                     }
                   }
@@ -1438,7 +1386,56 @@
                   {
                     "matcher": {
                       "id": "byRegexp",
-                      "options": "/(bid[1-5]|ask[2-5]|\\bmid\\b|day_range_|buy_fail)/"
+                      "options": "/_bps\\b/"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "custom.axisLabel",
+                        "value": "bps vs intended"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "none"
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "fill": "dash",
+                          "dash": [
+                            4,
+                            3
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "__systemRef": "hideSeriesFrom",
+                    "matcher": {
+                      "id": "byNames",
+                      "options": {
+                        "mode": "exclude",
+                        "names": [
+                          "A ask1",
+                          "A intended_buy",
+                          "buy_fill",
+                          "A ask1_bps"
+                        ],
+                        "prefix": "All except:",
+                        "readOnly": true
+                      }
                     },
                     "properties": [
                       {
@@ -2189,19 +2186,6 @@
               "x": 0,
               "y": 0,
               "width": 24,
-              "height": 3,
-              "element": {
-                "kind": "ElementReference",
-                "name": "panel-apply"
-              }
-            }
-          },
-          {
-            "kind": "GridLayoutItem",
-            "spec": {
-              "x": 0,
-              "y": 3,
-              "width": 24,
               "height": 4,
               "element": {
                 "kind": "ElementReference",
@@ -2213,7 +2197,7 @@
             "kind": "GridLayoutItem",
             "spec": {
               "x": 0,
-              "y": 7,
+              "y": 4,
               "width": 12,
               "height": 10,
               "element": {
@@ -2226,7 +2210,7 @@
             "kind": "GridLayoutItem",
             "spec": {
               "x": 12,
-              "y": 7,
+              "y": 4,
               "width": 12,
               "height": 10,
               "element": {
@@ -2239,7 +2223,7 @@
             "kind": "GridLayoutItem",
             "spec": {
               "x": 0,
-              "y": 17,
+              "y": 14,
               "width": 12,
               "height": 6,
               "element": {
@@ -2252,7 +2236,7 @@
             "kind": "GridLayoutItem",
             "spec": {
               "x": 12,
-              "y": 17,
+              "y": 14,
               "width": 12,
               "height": 6,
               "element": {
@@ -2265,7 +2249,7 @@
             "kind": "GridLayoutItem",
             "spec": {
               "x": 0,
-              "y": 23,
+              "y": 20,
               "width": 16,
               "height": 9,
               "element": {
@@ -2278,7 +2262,7 @@
             "kind": "GridLayoutItem",
             "spec": {
               "x": 16,
-              "y": 23,
+              "y": 20,
               "width": 8,
               "height": 9,
               "element": {
@@ -2291,7 +2275,7 @@
             "kind": "GridLayoutItem",
             "spec": {
               "x": 0,
-              "y": 32,
+              "y": 29,
               "width": 10,
               "height": 8,
               "element": {
@@ -2304,7 +2288,7 @@
             "kind": "GridLayoutItem",
             "spec": {
               "x": 10,
-              "y": 32,
+              "y": 29,
               "width": 14,
               "height": 8,
               "element": {

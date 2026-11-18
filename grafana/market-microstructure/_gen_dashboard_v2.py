@@ -7,7 +7,7 @@ v2 vs v1:
   - Strategy overlays: intended prices, fills, failed buy events (Tehran wall clock)
   - Counterfactual: L1 ask vs intended_buy; passive_vol when ask ≤ intended
   - Slippage KPI table + session scatter (latency vs buy slip)
-  - Time: panels use $__timeFilter; Apply-window / row links set from/to (−5m/+10m)
+  - Time: panels use $__timeFilter; rotations-table id links set from/to (−5m/+10m)
   - Intended buy/sell shown as integers
 """
 import json
@@ -35,14 +35,8 @@ WIN_TO_MS_SQL = (
     "(EXTRACT(EPOCH FROM (((ts AT TIME ZONE 'Asia/Tehran') + interval '10 minutes')"
     "::timestamp AT TIME ZONE 'UTC')) * 1000)::bigint"
 )
-# Reload same dashboard with absolute from/to + selected vars.
+# Row id link: absolute from/to + session/rotation from the clicked row.
 # (Grafana vars must stay as ${...} — escape braces inside the f-string.)
-APPLY_WINDOW_URL = (
-    f"/d/{DASH_UID}/{DASH_UID}"
-    f"?from=${{win_from_ms}}&to=${{win_to_ms}}"
-    f"&var-strategy=${{strategy}}&var-session=${{session}}&var-rotation=${{rotation}}"
-    f"&var-bucket=${{bucket}}&var-buy_slippage_bps=${{buy_slippage_bps}}"
-)
 ROW_WINDOW_URL = (
     f"/d/{DASH_UID}/{DASH_UID}"
     f"?from=${{__data.fields.from_ms}}&to=${{__data.fields.to_ms}}"
@@ -164,18 +158,6 @@ def table_viz(sort_by=None, overrides=None):
                 },
                 "overrides": overrides or [],
             },
-        },
-    }
-
-
-def text_viz(markdown: str):
-    return {
-        "kind": "VizConfig",
-        "group": "text",
-        "version": VER,
-        "spec": {
-            "options": {"mode": "markdown", "code": {"language": "plaintext", "showLineNumbers": False, "showMiniMap": False}, "content": markdown},
-            "fieldConfig": {"defaults": {}, "overrides": []},
         },
     }
 
@@ -304,7 +286,9 @@ SELECT ob.timestamp AS time,
   ob.ask1, ob.ask2, ob.ask3, ob.ask4, ob.ask5,
   (ob.bid1 + ob.ask1) / 2 AS mid,
   dr.day_range_min, dr.day_range_max,
-  ${{{intended_var}}} AS {intended_col}
+  ${{{intended_var}}} AS {intended_col},
+  (ob.bid1 / ${{{intended_var}}} - 1) * 10000 AS bid1_bps,
+  (ob.ask1 / ${{{intended_var}}} - 1) * 10000 AS ask1_bps
 FROM ob
 ASOF JOIN dr;
 """.strip()
@@ -353,10 +337,21 @@ def _rx(pattern: str) -> str:
     return f"/{pattern}/"
 
 
-def _hide_viz(pattern: str) -> dict:
-    # Keep series in legend; start deselected (click to show).
+def _default_visible(names: list) -> dict:
+    # Grafana's legend-toggle system override ("All except: …").
+    # Regex hideFrom breaks click-to-show (chart goes blank). This form is what
+    # Grafana itself writes when you toggle legend + Save — clicks extend `names`.
     return {
-        "matcher": {"id": "byRegexp", "options": _rx(pattern)},
+        "__systemRef": "hideSeriesFrom",
+        "matcher": {
+            "id": "byNames",
+            "options": {
+                "mode": "exclude",
+                "names": names,
+                "prefix": "All except:",
+                "readOnly": True,
+            },
+        },
         "properties": [
             {
                 "id": "custom.hideFrom",
@@ -446,34 +441,52 @@ def depth_overrides(side: str):
                     {"id": "color", "value": {"fixedColor": "dark-red", "mode": "fixed"}},
                 ],
             },
+            {
+                # Right axis: bps vs intended (0 = at intended).
+                "matcher": {"id": "byRegexp", "options": _rx(r"_bps\b")},
+                "properties": [
+                    {"id": "custom.axisPlacement", "value": "right"},
+                    {"id": "custom.axisLabel", "value": "bps vs intended"},
+                    {"id": "unit", "value": "none"},
+                    {"id": "decimals", "value": 1},
+                    {"id": "custom.lineWidth", "value": 1},
+                    {"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [4, 3]}},
+                ],
+            },
         ]
     )
     if side == "buy":
-        # Default on: intended_buy, buy_fill, ask1 — hide the rest.
-        ov.append(_hide_viz(r"(bid[1-5]|ask[2-5]|\bmid\b|day_range_|buy_fail)"))
+        # Exact legend display names (QuestDB → "A …", Postgres fill → bare).
+        ov.append(
+            _default_visible(["A ask1", "A intended_buy", "buy_fill", "A ask1_bps"])
+        )
     else:
-        # Default on: intended_sell, sell_fill, bid1 — hide the rest.
-        ov.append(_hide_viz(r"(ask[1-5]|bid[2-5]|\bmid\b|day_range_)"))
+        ov.append(
+            _default_visible(["A bid1", "A intended_sell", "sell_fill", "A bid1_bps"])
+        )
     return ov
 
 
 def main():
     sell_fills_sql = f"""
-SELECT {TEHRAN} AS time, price::float8 AS sell_fill
+SELECT {TEHRAN} AS time, price::float8 AS sell_fill,
+  (price::float8 / ${{intended_sell}}::float8 - 1) * 10000 AS sell_fill_bps
 FROM pair_trade.fill
 WHERE rotation_id = ${{rotation}} AND upper(side) = 'SELL';
 """.strip()
     buy_fills_sql = f"""
-SELECT {TEHRAN} AS time, price::float8 AS buy_fill
+SELECT {TEHRAN} AS time, price::float8 AS buy_fill,
+  (price::float8 / ${{intended_buy}}::float8 - 1) * 10000 AS buy_fill_bps
 FROM pair_trade.fill
 WHERE rotation_id = ${{rotation}} AND upper(side) = 'BUY';
 """.strip()
+    # Plain strings: use ${var} once. (${{var}} is only for f-strings.)
     buy_fail_sql = """
 SELECT (e.ts AT TIME ZONE 'Asia/Tehran') AS time,
-  ${{intended_buy}}::float8 AS buy_fail
+  ${intended_buy}::float8 AS buy_fail
 FROM pair_trade.event_log e
-JOIN pair_trade.rotation r ON r.session_id = e.session_id AND r.id = ${{rotation}}
-WHERE e.session_id IN (${{session}})
+JOIN pair_trade.rotation r ON r.session_id = e.session_id AND r.id = ${rotation}
+WHERE e.session_id IN (${session})
   AND e.event_type = 'order_end'
   AND e.payload->>'side' = 'buy'
   AND e.payload->>'reason' = 'failed'
@@ -506,7 +519,7 @@ SELECT
   (r.buy_slippage * 10000)::float8 AS buy_slip_bps,
   r.status
 FROM pair_trade.rotation r
-WHERE r.session_id IN (${{session}})
+WHERE r.session_id IN (${session})
   AND r.prev_symbol <> 'CASH'
   AND r.buy_slippage IS NOT NULL;
 """.strip()
@@ -570,7 +583,7 @@ SELECT
 FROM pair_trade.rotation r
 LEFT JOIN pair_trade.fill f
   ON f.rotation_id = r.id AND upper(f.side) = 'BUY'
-WHERE r.id = ${{rotation}}
+WHERE r.id = ${rotation}
 GROUP BY r.id, r.status, r.buy_slippage, r.sell_slippage, r.latency_sec,
          r.intended_buy_price, r.intended_sell_price, r.ts;
 """.strip()
@@ -626,22 +639,7 @@ GROUP BY r.id, r.status, r.buy_slippage, r.sell_slippage, r.latency_sec,
         },
     ]
 
-    apply_md = (
-        "**Time window:** panels follow the top time picker (`$__timeFilter`).  \n"
-        "After changing **Rotation**, click: "
-        f"[**Apply −5m / +10m window**]({APPLY_WINDOW_URL}) "
-        "— reloads this dashboard with `from`/`to` set to rotation Tehran wall −5m … +10m.  \n"
-        "Or click a rotation **id** in *Session rotations* (same link per row)."
-    )
-
     elements = {
-        "panel-apply": panel(
-            30,
-            "Apply rotation time window",
-            "Grafana cannot auto-move the time picker on variable change; this link sets from/to via URL.",
-            qg([]),
-            text_viz(apply_md),
-        ),
         "panel-kpi": panel(
             1,
             "Rotation summary",
@@ -653,7 +651,8 @@ GROUP BY r.id, r.status, r.buy_slippage, r.sell_slippage, r.latency_sec,
             10,
             "Sell leg · L1–L5 + intended/fills",
             "QuestDB depth for $isin_sell + intended_sell. Yellow = sell fills. "
-            "Default legend: intended_sell, sell_fill, bid1.",
+            "Right axis: bid1_bps vs intended (0 = at intended). "
+            "Default: intended_sell, sell_fill, bid1, bid1_bps.",
             qg(
                 [
                     pq_quest(depth_sql("isin_sell", "intended_sell", "intended_sell"), "A"),
@@ -666,7 +665,8 @@ GROUP BY r.id, r.status, r.buy_slippage, r.sell_slippage, r.latency_sec,
             11,
             "Buy leg · L1–L5 + intended/fills/fails",
             "QuestDB depth for $isin_buy + intended_buy. Yellow = buy fills; dark-red = failed buys. "
-            "Default legend: intended_buy, buy_fill, ask1.",
+            "Right axis: ask1_bps vs intended (0 = at intended). "
+            "Default: intended_buy, buy_fill, ask1, ask1_bps.",
             qg(
                 [
                     pq_quest(depth_sql("isin_buy", "intended_buy", "intended_buy"), "A"),
@@ -726,16 +726,15 @@ GROUP BY r.id, r.status, r.buy_slippage, r.sell_slippage, r.latency_sec,
     }
 
     layout_items = [
-        gird(0, 0, 24, 3, "panel-apply"),
-        gird(0, 3, 24, 4, "panel-kpi"),
-        gird(0, 7, 12, 10, "panel-sell-depth"),
-        gird(12, 7, 12, 10, "panel-buy-depth"),
-        gird(0, 17, 12, 6, "panel-sell-vol"),
-        gird(12, 17, 12, 6, "panel-buy-vol"),
-        gird(0, 23, 16, 9, "panel-cf"),
-        gird(16, 23, 8, 9, "panel-slip"),
-        gird(0, 32, 10, 8, "panel-scatter"),
-        gird(10, 32, 14, 8, "panel-rots"),
+        gird(0, 0, 24, 4, "panel-kpi"),
+        gird(0, 4, 12, 10, "panel-sell-depth"),
+        gird(12, 4, 12, 10, "panel-buy-depth"),
+        gird(0, 14, 12, 6, "panel-sell-vol"),
+        gird(12, 14, 12, 6, "panel-buy-vol"),
+        gird(0, 20, 16, 9, "panel-cf"),
+        gird(16, 20, 8, 9, "panel-slip"),
+        gird(0, 29, 10, 8, "panel-scatter"),
+        gird(10, 29, 14, 8, "panel-rots"),
     ]
 
     dashboard = {
@@ -750,12 +749,12 @@ GROUP BY r.id, r.status, r.buy_slippage, r.sell_slippage, r.latency_sec,
             "title": "Market Microstructure (Rotation) v2",
             "description": (
                 "Both legs of a pair_trade rotation: L1–L5 book (QuestDB ISIN) + strategy "
-                "overlays (Postgres). Panels use $__timeFilter. After changing Rotation, "
-                "click Apply −5m/+10m (or a rotations-table id) to jump the time picker. "
+                "overlays (Postgres). Panels use $__timeFilter. Click a rotations-table id "
+                "to jump −5m/+10m around that rotation. "
                 "Default: session 58 / rotation 3141 (Nov 8 درخشان→رز ترنج)."
             ),
             # Grafana app v2 rejects classic dashboard links here ("incompatible list lengths").
-            # Use panel-apply markdown + rotations-table data links instead.
+            # Time-window jump: rotations-table id data links.
             "links": [],
             "tags": [
                 "questdb",
@@ -893,30 +892,6 @@ GROUP BY r.id, r.status, r.buy_slippage, r.sell_slippage, r.latency_sec,
                     refresh="onTimeRangeChanged",
                     current={"text": "30190", "value": "30190"},
                 ),
-                qvar(
-                    "win_from_ms",
-                    "From ms",
-                    (
-                        f"SELECT {WIN_FROM_MS_SQL} AS __value, "
-                        f"{WIN_FROM_MS_SQL}::text AS __text "
-                        "FROM pair_trade.rotation WHERE id = $rotation;"
-                    ),
-                    refresh="onTimeRangeChanged",
-                    current={"text": "1794138977000", "value": "1794138977000"},
-                    hide="hideVariable",
-                ),
-                qvar(
-                    "win_to_ms",
-                    "To ms",
-                    (
-                        f"SELECT {WIN_TO_MS_SQL} AS __value, "
-                        f"{WIN_TO_MS_SQL}::text AS __text "
-                        "FROM pair_trade.rotation WHERE id = $rotation;"
-                    ),
-                    refresh="onTimeRangeChanged",
-                    current={"text": "1794139877000", "value": "1794139877000"},
-                    hide="hideVariable",
-                ),
                 {
                     "kind": "CustomVariable",
                     "spec": {
@@ -954,7 +929,11 @@ GROUP BY r.id, r.status, r.buy_slippage, r.sell_slippage, r.latency_sec,
         },
     }
 
-    OUT.write_text(json.dumps(dashboard, indent=2) + "\n", encoding="utf-8")
+    blob = json.dumps(dashboard, indent=2) + "\n"
+    # Catch plain-string ${{var}} leaks (Grafana sends that to Postgres → syntax error).
+    if "${{" in blob:
+        raise SystemExit("refusing to write: literal ${{ found (use f-string ${{var}} or plain ${var})")
+    OUT.write_text(blob, encoding="utf-8")
     json.loads(OUT.read_text(encoding="utf-8"))
     print(f"wrote {OUT} ({OUT.stat().st_size} bytes, {len(elements)} panels)")
 
