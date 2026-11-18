@@ -1285,6 +1285,9 @@ class GoldEtfStatisticalArbitrage(StrategyV2Base):
             sold = Decimal(str(rot.get("sell_qty", "0")))
             if earned <= 0 and sold <= 0:
                 self._rotations_by_sell_id.pop(order_id, None)
+                # Sync cancel clears pending before Mofid available unlocks (open-orders
+                # lag). Clamp alone skips/zeros those ticks; pause avoids the churn.
+                self._resume_after_ts_ms = self._ts_ms_now() + 2_000
             else:
                 self._place_buy_retry_for_sell(order_id)
             if self._metrics is not None:
