@@ -7,7 +7,7 @@ v2 vs v1:
   - Strategy overlays: intended prices, fills, failed buy events (Tehran wall clock)
   - Counterfactual: L1 ask vs intended_buy; passive_vol when ask ≤ intended
   - Slippage KPI table + session scatter (latency vs buy slip)
-  - Time window from selected rotation: −5m … +10m (Tehran wall → QuestDB)
+  - Time: panels use $__timeFilter; Apply-window / row links set from/to (−5m/+10m)
   - Intended buy/sell shown as integers
 """
 import json
@@ -19,13 +19,38 @@ PDS = "afz4am1a4lywwf"
 PGROUP = "grafana-postgresql-datasource"
 VER = "13.0.1+security-01"
 OUT = Path(__file__).resolve().parent / "market-microstructure-v2.json"
+DASH_UID = "market-microstructure-v2"
 
 # QuestDB timestamps = TSE wall-clock (naive). Postgres overlays use
 # (ts AT TIME ZONE 'Asia/Tehran') so both land on the same UTC-axis labels.
-# Window vars $win_from / $win_to = rotation Tehran wall ±5m / +10m (set from $rotation).
+# Time picker drives $__timeFilter; win_*_ms vars + links jump the picker to rotation±window.
 MARKET_HOUR = "hour(timestamp) >= 12 AND hour(timestamp) < 18"
 TEHRAN = "(ts AT TIME ZONE 'Asia/Tehran')"
-WIN_FILTER = "timestamp BETWEEN '${win_from}' AND '${win_to}'"
+# Tehran wall clock interpreted as UTC epoch (matches QuestDB naive-Z axis).
+WIN_FROM_MS_SQL = (
+    "(EXTRACT(EPOCH FROM (((ts AT TIME ZONE 'Asia/Tehran') - interval '5 minutes')"
+    "::timestamp AT TIME ZONE 'UTC')) * 1000)::bigint"
+)
+WIN_TO_MS_SQL = (
+    "(EXTRACT(EPOCH FROM (((ts AT TIME ZONE 'Asia/Tehran') + interval '10 minutes')"
+    "::timestamp AT TIME ZONE 'UTC')) * 1000)::bigint"
+)
+# Reload same dashboard with absolute from/to + selected vars.
+# (Grafana vars must stay as ${...} — escape braces inside the f-string.)
+APPLY_WINDOW_URL = (
+    f"/d/{DASH_UID}/{DASH_UID}"
+    f"?from=${{win_from_ms}}&to=${{win_to_ms}}"
+    f"&var-strategy=${{strategy}}&var-session=${{session}}&var-rotation=${{rotation}}"
+    f"&var-bucket=${{bucket}}&var-buy_slippage_bps=${{buy_slippage_bps}}"
+)
+ROW_WINDOW_URL = (
+    f"/d/{DASH_UID}/{DASH_UID}"
+    f"?from=${{__data.fields.from_ms}}&to=${{__data.fields.to_ms}}"
+    f"&var-strategy=${{strategy}}"
+    f"&var-session=${{__data.fields.session_id}}"
+    f"&var-rotation=${{__data.fields.id}}"
+    f"&var-bucket=${{bucket}}&var-buy_slippage_bps=${{buy_slippage_bps}}"
+)
 
 
 def pq_quest(raw_sql: str, ref: str = "A") -> dict:
@@ -123,7 +148,7 @@ def ts_viz(decimals=0, unit=None, overrides=None, tooltip_mode="multi", fill=0, 
     }
 
 
-def table_viz(sort_by=None):
+def table_viz(sort_by=None, overrides=None):
     opts = {"cellHeight": "sm", "showHeader": True}
     if sort_by:
         opts["sortBy"] = sort_by
@@ -137,8 +162,20 @@ def table_viz(sort_by=None):
                 "defaults": {
                     "custom": {"align": "auto", "cellOptions": {"type": "auto"}, "inspect": False}
                 },
-                "overrides": [],
+                "overrides": overrides or [],
             },
+        },
+    }
+
+
+def text_viz(markdown: str):
+    return {
+        "kind": "VizConfig",
+        "group": "text",
+        "version": VER,
+        "spec": {
+            "options": {"mode": "markdown", "code": {"language": "plaintext", "showLineNumbers": False, "showMiniMap": False}, "content": markdown},
+            "fieldConfig": {"defaults": {}, "overrides": []},
         },
     }
 
@@ -206,13 +243,14 @@ def qvar(
     sort="disabled",
     refresh="onDashboardLoad",
     current=None,
+    hide="dontHide",
 ):
     return {
         "kind": "QueryVariable",
         "spec": {
             "name": name,
             "label": label,
-            "hide": "dontHide",
+            "hide": hide,
             "refresh": refresh,
             "skipUrlSync": False,
             "multi": multi,
@@ -252,7 +290,7 @@ WITH ob AS (
   FROM orderbook_historical
   WHERE symbol = '${{{isin_var}}}'
     AND is_deleted = false
-    AND {WIN_FILTER}
+    AND $__timeFilter(timestamp)
     AND {MARKET_HOUR}
   SAMPLE BY ${{bucket}} ALIGN TO CALENDAR
 ),
@@ -280,7 +318,7 @@ SELECT timestamp AS time,
 FROM orderbook_historical
 WHERE symbol = '${{{isin_var}}}'
   AND is_deleted = false
-  AND {WIN_FILTER}
+  AND $__timeFilter(timestamp)
   AND {MARKET_HOUR}
 SAMPLE BY ${{bucket}} ALIGN TO CALENDAR;
 """.strip()
@@ -296,7 +334,7 @@ WITH ob AS (
   FROM orderbook_historical
   WHERE symbol = '${{isin_buy}}'
     AND is_deleted = false
-    AND {WIN_FILTER}
+    AND $__timeFilter(timestamp)
     AND {MARKET_HOUR}
   SAMPLE BY ${{bucket}} ALIGN TO CALENDAR
 )
@@ -309,7 +347,29 @@ FROM ob;
 """.strip()
 
 
-def depth_overrides():
+def _rx(pattern: str) -> str:
+    # Grafana anchors bare patterns as ^pat$ — so "bid1" never matches "A bid1".
+    # Slash form is an unanchored JS regex.
+    return f"/{pattern}/"
+
+
+def _hide_viz(pattern: str) -> dict:
+    # Keep series in legend; start deselected (click to show).
+    return {
+        "matcher": {"id": "byRegexp", "options": _rx(pattern)},
+        "properties": [
+            {
+                "id": "custom.hideFrom",
+                "value": {"legend": False, "tooltip": True, "viz": True},
+            }
+        ],
+    }
+
+
+def depth_overrides(side: str):
+    """side='buy' → default visible intended_buy, buy_fill, ask1;
+    side='sell' → intended_sell, sell_fill, bid1.
+    """
     thin = [
         ("bid2", 1),
         ("bid3", 1),
@@ -324,7 +384,7 @@ def depth_overrides():
     for name, w in thin:
         ov.append(
             {
-                "matcher": {"id": "byName", "options": name},
+                "matcher": {"id": "byRegexp", "options": _rx(name)},
                 "properties": [
                     {"id": "custom.lineWidth", "value": w},
                     {"id": "custom.lineStyle", "value": {"fill": "dot", "dash": [2, 2]}},
@@ -334,34 +394,34 @@ def depth_overrides():
     ov.extend(
         [
             {
-                "matcher": {"id": "byName", "options": "bid1"},
+                "matcher": {"id": "byRegexp", "options": _rx(r"bid1(?!\d)")},
                 "properties": [
                     {"id": "color", "value": {"fixedColor": "green", "mode": "fixed"}},
                     {"id": "custom.lineWidth", "value": 2},
                 ],
             },
             {
-                "matcher": {"id": "byName", "options": "ask1"},
+                "matcher": {"id": "byRegexp", "options": _rx(r"ask1(?!\d)")},
                 "properties": [
                     {"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}},
                     {"id": "custom.lineWidth", "value": 2},
                 ],
             },
             {
-                "matcher": {"id": "byName", "options": "mid"},
+                "matcher": {"id": "byRegexp", "options": _rx(r"\bmid\b")},
                 "properties": [
                     {"id": "color", "value": {"fixedColor": "blue", "mode": "fixed"}},
                 ],
             },
             {
-                "matcher": {"id": "byRegexp", "options": "day_range_.*"},
+                "matcher": {"id": "byRegexp", "options": _rx("day_range_")},
                 "properties": [
                     {"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [4, 4]}},
                     {"id": "color", "value": {"fixedColor": "orange", "mode": "fixed"}},
                 ],
             },
             {
-                "matcher": {"id": "byRegexp", "options": "intended_.*"},
+                "matcher": {"id": "byRegexp", "options": _rx("intended_")},
                 "properties": [
                     {"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [8, 4]}},
                     {"id": "color", "value": {"fixedColor": "purple", "mode": "fixed"}},
@@ -369,16 +429,16 @@ def depth_overrides():
                 ],
             },
             {
-                "matcher": {"id": "byRegexp", "options": ".*_fill"},
+                "matcher": {"id": "byRegexp", "options": _rx(r"(buy|sell)_fill")},
                 "properties": [
                     {"id": "custom.drawStyle", "value": "points"},
                     {"id": "custom.showPoints", "value": "always"},
-                    {"id": "custom.pointSize", "value": 8},
+                    {"id": "custom.pointSize", "value": 10},
                     {"id": "color", "value": {"fixedColor": "yellow", "mode": "fixed"}},
                 ],
             },
             {
-                "matcher": {"id": "byName", "options": "buy_fail"},
+                "matcher": {"id": "byRegexp", "options": _rx("buy_fail")},
                 "properties": [
                     {"id": "custom.drawStyle", "value": "points"},
                     {"id": "custom.showPoints", "value": "always"},
@@ -388,6 +448,12 @@ def depth_overrides():
             },
         ]
     )
+    if side == "buy":
+        # Default on: intended_buy, buy_fill, ask1 — hide the rest.
+        ov.append(_hide_viz(r"(bid[1-5]|ask[2-5]|\bmid\b|day_range_|buy_fail)"))
+    else:
+        # Default on: intended_sell, sell_fill, bid1 — hide the rest.
+        ov.append(_hide_viz(r"(ask[1-5]|bid[2-5]|\bmid\b|day_range_)"))
     return ov
 
 
@@ -448,6 +514,7 @@ WHERE r.session_id IN (${{session}})
     rotations_table_sql = f"""
 SELECT
   r.id,
+  r.session_id,
   {TEHRAN} AS tehran_ts,
   r.prev_symbol,
   r.new_symbol,
@@ -456,12 +523,36 @@ SELECT
   ROUND((r.buy_slippage * 10000)::numeric, 2) AS buy_slip_bps,
   ROUND(r.latency_sec::numeric, 1) AS latency_sec,
   ROUND(r.intended_buy_price::numeric, 0) AS intended_buy,
-  ROUND(r.buy_vwap::numeric, 0) AS buy_vwap
+  ROUND(r.buy_vwap::numeric, 0) AS buy_vwap,
+  {WIN_FROM_MS_SQL} AS from_ms,
+  {WIN_TO_MS_SQL} AS to_ms
 FROM pair_trade.rotation r
 WHERE r.session_id IN (${{session}})
 ORDER BY r.ts DESC
 LIMIT 100;
 """.strip()
+
+    rots_overrides = [
+        {
+            "matcher": {"id": "byName", "options": "id"},
+            "properties": [
+                {
+                    "id": "links",
+                    "value": [
+                        {
+                            "title": "Open −5m / +10m",
+                            "url": ROW_WINDOW_URL,
+                            "targetBlank": False,
+                        }
+                    ],
+                }
+            ],
+        },
+        {
+            "matcher": {"id": "byRegexp", "options": "^(session_id|from_ms|to_ms)$"},
+            "properties": [{"id": "custom.hidden", "value": True}],
+        },
+    ]
 
     # Single summary table — Stat panels show "No data" on NULL numerics / text status.
     kpi_summary_sql = """
@@ -535,7 +626,22 @@ GROUP BY r.id, r.status, r.buy_slippage, r.sell_slippage, r.latency_sec,
         },
     ]
 
+    apply_md = (
+        "**Time window:** panels follow the top time picker (`$__timeFilter`).  \n"
+        "After changing **Rotation**, click: "
+        f"[**Apply −5m / +10m window**]({APPLY_WINDOW_URL}) "
+        "— reloads this dashboard with `from`/`to` set to rotation Tehran wall −5m … +10m.  \n"
+        "Or click a rotation **id** in *Session rotations* (same link per row)."
+    )
+
     elements = {
+        "panel-apply": panel(
+            30,
+            "Apply rotation time window",
+            "Grafana cannot auto-move the time picker on variable change; this link sets from/to via URL.",
+            qg([]),
+            text_viz(apply_md),
+        ),
         "panel-kpi": panel(
             1,
             "Rotation summary",
@@ -546,19 +652,21 @@ GROUP BY r.id, r.status, r.buy_slippage, r.sell_slippage, r.latency_sec,
         "panel-sell-depth": panel(
             10,
             "Sell leg · L1–L5 + intended/fills",
-            "QuestDB depth for $isin_sell + intended_sell. Yellow points = sell fills (Postgres).",
+            "QuestDB depth for $isin_sell + intended_sell. Yellow = sell fills. "
+            "Default legend: intended_sell, sell_fill, bid1.",
             qg(
                 [
                     pq_quest(depth_sql("isin_sell", "intended_sell", "intended_sell"), "A"),
                     pq_pg(sell_fills_sql, "time_series", "B"),
                 ]
             ),
-            ts_viz(overrides=depth_overrides()),
+            ts_viz(overrides=depth_overrides("sell")),
         ),
         "panel-buy-depth": panel(
             11,
             "Buy leg · L1–L5 + intended/fills/fails",
-            "QuestDB depth for $isin_buy + intended_buy. Yellow = buy fills; dark-red = failed buys.",
+            "QuestDB depth for $isin_buy + intended_buy. Yellow = buy fills; dark-red = failed buys. "
+            "Default legend: intended_buy, buy_fill, ask1.",
             qg(
                 [
                     pq_quest(depth_sql("isin_buy", "intended_buy", "intended_buy"), "A"),
@@ -566,7 +674,7 @@ GROUP BY r.id, r.status, r.buy_slippage, r.sell_slippage, r.latency_sec,
                     pq_pg(buy_fail_sql, "time_series", "C"),
                 ]
             ),
-            ts_viz(overrides=depth_overrides()),
+            ts_viz(overrides=depth_overrides("buy")),
         ),
         "panel-sell-vol": panel(
             12,
@@ -611,22 +719,23 @@ GROUP BY r.id, r.status, r.buy_slippage, r.sell_slippage, r.latency_sec,
         "panel-rots": panel(
             23,
             "Session rotations",
-            "Pick a row's id in the Rotation variable. Tehran wall clock.",
+            "Click id → reload with that rotation and −5m/+10m time range. Tehran wall clock.",
             qg([pq_pg(rotations_table_sql, "table")]),
-            table_viz([{"desc": True, "displayName": "tehran_ts"}]),
+            table_viz([{"desc": True, "displayName": "tehran_ts"}], overrides=rots_overrides),
         ),
     }
 
     layout_items = [
-        gird(0, 0, 24, 4, "panel-kpi"),
-        gird(0, 4, 12, 10, "panel-sell-depth"),
-        gird(12, 4, 12, 10, "panel-buy-depth"),
-        gird(0, 14, 12, 6, "panel-sell-vol"),
-        gird(12, 14, 12, 6, "panel-buy-vol"),
-        gird(0, 20, 16, 9, "panel-cf"),
-        gird(16, 20, 8, 9, "panel-slip"),
-        gird(0, 29, 10, 8, "panel-scatter"),
-        gird(10, 29, 14, 8, "panel-rots"),
+        gird(0, 0, 24, 3, "panel-apply"),
+        gird(0, 3, 24, 4, "panel-kpi"),
+        gird(0, 7, 12, 10, "panel-sell-depth"),
+        gird(12, 7, 12, 10, "panel-buy-depth"),
+        gird(0, 17, 12, 6, "panel-sell-vol"),
+        gird(12, 17, 12, 6, "panel-buy-vol"),
+        gird(0, 23, 16, 9, "panel-cf"),
+        gird(16, 23, 8, 9, "panel-slip"),
+        gird(0, 32, 10, 8, "panel-scatter"),
+        gird(10, 32, 14, 8, "panel-rots"),
     ]
 
     dashboard = {
@@ -641,10 +750,13 @@ GROUP BY r.id, r.status, r.buy_slippage, r.sell_slippage, r.latency_sec,
             "title": "Market Microstructure (Rotation) v2",
             "description": (
                 "Both legs of a pair_trade rotation: L1–L5 book (QuestDB ISIN) + strategy "
-                "overlays (Postgres). Panel time = rotation Tehran wall −5m … +10m "
-                "(vars win_from/win_to; not the top time picker). "
+                "overlays (Postgres). Panels use $__timeFilter. After changing Rotation, "
+                "click Apply −5m/+10m (or a rotations-table id) to jump the time picker. "
                 "Default: session 58 / rotation 3141 (Nov 8 درخشان→رز ترنج)."
             ),
+            # Grafana app v2 rejects classic dashboard links here ("incompatible list lengths").
+            # Use panel-apply markdown + rotations-table data links instead.
+            "links": [],
             "tags": [
                 "questdb",
                 "postgres",
@@ -657,7 +769,6 @@ GROUP BY r.id, r.status, r.buy_slippage, r.sell_slippage, r.latency_sec,
             "cursorSync": "Crosshair",
             "liveNow": False,
             "preload": False,
-            "links": [],
             "annotations": [
                 {
                     "kind": "AnnotationQuery",
@@ -678,8 +789,7 @@ GROUP BY r.id, r.status, r.buy_slippage, r.sell_slippage, r.latency_sec,
                 }
             ],
             "timeSettings": {
-                # Axis default ≈ rotation 3141 window (Tehran wall as UTC labels).
-                # Panels filter via $win_from/$win_to; change Rotation to re-window data.
+                # Default ≈ rotation 3141 window (Tehran wall as UTC labels).
                 "timezone": "UTC",
                 "from": "2026-11-08T11:56:17.000Z",
                 "to": "2026-11-08T12:11:17.000Z",
@@ -784,30 +894,28 @@ GROUP BY r.id, r.status, r.buy_slippage, r.sell_slippage, r.latency_sec,
                     current={"text": "30190", "value": "30190"},
                 ),
                 qvar(
-                    "win_from",
-                    "Window from",
+                    "win_from_ms",
+                    "From ms",
                     (
-                        "SELECT to_char((ts AT TIME ZONE 'Asia/Tehran') - interval '5 minutes', "
-                        "'YYYY-MM-DD\"T\"HH24:MI:SS') AS __value, "
-                        "to_char((ts AT TIME ZONE 'Asia/Tehran') - interval '5 minutes', "
-                        "'YYYY-MM-DD HH24:MI:SS') AS __text "
+                        f"SELECT {WIN_FROM_MS_SQL} AS __value, "
+                        f"{WIN_FROM_MS_SQL}::text AS __text "
                         "FROM pair_trade.rotation WHERE id = $rotation;"
                     ),
                     refresh="onTimeRangeChanged",
-                    current={"text": "2026-11-08 11:56:17", "value": "2026-11-08T11:56:17"},
+                    current={"text": "1794138977000", "value": "1794138977000"},
+                    hide="hideVariable",
                 ),
                 qvar(
-                    "win_to",
-                    "Window to",
+                    "win_to_ms",
+                    "To ms",
                     (
-                        "SELECT to_char((ts AT TIME ZONE 'Asia/Tehran') + interval '10 minutes', "
-                        "'YYYY-MM-DD\"T\"HH24:MI:SS') AS __value, "
-                        "to_char((ts AT TIME ZONE 'Asia/Tehran') + interval '10 minutes', "
-                        "'YYYY-MM-DD HH24:MI:SS') AS __text "
+                        f"SELECT {WIN_TO_MS_SQL} AS __value, "
+                        f"{WIN_TO_MS_SQL}::text AS __text "
                         "FROM pair_trade.rotation WHERE id = $rotation;"
                     ),
                     refresh="onTimeRangeChanged",
-                    current={"text": "2026-11-08 12:11:17", "value": "2026-11-08T12:11:17"},
+                    current={"text": "1794139877000", "value": "1794139877000"},
+                    hide="hideVariable",
                 ),
                 {
                     "kind": "CustomVariable",
